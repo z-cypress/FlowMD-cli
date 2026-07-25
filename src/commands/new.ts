@@ -1,0 +1,172 @@
+/**
+ * FlowMD new 命令
+ * 从模板创建新的 Markdown 文档
+ */
+
+import { writeFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import chalk from 'chalk';
+import { askQuestion, confirm } from '../utils/prompt.js';
+
+const BASIC_TEMPLATE = `# {{title}}
+
+## 概述
+
+描述本文档的目的。
+
+## AI 分析
+
+\`\`\`ai {model: "gpt-4o", output: "summary"}
+分析以下内容并提供见解：
+{{content}}
+\`\`\`
+
+## 总结
+
+{{summary}}
+
+---
+*由 FlowMD 于 {{date}} 生成*
+`;
+
+const DATA_TEMPLATE = `# 数据报告
+
+## 数据收集
+
+\`\`\`data {from: "default", output: "data"}
+SELECT * FROM your_table LIMIT 10
+\`\`\`
+
+## AI 分析
+
+\`\`\`ai {model: "gpt-4o", output: "analysis"}
+分析以下数据并提供见解：
+{{data}}
+\`\`\`
+
+## 报告
+
+\`\`\`template
+## 分析结果
+
+日期：{{date}}
+
+### 数据摘要
+{{data}}
+
+### AI 分析
+{{analysis}}
+\`\`\`
+
+---
+*由 FlowMD 于 {{date}} 生成*
+`;
+
+const REPORT_TEMPLATE = `# 周报
+
+## 数据源
+
+\`\`\`data {from: "default", output: "metrics"}
+SELECT metric_name, metric_value FROM metrics WHERE date >= '{{week_start}}'
+\`\`\`
+
+## AI 摘要
+
+\`\`\`ai {model: "gpt-4o", output: "summary"}
+根据以下指标生成周报摘要：
+{{metrics}}
+\`\`\`
+
+## 报告
+
+\`\`\`template
+# 周报 ({{week_range}})
+
+## 关键指标
+{{metrics}}
+
+## 摘要
+{{summary}}
+
+---
+生成日期：{{date}}
+\`\`\`
+`;
+
+const TEMPLATES: Record<string, string> = {
+  basic: BASIC_TEMPLATE,
+  data: DATA_TEMPLATE,
+  report: REPORT_TEMPLATE,
+};
+
+/**
+ * 执行 new 命令
+ * @param name - 文档名称
+ */
+export async function newCommand(name: string): Promise<void> {
+  const filename = name.endsWith('.md') ? name : `${name}.md`;
+  const filepath = join(process.cwd(), filename);
+
+  // 检查文件是否已存在
+  if (existsSync(filepath)) {
+    const confirmed = await confirm(`文件 ${filename} 已存在，是否覆盖？`);
+    if (!confirmed) {
+      console.log(chalk.yellow('⚠ 已取消'));
+      return;
+    }
+  }
+
+  // 选择模板类型
+  const templateType = await askQuestion('选择模板 (basic/data/report) [basic]: ');
+  const template = TEMPLATES[templateType] || TEMPLATES.basic;
+
+  // 替换占位符
+  const date = new Date().toISOString().split('T')[0];
+  const content = template
+    .replace(/\{\{title\}\}/g, name.replace(/\.md$/, ''))
+    .replace(/\{\{date\}\}/g, date)
+    .replace(/\{\{content\}\}/g, '在此输入你的内容')
+    .replace(/\{\{week_start\}\}/g, getWeekStart())
+    .replace(/\{\{week_range\}\}/g, getWeekRange());
+
+  try {
+    writeFileSync(filepath, content, 'utf-8');
+    console.log(chalk.green(`✅ 已创建: ${filename}`));
+    console.log('');
+    console.log(chalk.blue('📝 下一步:'));
+    console.log(chalk.gray(`  1. 编辑 ${filename} 添加你的内容`));
+    console.log(chalk.gray(`  2. 运行 flow run ${filename} 执行`));
+    console.log(chalk.gray(`  3. 或运行 flow watch ${filename} 监听变化`));
+  } catch (error) {
+    console.error(chalk.red(`❌ 创建失败: ${error instanceof Error ? error.message : String(error)}`));
+  }
+}
+
+/**
+ * 获取当前周的开始日期（周一）
+ * @returns 周一日期字符串
+ */
+function getWeekStart(): string {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(now);
+  monday.setDate(diff);
+  return monday.toISOString().split('T')[0];
+}
+
+/**
+ * 获取当前周的日期范围（周一至周日）
+ * @returns 周日期范围字符串
+ */
+function getWeekRange(): string {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(now);
+  monday.setDate(diff);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+
+  return `${monday.toISOString().split('T')[0]} ~ ${sunday.toISOString().split('T')[0]}`;
+}

@@ -1,0 +1,46 @@
+ # FlowMD 文档
+
+ > **版本**: 0.1.0 (MVP) | **许可证**: MIT
+ >
+ > FlowMD 是一个 CLI 工具，用于执行 Markdown 文件中的特殊代码块。它支持调用 AI（LLM）、查询数据库、渲染模板，并将结果填充回文档。
+
+ ---
+
+ ## 快速导航
+
+ **开始使用**
+
+ - [安装与入门](01-getting-started.md) — 5 分钟跑通第一个文档
+ - [配置指南](02-configuration.md) — 配置 AI 提供商、数据源、模型预设和环境变量
+
+ **核心功能**
+
+ - [AI 块](blocks/01-ai.md) — 调用大语言模型（OpenAI / Anthropic）
+ - [数据块](blocks/02-data.md) — 查询 SQLite 数据库（只读）
+ - [模板块](blocks/03-template.md) — 用 Handlebars 渲染输出
+
+ **参考与示例**
+
+ - [完整示例](03-examples.md) — 从简单到复杂的实际用例
+ - [常见问题](04-faq.md) — 安装、配置、使用中的问题排查
+
+ ---
+
+ ## 项目状态
+
+ 当前为 **MVP 阶段**，已实现：
+
+ - `flowmd run` 及 `--var`/`--var-file` 变量注入
+ - `flowmd watch` 支持 `-o` 指定输出模式
+ - `flowmd init` / `flowmd new` / `flowmd config` / `flowmd doctor`
+ - AI 块支持 OpenAI、Anthropic 及命名模型预设
+ - 数据块支持 SQLite（只读查询）
+ - 模板块支持 Handlebars 及 `{{json}}` helper
+ - 系统变量：`{{date}}`、`{{datetime}}`、`{{timestamp}}`、`{{execution_time}}`
+ - 执行模式：试运行、逐步、失败即停、debug、release
+
+ **尚未实现**：MySQL/PostgreSQL 数据源、更多内置模板。
+
+ ---
+
+ [返回顶部](#flowmd-文档)
