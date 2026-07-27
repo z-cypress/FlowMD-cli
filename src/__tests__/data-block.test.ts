@@ -344,46 +344,68 @@ describe('executeDataBlock', () => {
   });
 
   describe('unsupported databases', () => {
-    it('should return error for PostgreSQL', async () => {
-      const pgDataSources: Record<string, DBConnectionConfig> = {
-        default: {
-          type: 'postgresql',
-          host: 'localhost',
-          port: 5432,
-          database: 'test',
-        },
-      };
-
+    it('should return error for unknown database type', async () => {
+      const badConfig = { type: 'mongodb' as any, database: 'test' };
       const result = await executeDataBlock(
-        'SELECT * FROM users',
+        'SELECT 1',
         {},
         context,
-        pgDataSources
+        { default: badConfig }
       );
-
       expect(result.success).toBe(false);
-      expect(result.error).toContain('尚未支持');
+      expect(result.error).toContain('不支持');
     });
 
-    it('should return error for MySQL', async () => {
+    it('should execute SELECT query on MySQL', async () => {
       const mysqlDataSources: Record<string, DBConnectionConfig> = {
         default: {
           type: 'mysql',
-          host: 'localhost',
-          port: 3306,
-          database: 'test',
+          host: process.env.FLOW_TEST_MYSQL_HOST || 'localhost',
+          port: Number(process.env.FLOW_TEST_MYSQL_PORT) || 3306,
+          user: process.env.FLOW_TEST_MYSQL_USER || 'root',
+          password: process.env.FLOW_TEST_MYSQL_PASSWORD || '',
+          database: process.env.FLOW_TEST_MYSQL_DATABASE || 'flowmd_test',
         },
       };
 
       const result = await executeDataBlock(
-        'SELECT * FROM users',
+        'SELECT * FROM users ORDER BY id',
         {},
         context,
         mysqlDataSources
       );
 
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('尚未支持');
+      expect(result.success).toBe(true);
+      const rows = JSON.parse(result.output!);
+      expect(rows).toHaveLength(2);
+      expect(rows[0].name).toBe('Alice');
+      expect(rows[1].name).toBe('Bob');
+    });
+
+    it('should execute SELECT query on PostgreSQL', async () => {
+      const pgDataSources: Record<string, DBConnectionConfig> = {
+        default: {
+          type: 'postgresql',
+          host: process.env.FLOW_TEST_PG_HOST || 'localhost',
+          port: Number(process.env.FLOW_TEST_PG_PORT) || 5432,
+          user: process.env.FLOW_TEST_PG_USER || process.env.USER || 'postgres',
+          password: process.env.FLOW_TEST_PG_PASSWORD || '',
+          database: process.env.FLOW_TEST_PG_DATABASE || 'flowmd_test',
+        },
+      };
+
+      const result = await executeDataBlock(
+        'SELECT * FROM users ORDER BY id',
+        {},
+        context,
+        pgDataSources
+      );
+
+      expect(result.success).toBe(true);
+      const rows = JSON.parse(result.output!);
+      expect(rows).toHaveLength(2);
+      expect(rows[0].name).toBe('Alice');
+      expect(rows[1].name).toBe('Bob');
     });
   });
 });

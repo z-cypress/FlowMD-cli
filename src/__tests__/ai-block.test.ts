@@ -182,4 +182,43 @@ describe('executeAIBlock', () => {
       expect(result.success).toBe(true);
     });
   });
+
+  describe('model presets', () => {
+    it('should resolve model name from presets', async () => {
+      const models = {
+        fast: { model: 'gpt-4o-mini', temperature: 0.3 },
+      };
+      const result = await executeAIBlock(
+        'Test',
+        { model: 'fast' },
+        context,
+        openaiConfig,
+        models
+      );
+      expect(result.success).toBe(true);
+    });
+
+    it('should fall back to direct model name if not in presets', async () => {
+      const models = { fast: { model: 'gpt-4o-mini' } };
+      const result = await executeAIBlock(
+        'Test',
+        { model: 'gpt-4o' },
+        context,
+        openaiConfig,
+        models
+      );
+      expect(result.success).toBe(true);
+    });
+
+    it('should handle empty models config', async () => {
+      const result = await executeAIBlock(
+        'Test',
+        { model: 'gpt-4o' },
+        context,
+        openaiConfig,
+        undefined
+      );
+      expect(result.success).toBe(true);
+    });
+  });
 });

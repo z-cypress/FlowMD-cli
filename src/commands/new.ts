@@ -93,10 +93,93 @@ SELECT metric_name, metric_value FROM metrics WHERE date >= '{{week_start}}'
 \`\`\`
 `;
 
+const MEETING_TEMPLATE = `# 会议纪要 - {{date}}
+
+## 会议信息
+
+- **主题**：{{topic}}
+- **日期**：{{date}}
+
+## 会议记录
+
+\`\`\`ai {output: "summary"}
+提取以下会议内容的关键要点：
+{{content}}
+\`\`\`
+
+## 待办事项
+
+\`\`\`ai {output: "action_items"}
+从以下会议记录中提取待办事项，每个事项格式为"负责人：任务"：
+{{summary}}
+\`\`\`
+
+## 整理
+
+\`\`\`template
+# 会议纪要
+
+## 摘要
+{{summary}}
+
+## 待办事项
+{{action_items}}
+\`\`\`
+
+{{summary}}
+
+{{action_items}}
+`;
+
+const API_TEMPLATE = `# API 文档 - {{endpoint}}
+
+## 接口描述
+
+\`\`\`ai {output: "doc"}
+为以下 API 端点生成文档：
+端点：{{endpoint}}
+方法：{{method}}
+描述：{{description}}
+\`\`\`
+
+## 文档
+
+\`\`\`template
+# {{endpoint}}
+
+{{doc}}
+\`\`\`
+
+{{doc}}
+`;
+
+const CHANGELOG_TEMPLATE = `# 更新日志 - {{date}}
+
+## 变更内容
+
+\`\`\`ai {output: "log"}
+将以下变更整理为更新日志格式：
+{{changes}}
+\`\`\`
+
+## 日志
+
+\`\`\`template
+## {{date}}
+
+{{log}}
+\`\`\`
+
+{{log}}
+`;
+
 const TEMPLATES: Record<string, string> = {
   basic: BASIC_TEMPLATE,
   data: DATA_TEMPLATE,
   report: REPORT_TEMPLATE,
+  meeting: MEETING_TEMPLATE,
+  api: API_TEMPLATE,
+  changelog: CHANGELOG_TEMPLATE,
 };
 
 /**
@@ -117,7 +200,7 @@ export async function newCommand(name: string): Promise<void> {
   }
 
   // 选择模板类型
-  const templateType = await askQuestion('选择模板 (basic/data/report) [basic]: ');
+  const templateType = await askQuestion('选择模板 (basic/data/report/meeting/api/changelog) [basic]: ');
   const template = TEMPLATES[templateType] || TEMPLATES.basic;
 
   // 替换占位符

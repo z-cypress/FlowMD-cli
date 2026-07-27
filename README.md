@@ -1,4 +1,4 @@
- # FlowMD
+ # FlowMD-cli
 
  把 Markdown 变成可执行文件——用写文档的方式驱动 AI 工作流。
 
@@ -195,9 +195,9 @@ export OPENAI_API_KEY="sk-xxxxxxxx"
 
  ## 项目状态
 
- **MVP 阶段**。已实现：八个命令（run/watch/init/new/config/doctor）、AI 块（OpenAI + Anthropic）、数据块（SQLite 只读）、模板块（Handlebars + json helper）、变量上下文（date/datetime/timestamp）、--var/--var-file 变量注入、试运行/逐步/失败即停/release 模式。
+ **MVP 阶段**。已实现：八个命令（run/watch/init/new/config/doctor）、AI 块（OpenAI + Anthropic + 模型预设）、数据块（SQLite/MySQL/PostgreSQL）、模板块（Handlebars + json helper）、变量上下文、--var/--var-file（含 .env）、试运行/逐步/失败即停/release 模式。
 
- **规划中**：MySQL/PostgreSQL、更多内置模板。
+ **规划中**：错误信息改进、交互式初始化。
 
  ## 许可证
 

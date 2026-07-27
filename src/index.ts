@@ -169,9 +169,22 @@ program
   .description('Watch file and re-execute on changes')
   .argument('<file>', 'Markdown file to watch')
   .option('-o, --output <mode>', 'Output mode: inline | new | stdout', 'new')
-  .action(async (file: string, options: { output: string }) => {
+  .option('-d, --dry-run', 'Dry run mode, skip execution', false)
+  .option('-s, --step', 'Step mode, wait for user input between blocks', false)
+  .option('-f, --fail-fast', 'Stop on first error', false)
+  .option('--debug', 'Debug mode, show execution results', false)
+  .option('--release', 'Release mode, remove all code blocks from output', false)
+  .action(async (file: string, options: { output: string; dryRun: boolean; step: boolean; failFast: boolean; debug: boolean; release: boolean }) => {
     try {
-      await watchCommand(file, options.output);
+      await watchCommand(file, {
+        output: options.output as 'inline' | 'new' | 'stdout',
+        dryRun: options.dryRun,
+        stepMode: options.step,
+        failFast: options.failFast,
+        debug: options.debug,
+        release: options.release,
+        varArgs: {},
+      });
     } catch (error) {
       console.error(chalk.red(`❌ 监听失败: ${error instanceof Error ? error.message : String(error)}`));
       process.exit(1);

@@ -1,0 +1,18 @@
+# Source
+src/
+tsconfig.json
+
+# Tests
+test-data/
+
+# Docs
+docs/
+note/
+
+# Dev config
+AGENTS.md
+.gitignore
+.npmignore
+
+# CI
+.github/

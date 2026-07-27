@@ -92,16 +92,55 @@
 
  ### 数据源配置 (`dataSources`)
 
- MVP 阶段仅支持 SQLite：
+ 支持以下数据库类型：
+
+ | 类型 | `type` 值 | 依赖 | 配置说明 |
+ |------|----------|------|----------|
+ | SQLite | `sqlite` | `better-sqlite3`（内置） | 只需文件路径 |
+ | MySQL | `mysql` | `mysql2`（需安装） | 需连接信息 |
+ | PostgreSQL | `postgresql` | `pg`（需安装） | 需连接信息 |
+
+ SQLite 示例：
 
  ```yaml
  dataSources:
-   default:                   # 数据源名称，在 data 块中用 from 引用
+   default:
      type: sqlite
-     filename: "./data.db"    # SQLite 数据库文件路径
+     filename: "./data.db"
  ```
 
- MySQL 和 PostgreSQL 支持将在后续版本添加。
+ MySQL 示例：
+
+ ```yaml
+ dataSources:
+   mydb:
+     type: mysql
+     host: localhost
+     port: 3306
+     user: root
+     password: "your_password"
+     database: myapp
+ ```
+
+ PostgreSQL 示例：
+
+ ```yaml
+ dataSources:
+   mydb:
+     type: postgresql
+     host: localhost
+     port: 5432
+     user: postgres
+     password: "your_password"
+     database: myapp
+ ```
+
+ 注意：MySQL 和 PostgreSQL 需要先安装对应依赖：
+
+ ```bash
+ pnpm add mysql2      # MySQL
+ pnpm add pg          # PostgreSQL
+ ```
 
  ### 凭据管理
 

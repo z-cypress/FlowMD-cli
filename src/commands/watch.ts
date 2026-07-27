@@ -22,17 +22,31 @@ let pendingExecution = false;
  * 执行 watch 命令
  * @param file - 要监听的 Markdown 文件
  */
-export async function watchCommand(file: string, outputMode: string = 'new'): Promise<void> {
+export async function watchCommand(file: string, opts?: Partial<RunOptions> | string): Promise<void> {
   const config: FlowConfig = loadConfig();
-  const runOptions: RunOptions = {
-    output: outputMode as 'inline' | 'new' | 'stdout',
-    dryRun: false,
-    stepMode: false,
-    failFast: false,
-    debug: false,
-    release: false,
-    varArgs: {},
-  };
+  // 兼容旧的字符串参数
+  let runOptions: RunOptions;
+  if (typeof opts === 'string' || opts === undefined) {
+    runOptions = {
+      output: (opts || 'new') as 'inline' | 'new' | 'stdout',
+      dryRun: false,
+      stepMode: false,
+      failFast: false,
+      debug: false,
+      release: false,
+      varArgs: {},
+    };
+  } else {
+    runOptions = {
+      output: opts.output || 'new',
+      dryRun: opts.dryRun || false,
+      stepMode: opts.stepMode || false,
+      failFast: opts.failFast || false,
+      debug: opts.debug || false,
+      release: opts.release || false,
+      varArgs: opts.varArgs || {},
+    };
+  }
 
   // 初始执行
   console.log(chalk.blue('🚀 FlowMD 开始监听'));

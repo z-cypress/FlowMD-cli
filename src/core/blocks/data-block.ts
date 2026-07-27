@@ -85,12 +85,15 @@ export async function executeDataBlock(
 
     if (sourceConfig.type === 'sqlite') {
       rows = executeSQLite(sql, sourceConfig);
+    } else if (sourceConfig.type === 'mysql') {
+      rows = await executeMySQL(sql, sourceConfig);
+    } else if (sourceConfig.type === 'postgresql') {
+      rows = await executePostgreSQL(sql, sourceConfig);
     } else {
-      // PostgreSQL 和 MySQL 在 MVP 中未实现
       return {
         success: false,
         output: null,
-        error: `${sourceConfig.type} 尚未支持，仅支持 SQLite`,
+        error: `不支持的数据库类型: ${sourceConfig.type}`,
         duration: Date.now() - startTime,
       };
     }
@@ -181,5 +184,66 @@ function executeSQLite(sql: string, config: DBConnectionConfig): unknown[] {
     return rows;
   } finally {
     db.close();
+  }
+}
+
+/**
+ * 执行 MySQL 查询（异步，通过 mysql2 动态导入）
+ * @param sql - SQL 查询语句
+ * @param config - 数据库连接配置
+ * @returns 查询结果行
+ */
+async function executeMySQL(sql: string, config: DBConnectionConfig): Promise<unknown[]> {
+  let mysql: any;
+  try {
+    mysql = await import('mysql2/promise');
+  } catch {
+    throw new Error('需要安装 mysql2 包：pnpm add mysql2');
+  }
+
+  const connection = await mysql.createConnection({
+    host: config.host || 'localhost',
+    port: config.port ?? 3306,
+    user: config.user,
+    password: config.password,
+    database: config.database,
+  });
+
+  try {
+    const [rows] = await connection.execute(sql);
+    return rows as unknown[];
+  } finally {
+    await connection.end();
+  }
+}
+
+/**
+ * 执行 PostgreSQL 查询（异步，通过 pg 动态导入）
+ * @param sql - SQL 查询语句
+ * @param config - 数据库连接配置
+ * @returns 查询结果行
+ */
+async function executePostgreSQL(sql: string, config: DBConnectionConfig): Promise<unknown[]> {
+  let pg: any;
+  try {
+    pg = await import('pg');
+  } catch {
+    throw new Error('需要安装 pg 包：pnpm add pg');
+  }
+
+  const client = new pg.Client({
+    host: config.host || 'localhost',
+    port: config.port ?? 5432,
+    user: config.user,
+    password: config.password,
+    database: config.database,
+  });
+
+  try {
+    await client.connect();
+    const result = await client.query(sql);
+    return result.rows as unknown[];
+  } finally {
+    await client.end();
   }
 }

@@ -346,4 +346,30 @@ describe('executeDocument', () => {
       expect(result).toContain('Date: 2026-01-01');
     });
   });
+
+  describe('pre-execution validation', () => {
+    it('should warn about blocks without output', async () => {
+      const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const doc = makeDoc([makeBlock('template', 'test', {})]);
+      doc.rawContent = '```template\ntest\n```';
+      doc.variables = [];
+
+      await executeDocument(doc, { ...defaultOptions, stepMode: false }, defaultConfig);
+      expect(spy).toHaveBeenCalledWith(expect.stringContaining('output 参数'));
+      spy.mockRestore();
+    });
+
+    it('should warn about undefined variables', async () => {
+      const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const doc = makeDoc([makeBlock('template', '{{missing}}', { output: 'x' })]);
+      doc.rawContent = '{{missing}}';
+      doc.variables = ['missing'];
+
+      await executeDocument(doc, { ...defaultOptions }, defaultConfig);
+      expect(spy).toHaveBeenCalledWith(expect.stringContaining('变量被引用'));
+      spy.mockRestore();
+    });
+  });
+
+
 });

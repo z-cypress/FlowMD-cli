@@ -108,11 +108,33 @@ export async function executeDocument(
   if (options.varFile) {
     try {
       const fs = await import('node:fs');
-      const { parse: parseYaml } = await import('yaml');
       const raw = fs.readFileSync(options.varFile, 'utf-8');
-      const parsed = options.varFile.endsWith('.json')
-        ? JSON.parse(raw)
-        : parseYaml(raw);
+      let parsed: Record<string, unknown>;
+
+      if (options.varFile.endsWith('.json')) {
+        parsed = JSON.parse(raw);
+      } else if (options.varFile.endsWith('.env')) {
+        // 解析 .env 格式：KEY=value，支持注释和空行
+        parsed = {};
+        for (const line of raw.split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//')) continue;
+          const eqIdx = trimmed.indexOf('=');
+          if (eqIdx > 0) {
+            const k = trimmed.slice(0, eqIdx).trim();
+            let v: string = trimmed.slice(eqIdx + 1).trim();
+            // 移除可选引号
+            if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+              v = v.slice(1, -1);
+            }
+            parsed[k] = v;
+          }
+        }
+      } else {
+        // 默认 YAML
+        const { parse: parseYaml } = await import('yaml');
+        parsed = parseYaml(raw) as Record<string, unknown>;
+      }
       if (parsed && typeof parsed === 'object') {
         for (const [k, v] of Object.entries(parsed)) {
           context.set(k, v);
