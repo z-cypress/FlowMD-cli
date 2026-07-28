@@ -90,7 +90,7 @@ program
   .option('--debug', 'Debug mode, show execution results', false)
   .option('--release', 'Release mode, remove all code blocks from output', false)
   .option('--var <key=value>', 'Inject variable (can be used multiple times)', collectVarArgs, [])
-  .option('--var-file <path>', 'Variable file in YAML or JSON format')
+  .option('--var-file <path>', 'Variable file in YAML, JSON, or .env format')
   .action(async (file: string, options: { output: string; dryRun: boolean; step: boolean; stepMode: boolean; failFast: boolean; debug: boolean; release: boolean; var: string[]; varFile: string }) => {
     try {
       // Read content: 从文件或 stdin

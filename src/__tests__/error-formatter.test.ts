@@ -117,3 +117,80 @@ describe('formatError', () => {
     expect(result.message).toContain('AI 块执行');
   });
 });
+
+describe('formatError - MySQL errors', () => {
+  it('should format ER_ACCESS_DENIED_ERROR', () => {
+    const error = Object.assign(new Error('Access denied'), { code: 'ER_ACCESS_DENIED_ERROR' });
+    const result = formatError(error);
+    expect(result.message).toContain('数据库连接拒绝');
+    expect(result.suggestion).toContain('密码');
+    expect(result.code).toBe('DB_AUTH_ERROR');
+  });
+
+  it('should format ER_BAD_DB_ERROR', () => {
+    const error = Object.assign(new Error('Unknown database'), { code: 'ER_BAD_DB_ERROR' });
+    const result = formatError(error);
+    expect(result.message).toContain('数据库不存在');
+    expect(result.code).toBe('DB_NOT_FOUND');
+  });
+
+  it('should format ER_PARSE_ERROR', () => {
+    const error = Object.assign(new Error('SQL syntax error'), { code: 'ER_PARSE_ERROR' });
+    const result = formatError(error);
+    expect(result.message).toContain('SQL 语法错误');
+    expect(result.code).toBe('SQL_ERROR');
+  });
+
+  it('should format ER_NO_SUCH_TABLE', () => {
+    const error = Object.assign(new Error("Table 'test.xyz' doesn't exist"), { code: 'ER_NO_SUCH_TABLE' });
+    const result = formatError(error);
+    expect(result.message).toContain('表不存在');
+    expect(result.code).toBe('DB_TABLE_NOT_FOUND');
+  });
+
+  it('should format ER_DUP_ENTRY', () => {
+    const error = Object.assign(new Error('Duplicate entry'), { code: 'ER_DUP_ENTRY' });
+    const result = formatError(error);
+    expect(result.message).toContain('数据重复');
+    expect(result.code).toBe('DB_DUPLICATE');
+  });
+});
+
+describe('formatError - PostgreSQL errors', () => {
+  it('should format 28P01 (auth failure)', () => {
+    const error = Object.assign(new Error('password authentication failed'), { code: '28P01' });
+    const result = formatError(error);
+    expect(result.message).toContain('数据库认证失败');
+    expect(result.suggestion).toContain('密码');
+    expect(result.code).toBe('DB_AUTH_ERROR');
+  });
+
+  it('should format 3D000 (database not found)', () => {
+    const error = Object.assign(new Error('database "test" does not exist'), { code: '3D000' });
+    const result = formatError(error);
+    expect(result.message).toContain('数据库不存在');
+    expect(result.code).toBe('DB_NOT_FOUND');
+  });
+
+  it('should format 42P01 (table not found)', () => {
+    const error = Object.assign(new Error('relation "users" does not exist'), { code: '42P01' });
+    const result = formatError(error);
+    expect(result.message).toContain('表不存在');
+    expect(result.code).toBe('DB_TABLE_NOT_FOUND');
+  });
+
+  it('should format 42601 (syntax error)', () => {
+    const error = Object.assign(new Error('syntax error at or near'), { code: '42601' });
+    const result = formatError(error);
+    expect(result.message).toContain('SQL 语法错误');
+    expect(result.code).toBe('SQL_ERROR');
+  });
+
+  it('should format 08001 (connection error)', () => {
+    const error = Object.assign(new Error('could not connect to server'), { code: '08001' });
+    const result = formatError(error);
+    expect(result.message).toContain('数据库连接失败');
+    expect(result.suggestion).toContain('服务是否运行');
+    expect(result.code).toBe('DB_CONNECTION_ERROR');
+  });
+});

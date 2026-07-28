@@ -66,13 +66,98 @@ export function formatError(error: unknown, context?: string): FormattedError {
     };
   }
 
-  // SQL 错误（检查结构化属性和消息）
+  // MySQL 错误
+  if (errorCode === 'ER_ACCESS_DENIED_ERROR' || errorMessage.includes('ER_ACCESS_DENIED_ERROR') || errorCode === '1045') {
+    return {
+      message: context ? `${context}: 数据库连接拒绝` : '数据库连接拒绝',
+      suggestion: '请检查数据库用户名和密码',
+      code: 'DB_AUTH_ERROR',
+    };
+  }
+  if (errorCode === 'ER_BAD_DB_ERROR' || errorMessage.includes('ER_BAD_DB_ERROR') || errorCode === '1049') {
+    return {
+      message: context ? `${context}: 数据库不存在` : '数据库不存在',
+      suggestion: '请检查数据库名称是否正确',
+      code: 'DB_NOT_FOUND',
+    };
+  }
+  if (errorCode === 'ER_PARSE_ERROR' || errorMessage.includes('ER_PARSE_ERROR') || errorCode === '1064') {
+    return {
+      message: context ? `${context}: SQL 语法错误` : 'SQL 语法错误',
+      suggestion: '请检查 SQL 语法',
+      code: 'SQL_ERROR',
+    };
+  }
+  if (errorCode === 'ER_NO_SUCH_TABLE' || errorMessage.includes('ER_NO_SUCH_TABLE') || errorCode === '1146') {
+    return {
+      message: context ? `${context}: 表不存在` : '表不存在',
+      suggestion: '请检查表名是否正确',
+      code: 'DB_TABLE_NOT_FOUND',
+    };
+  }
+  if (errorCode === 'ER_DUP_ENTRY' || errorMessage.includes('ER_DUP_ENTRY') || errorCode === '1062') {
+    return {
+      message: context ? `${context}: 数据重复` : '数据重复',
+      suggestion: '请检查数据是否已存在',
+      code: 'DB_DUPLICATE',
+    };
+  }
+
+  // PostgreSQL 错误
+  if (errorCode === '28P01') {
+    return {
+      message: context ? `${context}: 数据库认证失败` : '数据库认证失败',
+      suggestion: '请检查数据库用户名和密码',
+      code: 'DB_AUTH_ERROR',
+    };
+  }
+  if (errorCode === '3D000') {
+    return {
+      message: context ? `${context}: 数据库不存在` : '数据库不存在',
+      suggestion: '请检查数据库名称是否正确',
+      code: 'DB_NOT_FOUND',
+    };
+  }
+  if (errorCode === '42P01') {
+    return {
+      message: context ? `${context}: 表不存在` : '表不存在',
+      suggestion: '请检查表名是否正确',
+      code: 'DB_TABLE_NOT_FOUND',
+    };
+  }
+  if (errorCode === '42601') {
+    return {
+      message: context ? `${context}: SQL 语法错误` : 'SQL 语法错误',
+      suggestion: '请检查 SQL 语法',
+      code: 'SQL_ERROR',
+    };
+  }
+  if (errorCode === '08001') {
+    return {
+      message: context ? `${context}: 数据库连接失败` : '数据库连接失败',
+      suggestion: '请检查数据库服务是否运行',
+      code: 'DB_CONNECTION_ERROR',
+    };
+  }
+
+  // SQLite 错误 + 通用 SQL 错误
   if (errorCode === 'SQLITE_ERROR' || errorCode === 'SQLITE_CANTOPEN' ||
       errorMessage.includes('SQLITE_') || errorMessage.includes('syntax error')) {
     return {
       message: context ? `${context}: SQL 查询错误` : `SQL 查询错误: ${errorMessage}`,
       suggestion: '请检查 SQL 语法',
       code: 'SQL_ERROR',
+    };
+  }
+
+  // 通用数据库错误兜底
+  if (errorMessage.includes('connection') || errorMessage.includes('database') ||
+      errorMessage.includes('table') || errorMessage.includes('sql') ||
+      errorMessage.includes('SQL')) {
+    return {
+      message: context ? `${context}: 数据库错误` : `数据库错误: ${errorMessage}`,
+      suggestion: '请检查数据库配置',
+      code: 'DB_ERROR',
     };
   }
 

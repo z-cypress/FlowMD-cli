@@ -4,7 +4,7 @@
 
  数据块连接数据库执行 SELECT 查询，将结果存入变量上下文。查询结果是以 JSON 数组格式存储的行数据，可以被后续的 AI 块或模板块使用。
 
- > **MVP 限制**：当前仅支持 **SQLite**。MySQL 和 PostgreSQL 支持将在后续版本添加。
+ > FlowMD 支持 **SQLite**、**MySQL** 和 **PostgreSQL** 三种数据库。SQLite 无需额外安装；MySQL 需安装 `mysql2`；PostgreSQL 需安装 `pg`。
 
  ## 语法
 
@@ -54,9 +54,27 @@
    analytics:
      type: sqlite
      filename: "./analytics.db"
- ```
 
- 然后在 data 块中用 `from` 指定：
+  ```yaml
+  dataSources:
+    mysql_db:
+      type: mysql
+      host: localhost
+      port: 3306
+      user: root
+      password: "{{DB_PASSWORD}}"
+      database: mydb
+
+    pg_db:
+      type: postgresql
+      host: localhost
+      port: 5432
+      user: postgres
+      password: "{{DB_PASSWORD}}"
+      database: mydb
+  ```
+
+  然后在 data 块中用 `from` 指定：
 
  ````markdown
  ```data {from: "analytics", output: "metrics"}

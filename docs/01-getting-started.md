@@ -66,7 +66,7 @@
  flowmd new hello
  ```
 
- 这会创建一个 `hello.md` 文件，包含 AI 块的基本模板：
+ 这会创建一个 `hello.md` 文件，包含 AI 块的基本模板。更多模板：flowmd new -- -t data（数据报告）、report（周报）、meeting（会议纪要）、api（API 文档）、changelog（更新日志）。
 
  ````markdown
  # hello

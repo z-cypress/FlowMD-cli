@@ -22,7 +22,7 @@
  |--------|------|------|
  | 1（最高） | `--var` 命令行参数 | `flowmd run doc.md --var name=张三` |
  | 2 | 块 `output` | 执行时 `{output: "name"}` 定义的变量 |
- | 3 | `--var-file` 文件 | 从 YAML/JSON 文件注入 |
+ | 3 | `--var-file` 文件 | 从 YAML/JSON/.env 文件注入 |
  | 4 | 环境变量 | `export FLOW_VAR_name=张三` |
  | 5 | 项目 `.flow/config.yml` 的 `variables` | 配置文件中的自定义变量 |
  | 6 | 全局 `~/.flow/config.yml` 的 `variables` | 用户级别默认值 |
@@ -257,7 +257,7 @@
  # 多个变量
  flowmd run doc.md --var name=张三 --var project=FlowMD
 
- # 从文件注入（YAML 或 JSON）
+ # 从文件注入（YAML、JSON 或 .env）
  flowmd run doc.md --var-file vars.yml
  ```
 

@@ -48,6 +48,13 @@ vi.mock('ora', () => ({
   })),
 }));
 
+// Mock fs for varFile tests
+const mockReadFileSync = vi.hoisted(() => vi.fn());
+vi.mock('node:fs', () => ({
+  readFileSync: mockReadFileSync,
+  default: {},
+}));
+
 // Import after mocks
 const { executeDocument } = await import('../core/executor.js');
 const { executeAIBlock } = await import('../core/blocks/ai-block.js');
@@ -344,6 +351,42 @@ describe('executeDocument', () => {
         defaultConfig
       );
       expect(result).toContain('Date: 2026-01-01');
+    });
+  });
+
+  describe('varFile .env format', () => {
+    it('should parse .env format in --var-file', async () => {
+      mockReadFileSync.mockReturnValue(
+        'NAME=FlowMD\nVERSION=1.0.0\n# comment\nDB_HOST=localhost\nDB_PORT=5432\n'
+      );
+
+      const doc = makeDoc([makeBlock('template', 'App: {{NAME}}-{{VERSION}}, DB: {{DB_HOST}}:{{DB_PORT}}')]);
+      doc.rawContent = 'App: {{NAME}}-{{VERSION}}, DB: {{DB_HOST}}:{{DB_PORT}}';
+      doc.variables = ['NAME', 'VERSION', 'DB_HOST', 'DB_PORT'];
+
+      const result = await executeDocument(
+        doc,
+        { ...defaultOptions, varFile: '/path/to/config.env' },
+        defaultConfig
+      );
+      expect(result).toContain('App: FlowMD-1.0.0, DB: localhost:5432');
+    });
+
+    it('should handle KEY=VALUE pairs with quotes in var-file', async () => {
+      mockReadFileSync.mockReturnValue(
+        'TITLE="Hello World"\nGREETING=\'Hi there\'\nNUMBER=42\n'
+      );
+
+      const doc = makeDoc([makeBlock('template', '{{TITLE}} - {{GREETING}} - {{NUMBER}}')]);
+      doc.rawContent = '{{TITLE}} - {{GREETING}} - {{NUMBER}}';
+      doc.variables = ['TITLE', 'GREETING', 'NUMBER'];
+
+      const result = await executeDocument(
+        doc,
+        { ...defaultOptions, varFile: '/path/to/config.env' },
+        defaultConfig
+      );
+      expect(result).toContain('Hello World - Hi there - 42');
     });
   });
 

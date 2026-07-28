@@ -27,7 +27,6 @@
   "engines": {
     "node": ">=18"
   },
-  "packageManager": "pnpm@11.17.0",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.113.0",
     "better-sqlite3": "^13.0.1",

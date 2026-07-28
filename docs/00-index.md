@@ -16,7 +16,7 @@
  **核心功能**
 
  - [AI 块](blocks/01-ai.md) — 调用大语言模型（OpenAI / Anthropic）
- - [数据块](blocks/02-data.md) — 查询 SQLite 数据库（只读）
+ - [数据块](blocks/02-data.md) — 查询 SQLite / MySQL / PostgreSQL 数据库（只读）
  - [模板块](blocks/03-template.md) — 用 Handlebars 渲染输出
 
  **参考与示例**
@@ -31,15 +31,14 @@
  当前为 **MVP 阶段**，已实现：
 
  - `flowmd run` 及 `--var`/`--var-file` 变量注入
- - `flowmd watch` 支持 `-o` 指定输出模式
+ - `flowmd watch` 支持 `-o`、`-s`、`--debug`、`--release`
  - `flowmd init` / `flowmd new` / `flowmd config` / `flowmd doctor`
  - AI 块支持 OpenAI、Anthropic 及命名模型预设
- - 数据块支持 SQLite（只读查询）
+ - 数据块支持 SQLite / MySQL / PostgreSQL（只读查询）
  - 模板块支持 Handlebars 及 `{{json}}` helper
  - 系统变量：`{{date}}`、`{{datetime}}`、`{{timestamp}}`、`{{execution_time}}`
  - 执行模式：试运行、逐步、失败即停、debug、release
 
- **尚未实现**：MySQL/PostgreSQL 数据源、更多内置模板。
 
  ---
 
