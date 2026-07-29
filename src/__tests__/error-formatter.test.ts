@@ -194,3 +194,17 @@ describe('formatError - PostgreSQL errors', () => {
     expect(result.code).toBe('DB_CONNECTION_ERROR');
   });
 });
+
+describe('formatError - PostgreSQL message fallbacks', () => {
+  it('should match PG auth error by message when code missing', () => {
+    const error = new Error('password authentication failed for user "test"');
+    const result = formatError(error);
+    expect(result.code).toBe('DB_AUTH_ERROR');
+  });
+
+  it('should match PG table error by message when code missing', () => {
+    const error = new Error('relation "users" does not exist');
+    const result = formatError(error);
+    expect(result.code).toBe('DB_TABLE_NOT_FOUND');
+  });
+});

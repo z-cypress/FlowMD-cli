@@ -103,39 +103,39 @@ export function formatError(error: unknown, context?: string): FormattedError {
     };
   }
 
-  // PostgreSQL 错误
-  if (errorCode === '28P01') {
+  // PostgreSQL 错误（先按代码匹配，再按消息内容兜底）
+  if (errorCode === '28P01' || errorMessage.includes('28P01') || errorMessage.includes('password authentication failed')) {
     return {
       message: context ? `${context}: 数据库认证失败` : '数据库认证失败',
-      suggestion: '请检查数据库用户名和密码',
+      suggestion: '请检查 PostgreSQL 用户名和密码',
       code: 'DB_AUTH_ERROR',
     };
   }
-  if (errorCode === '3D000') {
+  if (errorCode === '3D000' || errorMessage.includes('3D000') || (errorMessage.includes('does not exist') && errorMessage.includes('database'))) {
     return {
       message: context ? `${context}: 数据库不存在` : '数据库不存在',
-      suggestion: '请检查数据库名称是否正确',
+      suggestion: '请检查 PostgreSQL 数据库名称是否正确',
       code: 'DB_NOT_FOUND',
     };
   }
-  if (errorCode === '42P01') {
+  if (errorCode === '42P01' || errorMessage.includes('42P01') || (errorMessage.includes('relation') && errorMessage.includes('does not exist'))) {
     return {
       message: context ? `${context}: 表不存在` : '表不存在',
       suggestion: '请检查表名是否正确',
       code: 'DB_TABLE_NOT_FOUND',
     };
   }
-  if (errorCode === '42601') {
+  if (errorCode === '42601' || errorMessage.includes('42601')) {
     return {
       message: context ? `${context}: SQL 语法错误` : 'SQL 语法错误',
       suggestion: '请检查 SQL 语法',
       code: 'SQL_ERROR',
     };
   }
-  if (errorCode === '08001') {
+  if (errorCode === '08001' || errorMessage.includes('08001')) {
     return {
       message: context ? `${context}: 数据库连接失败` : '数据库连接失败',
-      suggestion: '请检查数据库服务是否运行',
+      suggestion: '请检查 PostgreSQL 服务是否运行',
       code: 'DB_CONNECTION_ERROR',
     };
   }
