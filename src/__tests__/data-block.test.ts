@@ -356,7 +356,7 @@ describe('executeDataBlock', () => {
       expect(result.error).toContain('不支持');
     });
 
-    it('should execute SELECT query on MySQL', async () => {
+    it.skip('should execute SELECT query on MySQL (requires local MySQL)', async () => {
       const mysqlDataSources: Record<string, DBConnectionConfig> = {
         default: {
           type: 'mysql',
@@ -382,7 +382,7 @@ describe('executeDataBlock', () => {
       expect(rows[1].name).toBe('Bob');
     });
 
-    it('should execute SELECT query on PostgreSQL', async () => {
+    it.skip('should execute SELECT query on PostgreSQL (requires local PostgreSQL)', async () => {
       const pgDataSources: Record<string, DBConnectionConfig> = {
         default: {
           type: 'postgresql',

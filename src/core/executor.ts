@@ -242,15 +242,15 @@ export async function executeDocument(
     }
 
     // 显示加载动画（带实时耗时）
-    const spinner = ora({
+    const spinner = !options.quiet ? ora({
       text: `${emoji} ${blockNum} ${block.type} 块执行中...`,
       color: 'cyan',
-    }).start();
+    }).start() : null;
 
     const startTime = Date.now();
     const elapsedInterval = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTime) / 1000);
-      spinner.text = `${emoji} ${blockNum} ${block.type} 块执行中... (已等待 ${elapsed}s)`;
+      if (spinner) spinner.text = `${emoji} ${blockNum} ${block.type} 块执行中... (已等待 ${elapsed}s)`;
     }, 1000);
 
     try {
@@ -279,7 +279,9 @@ export async function executeDocument(
       clearInterval(elapsedInterval);
 
       if (result.success) {
-        spinner.succeed(`${emoji} ${blockNum} ${block.type} 块 - 完成 (${(result.duration / 1000).toFixed(1)}s)`);
+        if (spinner) {
+          spinner.succeed(`${emoji} ${blockNum} ${block.type} 块 - 完成 (${(result.duration / 1000).toFixed(1)}s)`);
+        }
 
         // step 模式：打印执行结果
         if (options.stepMode && result.output !== null) {
@@ -298,8 +300,13 @@ export async function executeDocument(
           });
         }
       } else {
-        spinner.fail(`${emoji} ${blockNum} ${block.type} 块 - 失败`);
-        console.error(chalk.red(`   错误: ${result.error}`));
+        if (spinner) {
+          spinner.fail(`${emoji} ${blockNum} ${block.type} 块 - 失败`);
+        } else {
+          // quiet 模式：只用一行输出错误
+          process.stderr.write(`${emoji} ${blockNum} ${block.type} 块失败: ${result.error}
+`);
+        }
         hasError = true;
 
         // 记录失败块的输出变量名
@@ -314,8 +321,11 @@ export async function executeDocument(
       }
     } catch (error) {
       clearInterval(elapsedInterval);
-      spinner.fail(`${emoji} ${blockNum} ${block.type} 块 - 异常`);
-      console.error(chalk.red(`   错误: ${getErrorMessage(error)}`));
+      if (spinner) {
+        spinner.fail(`${emoji} ${blockNum} ${block.type} 块 - 异常`);
+      }
+      process.stderr.write(`${emoji} ${blockNum} ${block.type} 块异常: ${getErrorMessage(error)}
+`);
       hasError = true;
 
       if (block.meta.output) {
@@ -387,7 +397,7 @@ function stripCodeBlocks(content: string): string {
  * 在循环外统一输出失败信息（避免重复代码）
  */
 function spinnerFail(blockNum: string, emoji: string, type: string, message: string): void {
-  console.log(`${emoji} ${blockNum} ${type} 块 - ${message}`);
+  // 在 quiet 模式下也不打印跳过信息
 }
 
 /**

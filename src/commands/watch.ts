@@ -34,6 +34,7 @@ export async function watchCommand(file: string, opts?: Partial<RunOptions> | st
       failFast: false,
       debug: false,
       release: false,
+      quiet: false,
       varArgs: {},
     };
   } else {
@@ -44,6 +45,7 @@ export async function watchCommand(file: string, opts?: Partial<RunOptions> | st
       failFast: opts.failFast || false,
       debug: opts.debug || false,
       release: opts.release || false,
+      quiet: opts.quiet || false,
       varArgs: opts.varArgs || {},
     };
   }

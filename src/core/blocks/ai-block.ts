@@ -17,6 +17,8 @@ interface AIBlockConfig {
   output?: string;
   /** 温度参数（可选） */
   temperature?: number;
+  /** 最大输出 Token 数（可选） */
+  max_tokens?: number;
 }
 
 /** 客户端缓存键 */
@@ -88,6 +90,7 @@ export async function executeAIBlock(
       if (preset.provider) resolvedConfig.provider = preset.provider;
       if (preset.model) resolvedConfig.model = preset.model;
       if (preset.temperature !== undefined) resolvedConfig.temperature = preset.temperature;
+      if ((preset as any).max_tokens !== undefined) (config as any).max_tokens = (preset as any).max_tokens;
       if (preset.baseURL) resolvedConfig.baseURL = preset.baseURL;
       // 预设切换了提供商时，解析对应的 API Key
       if (preset.provider && preset.provider !== llmConfig.provider) {
@@ -165,9 +168,14 @@ async function callOpenAI(
     ? parseFloat(config.temperature) 
     : (config.temperature ?? llmConfig.temperature ?? 0.7);
 
+  const maxTokens = typeof config.max_tokens === 'string'
+    ? parseInt(config.max_tokens, 10)
+    : config.max_tokens;
+
   const response = await client.chat.completions.create({
     model: config.model || llmConfig.model,
     temperature: temperature,
+    max_tokens: maxTokens,
     messages: [{ role: 'user', content: prompt }],
   });
 
@@ -193,9 +201,13 @@ async function callAnthropic(
     ? parseFloat(config.temperature) 
     : (config.temperature ?? llmConfig.temperature ?? 0.7);
 
+  const maxTokens = typeof config.max_tokens === 'string'
+    ? parseInt(config.max_tokens, 10)
+    : (config.max_tokens ?? 4096);
+
   const response = await client.messages.create({
     model: config.model || llmConfig.model,
-    max_tokens: 4096,
+    max_tokens: maxTokens,
     temperature: temperature,
     messages: [{ role: 'user', content: prompt }],
   });

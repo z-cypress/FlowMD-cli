@@ -41,16 +41,21 @@ llm:
 
 /**
  * 执行 init 命令
+ * @param force - 是否强制覆盖
  */
-export async function initCommand(): Promise<void> {
+export async function initCommand(force?: boolean): Promise<void> {
   const flowDir = join(process.cwd(), '.flow');
 
   // 检查 .flow 目录是否已存在
   if (existsSync(flowDir)) {
-    const confirmed = await confirm('.flow/ 目录已存在，是否覆盖？');
-    if (!confirmed) {
-      console.log(chalk.yellow('⚠ 已取消'));
-      return;
+    if (force) {
+      console.log(chalk.yellow('⚠ 覆盖已有配置'));
+    } else {
+      const confirmed = await confirm('.flow/ 目录已存在，是否覆盖？');
+      if (!confirmed) {
+        console.log(chalk.yellow('⚠ 已取消'));
+        return;
+      }
     }
   }
 

@@ -53,6 +53,8 @@ export interface RunOptions {
   debug: boolean;
   /** release 模式，执行后移除所有指令块，仅保留渲染结果 */
   release: boolean;
+  /** quiet 模式，抑制进度输出 */
+  quiet: boolean;
   /** 命令行注入的变量键值对 */
   varArgs: Record<string, string>;
   /** 变量文件路径（YAML/JSON） */

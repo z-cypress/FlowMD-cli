@@ -173,6 +173,15 @@ const CHANGELOG_TEMPLATE = `# 更新日志 - {{date}}
 {{log}}
 `;
 
+const TEMPLATE_DESCS: Record<string, string> = {
+  basic: '基础 AI 模板',
+  data: '数据报告模板',
+  report: '周报模板',
+  meeting: '会议纪要模板',
+  api: 'API 文档模板',
+  changelog: '更新日志模板',
+};
+
 const TEMPLATES: Record<string, string> = {
   basic: BASIC_TEMPLATE,
   data: DATA_TEMPLATE,
@@ -185,22 +194,42 @@ const TEMPLATES: Record<string, string> = {
 /**
  * 执行 new 命令
  * @param name - 文档名称
+ * @param opts - 选项：template, list, force
  */
-export async function newCommand(name: string): Promise<void> {
+export async function newCommand(name: string, opts: { template?: string; list?: boolean; force?: boolean } = {}): Promise<void> {
+  // --list 模式：列出可用模板
+  if (opts.list) {
+    console.log(chalk.blue('\n可用模板：\n'));
+    for (const [key, _value] of Object.entries(TEMPLATES)) {
+      const desc = TEMPLATE_DESCS[key] || '';
+      console.log(chalk.gray(`  ${key.padEnd(12)} ${desc}`));
+    }
+    console.log('');
+    console.log(chalk.gray('使用: flowmd new <name> --template <模板名>'));
+    return;
+  }
+
   const filename = name.endsWith('.md') ? name : `${name}.md`;
   const filepath = join(process.cwd(), filename);
 
   // 检查文件是否已存在
   if (existsSync(filepath)) {
-    const confirmed = await confirm(`文件 ${filename} 已存在，是否覆盖？`);
-    if (!confirmed) {
-      console.log(chalk.yellow('⚠ 已取消'));
-      return;
+    if (opts.force) {
+      console.log(chalk.yellow(`⚠ 覆盖已有文件: ${filename}`));
+    } else {
+      const confirmed = await confirm(`文件 ${filename} 已存在，是否覆盖？`);
+      if (!confirmed) {
+        console.log(chalk.yellow('⚠ 已取消'));
+        return;
+      }
     }
   }
 
   // 选择模板类型
-  const templateType = await askQuestion('选择模板 (basic/data/report/meeting/api/changelog) [basic]: ');
+  let templateType = opts.template;
+  if (!templateType) {
+    templateType = await askQuestion('选择模板 (basic/data/report/meeting/api/changelog) [basic]: ');
+  }
   const template = TEMPLATES[templateType] || TEMPLATES.basic;
 
   // 替换占位符

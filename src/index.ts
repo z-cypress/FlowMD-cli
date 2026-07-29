@@ -89,9 +89,10 @@ program
   .option('-f, --fail-fast', 'Stop on first error', false)
   .option('--debug', 'Debug mode, show execution results', false)
   .option('--release', 'Release mode, remove all code blocks from output', false)
+  .option('-q, --quiet', 'Quiet mode, suppress progress output', false)
   .option('--var <key=value>', 'Inject variable (can be used multiple times)', collectVarArgs, [])
   .option('--var-file <path>', 'Variable file in YAML, JSON, or .env format')
-  .action(async (file: string, options: { output: string; dryRun: boolean; step: boolean; stepMode: boolean; failFast: boolean; debug: boolean; release: boolean; var: string[]; varFile: string }) => {
+  .action(async (file: string, options: { output: string; dryRun: boolean; step: boolean; stepMode: boolean; failFast: boolean; debug: boolean; release: boolean; quiet: boolean; var: string[]; varFile: string }) => {
     try {
       // Read content: 从文件或 stdin
       let content: string;
@@ -120,27 +121,30 @@ program
         failFast: options.failFast,
         debug: options.debug,
         release: options.release,
+        quiet: options.quiet,
         varArgs: parseVarArgs(options.var || []),
         varFile: options.varFile,
       };
 
-      console.log(chalk.blue('🚀 FlowMD 开始执行'));
-      console.log(chalk.gray(`📄 文件: ${file || 'stdin'}`));
-      console.log(chalk.gray(`📦 找到 ${doc.blocks.length} 个代码块`));
-      console.log('');
+      if (!runOptions.quiet) {
+        console.log(chalk.blue('🚀 FlowMD 开始执行'));
+        console.log(chalk.gray(`📄 文件: ${file || 'stdin'}`));
+        console.log(chalk.gray(`📦 找到 ${doc.blocks.length} 个代码块`));
+        console.log('');
+      }
 
       // Execute document
       const result = await executeDocument(doc, runOptions, config);
 
       // dry-run 模式不写入文件
       if (runOptions.dryRun) {
-        console.log(chalk.gray('🔍 试运行完成，未写入任何文件'));
+        if (!runOptions.quiet) console.log(chalk.gray('🔍 试运行完成，未写入任何文件'));
         return;
       }
 
       // Handle output
       if (runOptions.output === 'stdout') {
-        console.log('');
+        if (!runOptions.quiet) console.log('');
         console.log(result);
       } else if (runOptions.output === 'inline') {
         writeFileSync(file, result, 'utf-8');
@@ -157,7 +161,7 @@ program
         console.log(chalk.green(`✅ 已写入新文件: ${newFile}`));
       }
 
-      console.log(chalk.green('✨ 执行完成'));
+      if (!runOptions.quiet) console.log(chalk.green('✨ 执行完成'));
     } catch (error) {
       console.error(chalk.red(`❌ 执行失败: ${error instanceof Error ? error.message : String(error)}`));
       process.exit(1);
@@ -174,6 +178,7 @@ program
   .option('-f, --fail-fast', 'Stop on first error', false)
   .option('--debug', 'Debug mode, show execution results', false)
   .option('--release', 'Release mode, remove all code blocks from output', false)
+  .option('-q, --quiet', 'Quiet mode, suppress progress output', false)
   .action(async (file: string, options: { output: string; dryRun: boolean; step: boolean; failFast: boolean; debug: boolean; release: boolean }) => {
     try {
       await watchCommand(file, {
@@ -194,9 +199,10 @@ program
 program
   .command('init')
   .description('Create .flow/ config directory')
-  .action(async () => {
+  .option('-f, --force', 'Overwrite existing config without confirmation')
+  .action(async (options: { force?: boolean }) => {
     try {
-      await initCommand();
+      await initCommand(options.force);
     } catch (error) {
       console.error(chalk.red(`❌ 初始化失败: ${error instanceof Error ? error.message : String(error)}`));
       process.exit(1);
@@ -207,9 +213,12 @@ program
   .command('new')
   .description('Create new document from template')
   .argument('<name>', 'Document name')
-  .action(async (name: string) => {
+  .option('-l, --list', 'List available templates')
+  .option('-t, --template <name>', 'Template name (basic/data/report/meeting/api/changelog)')
+  .option('-f, --force', 'Overwrite existing file without confirmation')
+  .action(async (name: string, options: { list?: boolean; template?: string; force?: boolean }) => {
     try {
-      await newCommand(name);
+      await newCommand(name, options);
     } catch (error) {
       console.error(chalk.red(`❌ 创建失败: ${error instanceof Error ? error.message : String(error)}`));
       process.exit(1);

@@ -4,7 +4,7 @@
 
 FlowMD is a CLI tool that executes special code blocks in Markdown files. It parses `.md` files containing `ai`, `data`, and `template` blocks, executes them in sequence, and outputs the rendered result.
 
-**Status**: MVP complete — all core features implemented, 128 unit tests passing, full documentation in `docs/`.
+**Status**: v0.1.0 — 162 tests passing. SQLite/MySQL/PostgreSQL support. Full documentation in `docs/`.
 
 ## Tech Stack
 
@@ -39,7 +39,7 @@ flowmd doctor         # Environment diagnosis
 | Command | Options | Status |
 |---------|---------|--------|
 | `run <file>` | `-o` (inline/new/stdout), `-d`, `-s`, `-f`, `--debug`, `--release`, `--var`, `--var-file` | ✅ |
-| `watch <file>` | `-o` (inline/new/stdout) | ✅ |
+| `watch <file>` | `-o`, `-d`, `-s`, `-f`, `--debug`, `--release` | ✅ |
 | `init` | — | ✅ |
 | `new <name>` | basic/data/report templates | ✅ |
 | `config [key]` | `--set <value>` | ✅ |
@@ -116,7 +116,7 @@ src/
 │   ├── logger.ts           # Terminal output
 │   ├── prompt.ts           # User input
 │   └── error-formatter.ts  # Error formatting
-└── __tests__/              # 8 test files, 128 tests
+└── __tests__/              # 10 test files, 162 tests
 ```
 
 ## Configuration Priority
@@ -133,8 +133,9 @@ CLI args > Env vars / `.env` > Project `.flow/config.yml` > Global `~/.flow/conf
 
 ## Known Gaps
 
-- MySQL/PostgreSQL not implemented
-- No template gallery beyond basic/data/report
+- No template gallery beyond basic/data/report/meeting/api/changelog
+- No English localization for CLI output
+- CI not verified on GitHub
 
 ## Reference
 
