@@ -5,10 +5,14 @@
 
 import ora from 'ora';
 import chalk from 'chalk';
+import path from 'node:path';
+import { readFileSync } from 'node:fs';
+import { parse as parseYaml } from 'yaml';
 import { ExecutionContext } from './context.js';
 import { executeAIBlock } from './blocks/ai-block.js';
 import { executeDataBlock } from './blocks/data-block.js';
 import { executeTemplateBlock } from './blocks/template-block.js';
+import { parseMarkdown } from './parser.js';
 import { getErrorMessage } from '../utils/error-formatter.js';
 import type { ParsedDocument, RunOptions, FlowConfig, BlockResult } from '../types/index.js';
 
@@ -17,6 +21,7 @@ const BLOCK_EMOJI: Record<string, string> = {
   ai: '🤖',
   data: '🗄️',
   template: '🎨',
+  include: '📥',
 };
 
 /** 块执行结果（带偏移量信息） */
@@ -150,6 +155,33 @@ export async function executeDocument(
     }
   }
 
+  // 预展开 .md include 块：将 include 块替换为被引入文件的块
+  const visitedPaths = new Set<string>();
+  let includeExpandIdx = 0;
+  while (includeExpandIdx < doc.blocks.length) {
+    const block = doc.blocks[includeExpandIdx];
+    if (block.type === 'include') {
+      const includePath = block.meta.path;
+      if (includePath) {
+        const ext = path.extname(includePath).toLowerCase();
+        if (ext === '.md') {
+          const resolvedPath = resolveIncludePath(includePath, options.currentFile);
+          validateIncludePath(resolvedPath, visitedPaths, ext);
+          visitedPaths.add(resolvedPath);
+
+          const raw = readFileSync(resolvedPath, 'utf-8');
+          const subDoc = parseMarkdown(raw);
+
+          doc.rawContent += '\n' + subDoc.rawContent;
+
+          doc.blocks.splice(includeExpandIdx, 1, ...subDoc.blocks);
+          continue;
+        }
+      }
+    }
+    includeExpandIdx++;
+  }
+
   const totalBlocks = doc.blocks.length;
   const insertResults: BlockInsertResult[] = [];
   const failedOutputs = new Set<string>();
@@ -265,6 +297,28 @@ export async function executeDocument(
             return executeDataBlock(block.content, block.meta, context, config.dataSources);
           case 'template':
             return executeTemplateBlock(block.content, block.meta, context);
+          case 'include': {
+            const includePath = block.meta.path;
+            if (!includePath) {
+              return { success: false, output: null, error: 'include 块缺少 path 参数', duration: Date.now() - startTime };
+            }
+            const ext = path.extname(includePath).toLowerCase();
+            if (ext === '.yaml' || ext === '.yml') {
+              try {
+                const resolvedPath = resolveIncludePath(includePath, options.currentFile);
+                validateIncludePath(resolvedPath, visitedPaths, ext);
+                const raw = readFileSync(resolvedPath, 'utf-8');
+                const parsed = parseYaml(raw) as Record<string, unknown>;
+                for (const [k, v] of Object.entries(parsed)) {
+                  context.set(k, v);
+                }
+                return { success: true, output: null, duration: Date.now() - startTime };
+              } catch (err) {
+                return { success: false, output: null, error: `YAML include 失败: ${getErrorMessage(err)}`, duration: Date.now() - startTime };
+              }
+            }
+            return { success: false, output: null, error: `不支持的 include 文件类型: ${ext}`, duration: Date.now() - startTime };
+          }
           default:
             return {
               success: false,
@@ -387,7 +441,7 @@ export async function executeDocument(
 function stripCodeBlocks(content: string): string {
   // 匹配 ```ai/data/template 代码块（含可选元数据），包括前后的空行
   const blockPattern = new RegExp(
-    '```(?:ai|data|template)\\s*(?:\\{[^}]*\\})?\\s*\\n[\\s\\S]*?\\n```\\s*\\n*',
+    '```(?:ai|data|template|include)\\s*(?:\\{[^}]*\\})?\\s*\\n[\\s\\S]*?\\n```\\s*\\n*',
     'g'
   );
   return content.replace(blockPattern, '');
@@ -414,6 +468,42 @@ function insertResult(content: string, sourceEnd: number, result: string): strin
   const resultBlock = `\n\n> 📋 执行结果：\n> \n> ${result.split('\n').join('\n> ')}\n`;
 
   return before + resultBlock + after;
+}
+
+/**
+ * 解析 include 路径
+ * @param includePath - include 块中的 path 参数
+ * @param currentFile - 当前执行文件路径
+ * @returns 解析后的绝对路径
+ */
+function resolveIncludePath(includePath: string, currentFile?: string): string {
+  if (path.isAbsolute(includePath)) {
+    return includePath;
+  }
+  const baseDir = currentFile ? path.dirname(currentFile) : process.cwd();
+  return path.resolve(baseDir, includePath);
+}
+
+/**
+ * 验证 include 路径的安全性
+ * 检查：扩展名白名单、循环引用、路径越界
+ */
+function validateIncludePath(
+  resolvedPath: string,
+  visitedPaths: Set<string>,
+  ext: string
+): void {
+  if (ext !== '.md' && ext !== '.yaml' && ext !== '.yml') {
+    throw new Error(`不支持的 include 文件类型: ${ext}，仅支持 .md / .yaml / .yml`);
+  }
+
+  if (!resolvedPath.startsWith(process.cwd())) {
+    throw new Error(`include 路径越界: ${resolvedPath}（仅允许项目目录内的文件）`);
+  }
+
+  if (visitedPaths.has(resolvedPath)) {
+    throw new Error(`循环引用 detected: ${resolvedPath}`);
+  }
 }
 
 /**

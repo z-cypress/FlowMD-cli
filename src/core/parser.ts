@@ -9,7 +9,7 @@ import { visit } from 'unist-util-visit';
 import type { ParsedDocument, ExecutableBlock, BlockType } from '../types/index.js';
 
 /** 支持的代码块类型列表 */
-const BLOCK_TYPES: BlockType[] = ['ai', 'data', 'template'];
+const BLOCK_TYPES: BlockType[] = ['ai', 'data', 'template', 'include'];
 
 /**
  * 解析 Markdown 内容，提取可执行块

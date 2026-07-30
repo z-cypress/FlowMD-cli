@@ -124,6 +124,7 @@ program
         quiet: options.quiet,
         varArgs: parseVarArgs(options.var || []),
         varFile: options.varFile,
+        currentFile: file || undefined,
       };
 
       if (!runOptions.quiet) {

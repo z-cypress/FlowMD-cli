@@ -123,6 +123,7 @@ async function executeFile(
     console.log('');
 
     const startTime = Date.now();
+    options.currentFile = file;
     const result = await executeDocument(doc, options, config);
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 

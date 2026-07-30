@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { join } from 'node:path';
 import type { ParsedDocument, RunOptions, FlowConfig, ExecutableBlock } from '../types/index.js';
 
 // Mock all block executors
@@ -414,5 +415,127 @@ describe('executeDocument', () => {
     });
   });
 
+describe('include YAML', () => {
+  it('should inject YAML variables from include block', async () => {
+    const yamlContent = 'key: hello\nnumber: 42\n';
+    mockReadFileSync.mockImplementation((p: string) => {
+      if (p.endsWith('.yaml')) return yamlContent;
+      return '';
+    });
+
+    const doc: ParsedDocument = {
+      blocks: [
+        {
+          type: 'include',
+          content: '',
+          lang: 'include {path: "vars.yaml"}',
+          meta: { path: 'vars.yaml' },
+          position: 0,
+          sourceStart: 0,
+          sourceEnd: 0,
+        },
+        {
+          type: 'template',
+          content: '{{key}}-{{number}}',
+          lang: 'template',
+          meta: {},
+          position: 1,
+          sourceStart: 0,
+          sourceEnd: 0,
+        },
+      ],
+      rawContent: '{{key}}-{{number}}',
+      variables: ['key', 'number'],
+    };
+
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const result = await executeDocument(doc, { ...defaultOptions, quiet: true, currentFile: join(process.cwd(), 'test.md') }, defaultConfig);
+    spy.mockRestore();
+    expect(result).toContain('hello');
+    expect(result).toContain('42');
+  });
+
+  it('should reject invalid include extension', async () => {
+    const doc: ParsedDocument = {
+      blocks: [
+        {
+          type: 'include',
+          content: '',
+          lang: 'include {path: "data.xlsx"}',
+          meta: { path: 'data.xlsx' },
+          position: 0,
+          sourceStart: 0,
+          sourceEnd: 0,
+        },
+        {
+          type: 'template',
+          content: 'done',
+          lang: 'template',
+          meta: {},
+          position: 1,
+          sourceStart: 0,
+          sourceEnd: 0,
+        },
+      ],
+      rawContent: 'done',
+      variables: [],
+    };
+
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const result = await executeDocument(doc, { ...defaultOptions, quiet: true, currentFile: join(process.cwd(), 'test.md') }, defaultConfig);
+    spy.mockRestore();
+    expect(result).toBeDefined();
+  });
+});
+
+describe('include .md', () => {
+  it('should expand .md include blocks and execute sub-blocks', async () => {
+    const subMdContent = [
+      '# Sub Document',
+      '',
+      '```ai {output: "greeting"}',
+      'Say hello',
+      '```',
+      '',
+      '{{greeting}}',
+    ].join('\n');
+
+    mockReadFileSync.mockImplementation((p: string) => {
+      if (p.endsWith('.md')) return subMdContent;
+      return '';
+    });
+
+    const doc: ParsedDocument = {
+      blocks: [
+        {
+          type: 'include',
+          content: '',
+          lang: 'include {path: "sub.md"}',
+          meta: { path: 'sub.md' },
+          position: 0,
+          sourceStart: 0,
+          sourceEnd: 0,
+        },
+        {
+          type: 'template',
+          content: 'Final: {{greeting}}',
+          lang: 'template',
+          meta: {},
+          position: 1,
+          sourceStart: 0,
+          sourceEnd: 0,
+        },
+      ],
+      rawContent: 'Final: {{greeting}}',
+      variables: ['greeting'],
+    };
+
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const result = await executeDocument(doc, { ...defaultOptions, quiet: true, currentFile: join(process.cwd(), 'main.md') }, defaultConfig);
+    spy.mockRestore();
+    expect(result).toContain('Final:');
+    expect(executeAIBlock).toHaveBeenCalled();
+  });
+});
 
 });

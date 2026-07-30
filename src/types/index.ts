@@ -3,7 +3,7 @@
  */
 
 /** 代码块类型标识符 */
-export type BlockType = 'ai' | 'data' | 'template';
+export type BlockType = 'ai' | 'data' | 'template' | 'include';
 
 /**
  * 从 Markdown 中提取的可执行代码块
@@ -59,6 +59,8 @@ export interface RunOptions {
   varArgs: Record<string, string>;
   /** 变量文件路径（YAML/JSON） */
   varFile?: string;
+  /** 当前执行文件路径（用于 include 相对路径解析） */
+  currentFile?: string;
 }
 
 /**

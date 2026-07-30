@@ -127,6 +127,34 @@ describe('parseMarkdown', () => {
     });
   });
 
+  describe('include blocks', () => {
+    it('should recognize include blocks', () => {
+      const content = 'Before\n\n```include {path: "./target.md"}\n```\n\nAfter';
+      const doc = parseMarkdown(content);
+
+      expect(doc.blocks).toHaveLength(1);
+      expect(doc.blocks[0].type).toBe('include');
+      expect(doc.blocks[0].meta.path).toBe('./target.md');
+    });
+
+    it('should preserve raw content with include blocks', () => {
+      const content = '# Doc\n\n```include {path: "./shared.md"}\n```';
+      const doc = parseMarkdown(content);
+
+      expect(doc.rawContent).toBe(content);
+    });
+
+    it('should handle include blocks with no content', () => {
+      // include blocks typically have empty content (just path in meta)
+      const content = '```include {path: "./vars.yaml"}\n```';
+      const doc = parseMarkdown(content);
+
+      expect(doc.blocks).toHaveLength(1);
+      expect(doc.blocks[0].type).toBe('include');
+      expect(doc.blocks[0].content).toBe('');
+    });
+  });
+
   describe('edge cases', () => {
     it('should handle empty content', () => {
       const doc = parseMarkdown('');
