@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [22, 24]
+        node-version: [20, 22]
 
     services:
       mysql:
@@ -53,17 +53,15 @@ jobs:
       FLOW_TEST_PG_DATABASE: flowmd_test
 
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v2
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
         with:
           version: 11
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-      - run: pnpm --version && node --version && ls -la pnpm-lock.yaml && head -3 pnpm-lock.yaml
-      - run: pnpm install 2>&1 || true
-      - run: pnpm install --no-frozen-lockfile 2>&1 || true
-      - run: npm install 2>&1 | tail -5 || true
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - run: mysql -h127.0.0.1 -uroot -proot flowmd_test -e "CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255), email VARCHAR(255)); INSERT IGNORE INTO users (name, email) VALUES ('Alice', 'alice@example.com'), ('Bob', 'bob@example.com');"
       - run: PGPASSWORD=postgres psql -h127.0.0.1 -Upostgres flowmd_test -c "CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, name VARCHAR(255), email VARCHAR(255)); INSERT INTO users (name, email) VALUES ('Alice', 'alice@example.com'), ('Bob', 'bob@example.com') ON CONFLICT DO NOTHING;"
       - run: pnpm typecheck

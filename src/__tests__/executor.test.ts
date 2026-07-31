@@ -102,6 +102,7 @@ const defaultOptions: RunOptions = {
 describe('executeDocument', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.exitCode = 0;
   });
 
   describe('basic execution', () => {
@@ -535,6 +536,96 @@ describe('include .md', () => {
     spy.mockRestore();
     expect(result).toContain('Final:');
     expect(executeAIBlock).toHaveBeenCalled();
+  });
+});
+
+describe('error recovery', () => {
+  it('should continue executing independent blocks when one fails', async () => {
+    vi.mocked(executeAIBlock)
+      .mockResolvedValueOnce({
+        success: false,
+        output: null,
+        error: 'API limit',
+        duration: 100,
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        output: 'independent',
+        duration: 100,
+      });
+
+    const doc = makeDoc([
+      makeBlock('ai', 'Fail block', { output: 'failed' }),
+      makeBlock('ai', 'Independent block', { output: 'ok' }),
+    ]);
+
+    await executeDocument(doc, { ...defaultOptions, quiet: true }, defaultConfig);
+    expect(executeAIBlock).toHaveBeenCalledTimes(2);
+  });
+
+  it('should skip blocks that depend on failed outputs', async () => {
+    vi.mocked(executeAIBlock).mockResolvedValueOnce({
+      success: false,
+      output: null,
+      error: 'API limit',
+      duration: 100,
+    });
+
+    const doc = makeDoc([
+      makeBlock('ai', 'Fail block', { output: 'data' }),
+      makeBlock('template', 'Dependent: {{data}}'),
+    ]);
+
+    await executeDocument(doc, { ...defaultOptions, quiet: true }, defaultConfig);
+    expect(executeAIBlock).toHaveBeenCalledTimes(1);
+  });
+
+  it('should set exit code 1 when a block fails', async () => {
+    vi.mocked(executeAIBlock).mockResolvedValueOnce({
+      success: false,
+      output: null,
+      error: 'API limit',
+      duration: 100,
+    });
+
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const doc = makeDoc([makeBlock('ai', 'Fail block', { output: 'x' })]);
+
+    await executeDocument(doc, { ...defaultOptions, quiet: true }, defaultConfig);
+    spy.mockRestore();
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('should not set exit code when all blocks succeed', async () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const doc = makeDoc([makeBlock('ai', 'OK block', { output: 'x' })]);
+
+    await executeDocument(doc, { ...defaultOptions, quiet: true }, defaultConfig);
+    spy.mockRestore();
+    expect(process.exitCode).toBe(0);
+  });
+
+  it('should print failure summary with failed block info', async () => {
+    vi.mocked(executeAIBlock).mockResolvedValueOnce({
+      success: false,
+      output: null,
+      error: 'API limit',
+      duration: 100,
+    });
+
+    const logCalls: string[] = [];
+    const spy = vi.spyOn(console, 'log').mockImplementation((...args) => {
+      logCalls.push(args.join(' '));
+    });
+    const doc = makeDoc([makeBlock('ai', 'Fail block', { output: 'x' })]);
+
+    await executeDocument(doc, { ...defaultOptions }, defaultConfig);
+    spy.mockRestore();
+
+    const summary = logCalls.find((c) => c.includes('执行完成'));
+    expect(summary).toBeDefined();
+    expect(summary).toContain('0/1');
+    expect(summary).toContain('失败');
   });
 });
 

@@ -185,6 +185,7 @@ export async function executeDocument(
   const totalBlocks = doc.blocks.length;
   const insertResults: BlockInsertResult[] = [];
   const failedOutputs = new Set<string>();
+  const failedBlocks: Array<{ position: number; type: string; error: string }> = [];
   let hasError = false;
 
   // 排除 template 块内的变量（Handlebars 循环变量如 {{name}} 不需要顶层定义）
@@ -362,6 +363,7 @@ export async function executeDocument(
 `);
         }
         hasError = true;
+        failedBlocks.push({ position: i + 1, type: block.type, error: result.error || '未知错误' });
 
         // 记录失败块的输出变量名
         if (block.meta.output) {
@@ -381,6 +383,7 @@ export async function executeDocument(
       process.stderr.write(`${emoji} ${blockNum} ${block.type} 块异常: ${getErrorMessage(error)}
 `);
       hasError = true;
+      failedBlocks.push({ position: i + 1, type: block.type, error: getErrorMessage(error) });
 
       if (block.meta.output) {
         failedOutputs.add(block.meta.output);
@@ -391,6 +394,25 @@ export async function executeDocument(
         break;
       }
     }
+  }
+
+  // 错误恢复汇总：输出成功/失败块统计，有失败时设置退出码
+  if (!options.quiet && !options.dryRun) {
+    const successCount = totalBlocks - failedBlocks.length;
+    if (failedBlocks.length > 0) {
+      console.log('');
+      console.log(chalk.yellow(`⚠️  执行完成: ${successCount}/${totalBlocks} 块成功, ${failedBlocks.length} 块失败`));
+      for (const f of failedBlocks) {
+        console.log(chalk.yellow(`   - [${f.position}] ${f.type} 块: ${f.error}`));
+      }
+    } else {
+      console.log('');
+      console.log(chalk.green(`✅ 执行完成: ${successCount}/${totalBlocks} 块全部成功`));
+    }
+  }
+
+  if (hasError) {
+    process.exitCode = 1;
   }
 
   // 按偏移量倒序插入结果，避免偏移量失效

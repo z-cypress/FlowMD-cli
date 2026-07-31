@@ -27,6 +27,7 @@
   "engines": {
     "node": ">=18"
   },
+  "packageManager": "pnpm@11.17.0",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.113.0",
     "better-sqlite3": "^13.0.1",
@@ -35,14 +36,16 @@
     "commander": "^15.0.0",
     "dotenv": "^17.4.2",
     "handlebars": "^4.7.9",
-    "mysql2": "^3.23.1",
     "openai": "^6.48.0",
     "ora": "^9.4.1",
-    "pg": "^8.22.0",
     "remark-parse": "^11.0.0",
     "unified": "^11.0.5",
     "unist-util-visit": "^5.1.0",
     "yaml": "^2.9.0"
+  },
+  "optionalDependencies": {
+    "mysql2": "^3.23.1",
+    "pg": "^8.22.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
