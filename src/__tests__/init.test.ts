@@ -3,7 +3,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { existsSync, readFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, mkdirSync, rmSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { initCommand } from '../commands/init.js';
 
@@ -22,11 +23,13 @@ vi.mock('node:fs', async () => {
 });
 
 describe('initCommand', () => {
-  const flowDir = join(process.cwd(), '.flow');
-  const configPath = join(flowDir, 'config.yml');
-  const credentialsPath = join(flowDir, 'credentials.yml.example');
-  const historyDir = join(flowDir, 'history');
-  const gitignorePath = join(process.cwd(), '.gitignore');
+  let flowDir: string;
+  let configPath: string;
+  let credentialsPath: string;
+  let historyDir: string;
+  let gitignorePath: string;
+  const originalCwd = process.cwd();
+  let tempDir: string;
 
   function cleanUp(): void {
     if (existsSync(flowDir)) {
@@ -39,12 +42,21 @@ describe('initCommand', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    tempDir = mkdtempSync(join(tmpdir(), 'flowmd-init-test-'));
+    process.chdir(tempDir);
+    flowDir = join(process.cwd(), '.flow');
+    configPath = join(flowDir, 'config.yml');
+    credentialsPath = join(flowDir, 'credentials.yml.example');
+    historyDir = join(flowDir, 'history');
+    gitignorePath = join(process.cwd(), '.gitignore');
     cleanUp();
     mockConfirm.mockResolvedValue(true);
   });
 
   afterEach(() => {
     cleanUp();
+    process.chdir(originalCwd);
+    rmSync(tempDir, { recursive: true, force: true });
   });
 
   it('should create .flow directory with config files', async () => {

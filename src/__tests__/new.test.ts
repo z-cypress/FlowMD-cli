@@ -3,7 +3,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { newCommand } from '../commands/new.js';
 
@@ -24,21 +25,22 @@ vi.mock('node:fs', async () => {
 });
 
 describe('newCommand', () => {
-  const filepath = join(process.cwd(), 'test-doc.md');
+  let filepath: string;
+  const originalCwd = process.cwd();
+  let tempDir: string;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    tempDir = mkdtempSync(join(tmpdir(), 'flowmd-new-test-'));
+    process.chdir(tempDir);
+    filepath = join(process.cwd(), 'test-doc.md');
     mockConfirm.mockResolvedValue(true);
     mockAskQuestion.mockResolvedValue('basic');
-    if (existsSync(filepath)) {
-      unlinkSync(filepath);
-    }
   });
 
   afterEach(() => {
-    if (existsSync(filepath)) {
-      unlinkSync(filepath);
-    }
+    process.chdir(originalCwd);
+    rmSync(tempDir, { recursive: true, force: true });
   });
 
   it('should create a markdown file with basic template', async () => {

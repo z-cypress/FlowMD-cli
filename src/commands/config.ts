@@ -9,8 +9,12 @@ import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import chalk from 'chalk';
 import { loadConfig } from '../utils/config.js';
 
-const CONFIG_PATH = join(process.cwd(), '.flow', 'config.yml');
-
+/**
+ * 获取配置文件的路径（惰性计算，便于测试时切换工作目录）
+ */
+function getConfigPath(): string {
+  return join(process.cwd(), '.flow', 'config.yml');
+}
 /**
  * 获取嵌套键的值（如 "llm.model" 对应 config.llm.model）
  */
@@ -45,10 +49,11 @@ function setNested(obj: Record<string, unknown>, path: string, value: unknown): 
  * 加载配置文件内容为对象
  */
 function loadConfigFile(): Record<string, unknown> {
-  if (!existsSync(CONFIG_PATH)) {
+  const configPath = getConfigPath();
+  if (!existsSync(configPath)) {
     return {};
   }
-  const raw = readFileSync(CONFIG_PATH, 'utf-8');
+  const raw = readFileSync(configPath, 'utf-8');
   try {
     return parseYaml(raw) as Record<string, unknown>;
   } catch {
@@ -62,7 +67,7 @@ function loadConfigFile(): Record<string, unknown> {
 function saveConfigFile(data: Record<string, unknown>): void {
   mkdirSync(join(process.cwd(), '.flow'), { recursive: true });
   const yaml = stringifyYaml(data, { lineWidth: 120 });
-  writeFileSync(CONFIG_PATH, yaml, 'utf-8');
+  writeFileSync(getConfigPath(), yaml, 'utf-8');
 }
 
 /**

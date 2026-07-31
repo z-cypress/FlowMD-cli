@@ -3,14 +3,17 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { existsSync, unlinkSync, mkdirSync, rmSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, readFileSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { configGet, configSet } from '../commands/config.js';
 
 describe('config command', () => {
-  const configDir = join(process.cwd(), '.flow');
-  const configPath = join(configDir, 'config.yml');
+  let configDir: string;
+  let configPath: string;
+  const originalCwd = process.cwd();
+  let tempDir: string;
 
   function readConfig(): Record<string, unknown> {
     if (!existsSync(configPath)) return {};
@@ -18,15 +21,18 @@ describe('config command', () => {
   }
 
   beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'flowmd-config-test-'));
+    process.chdir(tempDir);
+    configDir = join(process.cwd(), '.flow');
+    configPath = join(configDir, 'config.yml');
     if (!existsSync(configDir)) {
       mkdirSync(configDir, { recursive: true });
     }
   });
 
   afterEach(() => {
-    if (existsSync(configPath)) {
-      unlinkSync(configPath);
-    }
+    process.chdir(originalCwd);
+    rmSync(tempDir, { recursive: true, force: true });
   });
 
   it('should set and persist a string value', () => {
