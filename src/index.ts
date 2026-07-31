@@ -180,7 +180,9 @@ program
   .option('--debug', 'Debug mode, show execution results', false)
   .option('--release', 'Release mode, remove all code blocks from output', false)
   .option('-q, --quiet', 'Quiet mode, suppress progress output', false)
-  .action(async (file: string, options: { output: string; dryRun: boolean; step: boolean; failFast: boolean; debug: boolean; release: boolean }) => {
+  .option('--var <key=value>', 'Inject variable (can be used multiple times)', collectVarArgs, [])
+  .option('--var-file <path>', 'Variable file in YAML, JSON, or .env format')
+  .action(async (file: string, options: { output: string; dryRun: boolean; step: boolean; failFast: boolean; debug: boolean; release: boolean; quiet: boolean; var: string[]; varFile: string }) => {
     try {
       await watchCommand(file, {
         output: options.output as 'inline' | 'new' | 'stdout',
@@ -189,7 +191,9 @@ program
         failFast: options.failFast,
         debug: options.debug,
         release: options.release,
-        varArgs: {},
+        quiet: options.quiet,
+        varArgs: parseVarArgs(options.var || []),
+        varFile: options.varFile,
       });
     } catch (error) {
       console.error(chalk.red(`❌ 监听失败: ${error instanceof Error ? error.message : String(error)}`));

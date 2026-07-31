@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { existsSync, unlinkSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, unlinkSync, mkdirSync, rmSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { configGet, configSet } from '../commands/config.js';
@@ -39,6 +39,20 @@ describe('config command', () => {
     configSet('llm.temperature', '0.5');
     const cfg = readConfig();
     expect((cfg.llm as Record<string, unknown>).temperature).toBe(0.5);
+  });
+
+  it('should set and persist a negative number value', () => {
+    configSet('execution.timeout', '-5');
+    const cfg = readConfig();
+    expect((cfg.execution as Record<string, unknown>).timeout).toBe(-5);
+  });
+
+  it('should create .flow directory when missing', () => {
+    if (existsSync(configDir)) {
+      rmSync(configDir, { recursive: true, force: true });
+    }
+    configSet('llm.model', 'gpt-4o');
+    expect(existsSync(configPath)).toBe(true);
   });
 
   it('should set and persist a boolean value (true)', () => {

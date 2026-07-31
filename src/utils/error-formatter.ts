@@ -217,9 +217,12 @@ export function getErrorMessage(error: unknown): string {
  */
 function sanitizeMessage(message: string): string {
   let result = message;
-  // API Key: sk-xxx, anthropic-xxx 等
+  // API Key: sk-xxx, sk-ant-xxx, anthropic-xxx 等
   result = result.replace(/sk-[a-zA-Z0-9]{20,}/g, 'sk-***');
+  result = result.replace(/sk-ant-[a-zA-Z0-9-]{20,}/g, 'sk-ant-***');
   result = result.replace(/anthropic-[a-zA-Z0-9]{20,}/g, 'anthropic-***');
+  // 通用兜底：任意 32+ 位长 token
+  result = result.replace(/[a-zA-Z0-9_-]{32,}/g, '***');
   // 密码字段
   result = result.replace(/password=[^\s&"']+/gi, 'password=***');
   // 连接字符串中的密码

@@ -129,6 +129,20 @@ describe('watchCommand', () => {
     expect(callArg.stepMode).toBe(true);
   });
 
+  it('should pass varArgs to executeDocument', async () => {
+    await watchCommand('test.md', { output: 'stdout', varArgs: { name: 'FlowMD' } });
+
+    const callArg = mockExecuteDocument.mock.calls[0][1];
+    expect(callArg.varArgs).toEqual({ name: 'FlowMD' });
+  });
+
+  it('should pass varFile to executeDocument', async () => {
+    await watchCommand('test.md', { output: 'stdout', varFile: '/path/to/vars.env' });
+
+    const callArg = mockExecuteDocument.mock.calls[0][1];
+    expect(callArg.varFile).toBe('/path/to/vars.env');
+  });
+
   it('should handle file read errors gracefully', async () => {
     mockReadFileSync.mockImplementationOnce(() => {
       throw new Error('ENOENT: no such file');

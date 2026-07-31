@@ -37,6 +37,20 @@ describe('sanitizeMessage', () => {
     expect(result).toContain('anthropic-***');
   });
 
+  it('should redact sk-ant- prefixed Anthropic keys', () => {
+    const msg = 'Invalid key: sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij';
+    const result = getErrorMessage(new Error(msg));
+    expect(result).not.toContain('sk-ant-api03');
+    expect(result).toContain('sk-ant-***');
+  });
+
+  it('should redact generic long tokens (32+ chars)', () => {
+    const msg = 'Token: x7V9mQ2tL8kR4pN6sW1uY3zA5cE7gH9jB2dF4hJ6';
+    const result = getErrorMessage(new Error(msg));
+    expect(result).not.toContain('x7V9mQ2tL8kR4');
+    expect(result).toContain('***');
+  });
+
   it('should redact password= fields', () => {
     const msg = 'Connection failed: password=supersecret123 host=localhost';
     const result = getErrorMessage(new Error(msg));

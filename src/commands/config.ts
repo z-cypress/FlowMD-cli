@@ -3,7 +3,7 @@
  * 查看和修改配置文件
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import chalk from 'chalk';
@@ -60,6 +60,7 @@ function loadConfigFile(): Record<string, unknown> {
  * 保存配置对象到文件
  */
 function saveConfigFile(data: Record<string, unknown>): void {
+  mkdirSync(join(process.cwd(), '.flow'), { recursive: true });
   const yaml = stringifyYaml(data, { lineWidth: 120 });
   writeFileSync(CONFIG_PATH, yaml, 'utf-8');
 }
@@ -96,7 +97,7 @@ export function configSet(key: string, value: string): void {
   let parsed: unknown = value;
   if (value === 'true') parsed = true;
   else if (value === 'false') parsed = false;
-  else if (/^\d+\.?\d*$/.test(value) && !isNaN(Number(value))) parsed = Number(value);
+  else if (/^-?\d+\.?\d*$/.test(value) && !isNaN(Number(value))) parsed = Number(value);
 
   setNested(data, key, parsed);
   saveConfigFile(data);

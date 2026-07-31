@@ -47,6 +47,7 @@ export async function watchCommand(file: string, opts?: Partial<RunOptions> | st
       release: opts.release || false,
       quiet: opts.quiet || false,
       varArgs: opts.varArgs || {},
+      varFile: opts.varFile,
     };
   }
 
