@@ -221,6 +221,7 @@ export const zh = {
   // serve 命令
   'serve.started': '🚀 FlowMD serve 已启动: http://{host}:{port}',
   'serve.endpoints': '可用端点:',
+  'serve.endpointIde': 'Web IDE 编辑器',
   'serve.endpointExecute': '执行 Markdown 并返回结果',
   'serve.endpointTemplates': '列出可用模板',
   'serve.endpointHealth': '健康检查',

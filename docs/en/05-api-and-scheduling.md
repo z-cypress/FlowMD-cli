@@ -1,5 +1,22 @@
 # HTTP API & Scheduled Tasks
 
+## 0. Web IDE
+
+`flowmd serve` ships a lightweight Web IDE. Open the server root in a browser:
+
+```bash
+flowmd serve --port 5199
+# Open http://127.0.0.1:5199/ in a browser
+```
+
+- **Left editor**: a `textarea` for writing Markdown and FlowMD directive blocks
+- **Right preview**: shows the rendered result after clicking "Execute"
+- **Template dropdown**: pick a built-in template (basic/data/report/meeting/api/changelog) to fill the editor
+- **Variable table**: add/remove key-value variables (equivalent to `--var`), injected on execute
+- **release checkbox**: when checked, strips directive blocks and keeps only the rendered result
+
+The Web IDE is a pure frontend single page with no frontend dependencies, executing directly through `POST /execute`.
+
 ## 1. HTTP API (flowmd serve)
 
 `flowmd serve` starts a local HTTP server that exposes the FlowMD execution engine as a programmatic API for scripts, tools, or AI agents.

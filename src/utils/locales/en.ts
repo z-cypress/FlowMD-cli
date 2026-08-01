@@ -221,6 +221,7 @@ export const en = {
   // serve command
   'serve.started': '🚀 FlowMD serve started: http://{host}:{port}',
   'serve.endpoints': 'Available endpoints:',
+  'serve.endpointIde': 'Web IDE editor',
   'serve.endpointExecute': 'Execute Markdown and return the result',
   'serve.endpointTemplates': 'List available templates',
   'serve.endpointHealth': 'Health check',

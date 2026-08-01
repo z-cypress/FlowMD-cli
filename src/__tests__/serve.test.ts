@@ -9,7 +9,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createFlowServer } from '../core/serve/server.js';
-import { handleExecute, handleTemplates, handleHealth } from '../core/serve/routes.js';
+import { handleExecute, handleTemplates, handleHealth, handleIde } from '../core/serve/routes.js';
 
 vi.mock('ora', () => ({
   default: vi.fn(() => ({
@@ -48,6 +48,7 @@ describe('flowmd serve', () => {
 
     server = createFlowServer(
       [
+        { method: 'GET', path: '/', handler: handleIde, rawHtml: true },
         { method: 'POST', path: '/execute', handler: handleExecute },
         { method: 'GET', path: '/templates', handler: handleTemplates },
         { method: 'GET', path: '/health', handler: handleHealth },
@@ -128,6 +129,17 @@ describe('flowmd serve', () => {
   });
 
   describe('routing', () => {
+    it('should return the Web IDE page for GET /', async () => {
+      const res = await fetch(`${baseUrl}/`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toContain('text/html');
+      const html = await res.text();
+      expect(html).toContain('FlowMD Web IDE');
+      expect(html).toContain('<textarea');
+      expect(html).toContain('/execute');
+      expect(html).toContain('release');
+    });
+
     it('should return 404 for unknown path', async () => {
       const { status, body } = await request('GET', '/nope');
       expect(status).toBe(404);

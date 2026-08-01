@@ -4,7 +4,7 @@
 
 FlowMD is a CLI tool that executes special code blocks in Markdown files. It parses `.md` files containing `ai`, `data`, and `template` blocks, executes them in sequence, and outputs the rendered result.
 
-**Status**: v0.3.1 — 407 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API) + schedule (cron). Full documentation in `docs/` (bilingual zh/en).
+**Status**: v0.3.1 — 408 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE) + schedule (cron). Full documentation in `docs/` (bilingual zh/en).
 
 ## Tech Stack
 
@@ -25,7 +25,7 @@ FlowMD is a CLI tool that executes special code blocks in Markdown files. It par
 pnpm install          # Install dependencies
 pnpm dev -- run <f>   # Dev mode (tsx)
 pnpm lint             # ESLint (flat config, TS6 API)
-pnpm test:run         # Run all tests (407)
+pnpm test:run         # Run all tests (408)
 pnpm build            # Build to dist/
 npm install -g .      # Global install
 flowmd run <file>     # Execute document
@@ -34,7 +34,7 @@ flowmd init           # Create .flow/ config
 flowmd new <name>     # Create from template
 flowmd config         # View/modify config
 flowmd doctor         # Environment diagnosis
-flowmd serve          # Local HTTP API (/execute /templates /health)
+flowmd serve          # Local HTTP API + Web IDE (/ /execute /templates /health)
 flowmd schedule       # Scheduled tasks + cron daemon
 ```
 
@@ -49,7 +49,7 @@ flowmd schedule       # Scheduled tasks + cron daemon
 | `config [key]` | `--set <value>` | ✅ |
 | `doctor` | — | ✅ |
 | `history` | `--detail <id>`, `--clear` | ✅ |
-| `serve` | `--port`, `--host`; endpoints `/execute` `/templates` `/health` | ✅ |
+| `serve` | `--port`, `--host`; endpoints `/` (Web IDE) `/execute` `/templates` `/health` | ✅ |
 | `schedule` | `add <name> <file> --cron`, `list`, `remove`, `pause`, `resume`, `run`, daemon | ✅ |
 
 ## Block Types
@@ -123,7 +123,7 @@ src/
 │   ├── config.ts           # Config get/set
 │   ├── doctor.ts           # Env diagnosis
 │   ├── history.ts          # Execution history (list/detail/clear)
-│   ├── serve.ts            # Local HTTP API (native http, /execute /templates /health)
+│   ├── serve.ts            # Local HTTP API (native http, / Web IDE /execute /templates /health)
 │   └── schedule.ts         # Scheduled tasks (add/list/remove/pause/resume/run/daemon)
 ├── core/
 │   ├── parser.ts           # Markdown parser
@@ -146,7 +146,8 @@ src/
 │           └── execute-region.ts # tree walking execution
 │   ├── serve/
 │   │   ├── server.ts             # native http server factory + routing
-│   │   ├── routes.ts             # /execute /templates /health handlers
+│   │   ├── routes.ts             # / (Web IDE) /execute /templates /health handlers
+│   │   ├── web-ide.html.ts       # Web IDE single-page HTML (inline, no frontend deps)
 │   │   └── types.ts              # ExecuteRequest / ApiResponse
 │   └── schedule/
 │       ├── schedule-db.ts        # .flow/schedule.db CRUD
@@ -180,7 +181,7 @@ CLI args > Env vars / `.env` > Project `.flow/config.yml` > Global `~/.flow/conf
 
 - No template gallery beyond basic/data/report/meeting/api/changelog
 - CI not verified on GitHub
-- VS Code extension / template marketplace / Web IDE not yet built
+- VS Code extension / template marketplace not yet built
 
 ## Reference
 

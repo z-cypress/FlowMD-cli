@@ -1,5 +1,22 @@
 # HTTP API 与定时任务
 
+## 零、Web IDE
+
+`flowmd serve` 内置一个轻量 Web IDE，浏览器打开服务根地址即用：
+
+```bash
+flowmd serve --port 5199
+# 浏览器打开 http://127.0.0.1:5199/
+```
+
+- **左栏编辑**：`textarea` 编写 Markdown 与 FlowMD 指令块
+- **右栏预览**：点击"执行"后展示渲染结果
+- **模板下拉**：选择内置模板（basic/data/report/meeting/api/changelog）填充编辑区
+- **变量表格**：增删 key-value 变量（等价 `--var`），执行时注入
+- **release 复选框**：勾选后剥离指令块，仅保留渲染结果
+
+Web IDE 是纯前端单页，无前端依赖，直接调用 `POST /execute` 执行。
+
 ## 一、HTTP API（flowmd serve）
 
 `flowmd serve` 启动一个本地 HTTP 服务，暴露 programmatic API，供脚本、工具或 AI Agent 调用 FlowMD 执行引擎。

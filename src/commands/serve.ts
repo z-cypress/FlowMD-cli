@@ -5,7 +5,7 @@
 
 import chalk from 'chalk';
 import { createFlowServer } from '../core/serve/server.js';
-import { handleExecute, handleTemplates, handleHealth } from '../core/serve/routes.js';
+import { handleExecute, handleTemplates, handleHealth, handleIde } from '../core/serve/routes.js';
 import { t } from '../utils/i18n.js';
 
 /**
@@ -18,6 +18,7 @@ export async function serveCommand(opts: { port?: string; host?: string } = {}):
 
   const server = createFlowServer(
     [
+      { method: 'GET', path: '/', handler: handleIde, rawHtml: true },
       { method: 'POST', path: '/execute', handler: handleExecute },
       { method: 'GET', path: '/templates', handler: handleTemplates },
       { method: 'GET', path: '/health', handler: handleHealth },
@@ -33,6 +34,7 @@ export async function serveCommand(opts: { port?: string; host?: string } = {}):
   server.listen(port, host, () => {
     console.log(chalk.blue(t('serve.started', { host, port })));
     console.log(chalk.gray(t('serve.endpoints')));
+    console.log(chalk.gray(`  GET  /               ${t('serve.endpointIde')}`));
     console.log(chalk.gray(`  POST /execute     ${t('serve.endpointExecute')}`));
     console.log(chalk.gray(`  GET  /templates   ${t('serve.endpointTemplates')}`));
     console.log(chalk.gray(`  GET  /health      ${t('serve.endpointHealth')}`));

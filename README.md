@@ -234,10 +234,13 @@ SELECT product, revenue FROM sales ORDER BY revenue DESC
 flowmd serve --port 5199
 ```
 
+浏览器打开 `http://127.0.0.1:5199/` 即得内置 **Web IDE**（编辑 + 执行预览 + 模板选择）。
+
 | 端点 | 方法 | 说明 |
 |------|------|------|
+| `/` | GET | Web IDE 单页 |
 | `/execute` | POST | 执行 Markdown，body 传 `{markdown, vars?, release?, debug?, quiet?}`，返回 `{content, hasError}` |
-| `/templates` | GET | 列出可用模板 |
+| `/templates` | GET | 列出可用模板（含内容） |
 | `/health` | GET | 健康检查 |
 
 ## 定时任务（flowmd schedule）

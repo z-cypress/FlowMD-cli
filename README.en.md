@@ -236,10 +236,13 @@ Output modes are specified with `-o`:
 flowmd serve --port 5199
 ```
 
+Opening `http://127.0.0.1:5199/` in a browser gives you the built-in **Web IDE** (edit + execute preview + template selection).
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
+| `/` | GET | Web IDE single page |
 | `/execute` | POST | Execute Markdown; body `{markdown, vars?, release?, debug?, quiet?}`, returns `{content, hasError}` |
-| `/templates` | GET | List available templates |
+| `/templates` | GET | List available templates (with content) |
 | `/health` | GET | Health check |
 
 ## Scheduled Tasks (flowmd schedule)

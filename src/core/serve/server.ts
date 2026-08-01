@@ -15,6 +15,8 @@ interface RouteEntry {
   method: string;
   path: string;
   handler: RouteHandler;
+  /** 响应是否为 text/html（data 字段作为原始 HTML 返回） */
+  rawHtml?: boolean;
 }
 
 /**
@@ -48,6 +50,15 @@ export function createFlowServer(routes: RouteEntry[], config: ServeConfig): Ser
       }
 
       const response = await route.handler(req, body);
+      if (route.rawHtml) {
+        // 返回原始 HTML（Web IDE）
+        if (response.ok) {
+          sendHtml(res, 200, response.data as string);
+        } else {
+          sendJson(res, 500, response);
+        }
+        return;
+      }
       sendJson(res, response.ok ? 200 : 500, response);
     } catch (error) {
       sendJson(res, 500, internalError(error));
@@ -95,6 +106,20 @@ function sendJson(res: ServerResponse, status: number, body: ApiResponse): void 
     'Content-Length': Buffer.byteLength(text),
   });
   res.end(text);
+}
+
+/**
+ * 发送 HTML 响应
+ * @param res - 响应对象
+ * @param status - HTTP 状态码
+ * @param html - HTML 内容
+ */
+function sendHtml(res: ServerResponse, status: number, html: string): void {
+  res.writeHead(status, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Content-Length': Buffer.byteLength(html),
+  });
+  res.end(html);
 }
 
 /** 404 未知路径 */

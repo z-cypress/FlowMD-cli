@@ -195,6 +195,9 @@ const TEMPLATES: Record<string, string> = {
 /** 可用模板名列表（供 serve GET /templates 使用） */
 export const TEMPLATE_NAMES: string[] = Object.keys(TEMPLATES);
 
+/** 模板名 → 内容映射（供 serve GET /templates 返回模板内容） */
+export const TEMPLATES_CONTENT: Record<string, string> = TEMPLATES;
+
 /**
  * 执行 new 命令
  * @param name - 文档名称

@@ -7,7 +7,8 @@ import type { IncomingMessage } from 'node:http';
 import { parseMarkdown } from '../parser.js';
 import { executeDocument } from '../executor.js';
 import { loadConfig } from '../../utils/config.js';
-import { TEMPLATE_NAMES } from '../../commands/new.js';
+import { TEMPLATE_NAMES, TEMPLATES_CONTENT } from '../../commands/new.js';
+import { WEB_IDE_HTML } from './web-ide.html.js';
 import type { ExecuteRequest, ApiResponse } from './types.js';
 
 /**
@@ -59,11 +60,19 @@ export async function handleExecute(req: IncomingMessage, body: string): Promise
 }
 
 /**
- * GET /templates — 列出可用模板
- * @returns 模板名列表
+ * GET /templates — 列出可用模板（含内容）
+ * @returns 模板名与内容映射
  */
 export async function handleTemplates(): Promise<ApiResponse> {
-  return { ok: true, data: { templates: TEMPLATE_NAMES } };
+  return { ok: true, data: { templates: TEMPLATE_NAMES, content: TEMPLATES_CONTENT } };
+}
+
+/**
+ * GET / — Web IDE 单页（text/html，由 server 层直接返回）
+ * @returns 占位（实际由 server.ts 特殊处理返回 HTML）
+ */
+export async function handleIde(): Promise<ApiResponse> {
+  return { ok: true, data: WEB_IDE_HTML };
 }
 
 /**
