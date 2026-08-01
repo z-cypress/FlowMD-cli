@@ -158,7 +158,7 @@ export OPENAI_API_KEY="sk-xxxxxxxx"
  - 首次执行需确认，同意后按 runtime 记忆（`--yes` 跳过，`--strict` 强制确认）
  - 变量通过 `vars` 显式声明传入，stdout 为 JSON 时结构化存入变量
 
-  四种块的详细说明见 [docs/blocks/](docs/blocks/)。
+  各块的详细说明见 [docs/blocks/](docs/blocks/)。
 
 ## 控制流：条件与循环
 
@@ -187,6 +187,26 @@ SELECT product, revenue FROM sales ORDER BY revenue DESC
 - 条件支持比较（`==` `>` 等）、布尔逻辑（`&&` `||` `!`），未定义变量视为假
 
 详见 [控制流文档](docs/blocks/05-control.md)。
+
+## agent 块：文档即智能体
+
+`agent` 块让文档驱动 LLM 自主规划多步任务（思考 → 工具 → 观察 → 迭代），
+把"文档即脚本"升级为"文档即智能体"（v2.0）：
+
+````markdown
+```agent {goal: "汇总销售数据", tools: ["code_execution", "file_read"], output: "summary"}
+读取 data/ 下的销售文件，用 code_execution 计算总营收，输出一段中文摘要。
+```
+
+{{summary}}
+````
+
+- 内置 ReAct 循环（openai / anthropic），`goal` 必填，`max_steps` / `timeout` 护栏
+- 工具白名单：`code_execution`（沙箱执行）、`file_read`（项目内只读，防越界）
+- 首次执行弹确认并按（goal + 工具集）记忆，拒绝则块失败
+- `--debug` 输出步骤轨迹，`flowmd history` 记录轨迹摘要
+
+详见 [agent 块文档](docs/blocks/07-agent.md)。
 
 ## 执行模式
 
@@ -266,7 +286,7 @@ flowmd schedule                    # 前台守护，按 cron 触发
 
  ## 项目状态
 
- **MVP 阶段**。已实现：run/watch/init/new/config/doctor/history/serve/schedule 命令、AI 块（OpenAI + Anthropic + 模型预设）、数据块（SQLite/MySQL/PostgreSQL）、模板块（Handlebars + json helper）、run 块（js/python 沙箱）、控制流（if/elif/else/for + collect）、变量上下文、--var/--var-file（含 .env）、试运行/逐步/失败即停/debug/release 模式、HTTP API、定时任务。
+ **MVP 阶段**。已实现：run/watch/init/new/config/doctor/history/serve/schedule 命令、AI 块（OpenAI + Anthropic + 模型预设）、数据块（SQLite/MySQL/PostgreSQL）、模板块（Handlebars + json helper）、run 块（js/python 沙箱）、控制流（if/elif/else/for + collect）、agent 块（文档即智能体，ReAct 多步任务）、变量上下文、--var/--var-file（含 .env）、试运行/逐步/失败即停/debug/release 模式、HTTP API、定时任务。
 
  **规划中**：VS Code 扩展、模板市场、Web IDE。
 

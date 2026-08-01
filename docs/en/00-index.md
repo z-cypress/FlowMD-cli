@@ -21,6 +21,7 @@
 - [Run Blocks](blocks/04-run.md) — execute script code in a sandbox (js / python)
 - [Control Flow](blocks/05-control.md) — if / elif / else / for conditionals and loops
 - [Include Directive](blocks/06-include.md) — inline external documents and variable files
+- [Agent Block](blocks/07-agent.md) — document as agent, autonomous multi-step tasks (v2.0)
 
 **Reference & Examples**
 

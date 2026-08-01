@@ -162,6 +162,28 @@ print(json.dumps({"count": len(data), "total": sum(x["revenue"] for x in data)})
 
 Detailed documentation for the block types can be found in [docs/blocks/](docs/en/blocks/).
 
+## Agent Block: Document as Agent
+
+The `agent` block drives the LLM to autonomously plan multi-step tasks
+(think → tool → observe → iterate), evolving "document as script" into
+"document as agent" (v2.0):
+
+````markdown
+```agent {goal: "Summarize sales", tools: ["code_execution", "file_read"], output: "summary"}
+Read the sales files under data/, use code_execution to compute total revenue,
+then output a short summary.
+```
+
+{{summary}}
+````
+
+- Built-in ReAct loop (openai / anthropic); `goal` is required, with `max_steps` / `timeout` guardrails
+- Tool whitelist: `code_execution` (sandboxed execution), `file_read` (read-only inside the project root)
+- First run prompts for confirmation keyed by (goal + tool set); declining fails the block
+- `--debug` prints the step trace; `flowmd history` records a trace summary
+
+See the [agent block docs](docs/en/blocks/07-agent.md).
+
 ## Control Flow: Conditionals and Loops
 
 Use HTML comment directives to wrap body text and code blocks for conditional branches and loop execution:
@@ -268,7 +290,7 @@ pnpm build               # Build
 
 ## Project Status
 
-**MVP stage**. Implemented: run/watch/init/new/config/doctor/history/serve/schedule commands, AI blocks (OpenAI + Anthropic + model presets), data blocks (SQLite/MySQL/PostgreSQL), template blocks (Handlebars + json helper), run blocks (js/python sandbox), control flow (if/elif/else/for + collect), variable context, `--var`/`--var-file` (including `.env`), dry-run/step/fail-fast/debug/release modes, HTTP API, scheduled tasks.
+**MVP stage**. Implemented: run/watch/init/new/config/doctor/history/serve/schedule commands, AI blocks (OpenAI + Anthropic + model presets), data blocks (SQLite/MySQL/PostgreSQL), template blocks (Handlebars + json helper), run blocks (js/python sandbox), control flow (if/elif/else/for + collect), agent blocks (document as agent, ReAct multi-step tasks), variable context, `--var`/`--var-file` (including `.env`), dry-run/step/fail-fast/debug/release modes, HTTP API, scheduled tasks.
 
 **Planned**: VS Code extension, template marketplace, Web IDE.
 

@@ -21,6 +21,7 @@
  - [run 块](blocks/04-run.md) — 在沙箱中执行脚本代码（js / python）
  - [控制流](blocks/05-control.md) — if / elif / else / for 条件与循环
  - [include 指令](blocks/06-include.md) — 引入外部文档与变量文件
+ - [agent 块](blocks/07-agent.md) — 文档即智能体，自主多步任务（v2.0）
 
  **参考与示例**
 

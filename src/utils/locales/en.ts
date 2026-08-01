@@ -126,6 +126,20 @@ export const en = {
   // run confirmation
   'run.confirmPrompt': 'This document contains a {runtime} code block that will run script in a sandbox. Continue?',
 
+  // agent block (blocks/agent/validate.ts)
+  'error.agent.goalRequired': 'agent block is missing the goal parameter',
+  'error.agent.outputRequired': 'agent block is missing the output parameter',
+  'error.agent.badProvider': 'Unsupported agent provider: {provider} (supported: openai / anthropic)',
+  'error.agent.unknownTool': 'Unknown tool: {tool} (v2.0-alpha supports code_execution / file_read)',
+  'error.agent.badMaxSteps': 'max_steps must be a positive integer',
+  'error.agent.badTimeout': 'timeout must be a positive number (seconds)',
+  'error.agent.badTemperature': 'temperature must be between 0 and 2',
+  'error.agent.timeout': 'agent execution timed out',
+  'error.agent.maxSteps': 'agent reached max steps ({maxSteps})',
+  'error.agent.confirmDeclined': 'Agent execution cancelled',
+  'agent.step': 'Step {num}:',
+  'agent.confirmPrompt': 'This document contains an agent block (goal: {goal}) that will autonomously execute multi-step tasks. Continue?',
+
   // AI block (ai-block.ts)
   'error.ai.noApiKey': 'API Key is not configured. Set the {envVar} environment variable, or run flow init',
   'error.ai.badProvider': 'Unsupported LLM provider: {provider}',

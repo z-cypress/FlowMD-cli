@@ -11,6 +11,8 @@ import { join } from 'node:path';
 export const MAX_HISTORY_RECORDS = 500;
 /** 错误消息最大长度（字符） */
 export const MAX_ERROR_LENGTH = 200;
+/** 轨迹摘要最大长度（字符） */
+export const MAX_TRACE_LENGTH = 1000;
 
 /** 单块执行记录 */
 export interface BlockHistoryInput {
@@ -19,6 +21,8 @@ export interface BlockHistoryInput {
   status: 'success' | 'failed';
   error?: string;
   duration_ms: number;
+  /** agent 块步骤轨迹摘要（可选） */
+  trace?: string;
 }
 
 /** 单块查询返回（含块 id 与所属 execution_id） */
@@ -83,6 +87,13 @@ function openDb(): Database.Database {
       FOREIGN KEY (execution_id) REFERENCES executions(id) ON DELETE CASCADE
     );
   `);
+
+  // 迁移：为旧库补充 trace 列（agent 块步骤轨迹摘要）
+  const blockCols = db.prepare(`PRAGMA table_info(execution_blocks)`).all() as Array<{ name: string }>;
+  if (!blockCols.some((c) => c.name === 'trace')) {
+    db.exec('ALTER TABLE execution_blocks ADD COLUMN trace TEXT');
+  }
+
   return db;
 }
 
@@ -103,8 +114,8 @@ export function recordExecution(input: HistoryInput): number {
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
     const insertBlock = db.prepare(`
-      INSERT INTO execution_blocks (execution_id, position, type, status, error, duration_ms)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO execution_blocks (execution_id, position, type, status, error, duration_ms, trace)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
 
     const tx = db.transaction(() => {
@@ -126,7 +137,8 @@ export function recordExecution(input: HistoryInput): number {
           b.type,
           b.status,
           b.error ? b.error.slice(0, MAX_ERROR_LENGTH) : null,
-          b.duration_ms
+          b.duration_ms,
+          b.trace ? b.trace.slice(0, MAX_TRACE_LENGTH) : null
         );
       }
       // 保留上限：删除最旧超出部分

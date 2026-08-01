@@ -4,7 +4,7 @@
 
 FlowMD is a CLI tool that executes special code blocks in Markdown files. It parses `.md` files containing `ai`, `data`, and `template` blocks, executes them in sequence, and outputs the rendered result.
 
-**Status**: v0.3.1 — 408 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE) + schedule (cron). Full documentation in `docs/` (bilingual zh/en).
+**Status**: v0.3.1 — 474 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE) + schedule (cron). agent block (v2.0-alpha: ReAct 多步任务 + code_execution/file_read 工具). Full documentation in `docs/` (bilingual zh/en).
 
 ## Tech Stack
 
@@ -25,7 +25,7 @@ FlowMD is a CLI tool that executes special code blocks in Markdown files. It par
 pnpm install          # Install dependencies
 pnpm dev -- run <f>   # Dev mode (tsx)
 pnpm lint             # ESLint (flat config, TS6 API)
-pnpm test:run         # Run all tests (408)
+pnpm test:run         # Run all tests (474)
 pnpm build            # Build to dist/
 npm install -g .      # Global install
 flowmd run <file>     # Execute document
@@ -61,6 +61,7 @@ flowmd schedule       # Scheduled tasks + cron daemon
 | `template` | Render Handlebars | `output` |
 | `include` | Inline external `.md`/`.yaml` file | `path` |
 | `run` | Execute script in sandbox (js isolated-vm / python subprocess) | `runtime`, `vars`, `output`, `timeout`, `memory`, `permissions` |
+| `agent` | Autonomous multi-step task via ReAct loop (openai/anthropic) | `goal`, `provider`, `tools`, `output`, `max_steps`, `timeout`, `temperature` |
 
 ## Control Flow (v1.3)
 
@@ -153,16 +154,29 @@ src/
 │       ├── schedule-db.ts        # .flow/schedule.db CRUD
 │       ├── scheduler.ts          # node-cron loading + trigger
 │       └── types.ts              # ScheduleTask
+│   ├── llm/
+│   │   └── clients.ts            # Shared OpenAI/Anthropic client cache (ai + agent)
+│   ├── blocks/agent/
+│   │   ├── agent-block.ts        # agent block executor + config resolution + trace formatters
+│   │   ├── types.ts              # AgentBlockConfig/AgentStep/AgentResult/ToolHandler
+│   │   ├── validate.ts           # parse-time whitelist validation
+│   │   ├── loop.ts               # ReAct loop (think→tool→observe)
+│   │   ├── confirm.ts            # first-run authorization (persisted to config)
+│   │   ├── adapters/chat.ts      # openai/anthropic tool-use normalization
+│   │   └── tools/
+│   │       ├── registry.ts       # tool registry
+│   │       ├── code-execution.ts # reuses run sandbox
+│   │       └── file-read.ts      # project-root read-only (path escape guard)
 ├── types/index.ts          # All type defs
 ├── utils/
 │   ├── config.ts           # Multi-layer config loader
 │   ├── i18n.ts             # Bilingual (zh/en) message lookup
 │   ├── locales/            # zh.ts / en.ts message tables
-│   ├── history.ts          # Execution history SQLite persistence
+│   ├── history.ts          # Execution history SQLite persistence (block trace column)
 │   ├── logger.ts           # Terminal output
 │   ├── prompt.ts           # User input
 │   └── error-formatter.ts  # Error formatting
-└── __tests__/              # 27 test files, 407 tests
+└── __tests__/              # 34 test files, 474 tests
 ```
 
 ## Configuration Priority

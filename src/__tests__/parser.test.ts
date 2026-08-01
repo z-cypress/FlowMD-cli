@@ -202,6 +202,35 @@ describe('parseMarkdown', () => {
     });
   });
 
+  describe('agent blocks', () => {
+    it('should recognize agent blocks and parse goal/output', () => {
+      const content = '```agent {goal: "收集竞品动态", output: "news"}\n任务要求...\n```';
+      const doc = parseMarkdown(content);
+
+      expect(doc.blocks).toHaveLength(1);
+      expect(doc.blocks[0].type).toBe('agent');
+      expect(doc.blocks[0].meta.goal).toBe('收集竞品动态');
+      expect(doc.blocks[0].meta.output).toBe('news');
+    });
+
+    it('should parse tools as an array', () => {
+      const content = '```agent {goal: "调研", tools: ["code_execution", "file_read"], output: "report", max_steps: 15}\n任务...\n```';
+      const doc = parseMarkdown(content);
+
+      expect(doc.blocks[0].meta.tools).toEqual(['code_execution', 'file_read']);
+      expect(doc.blocks[0].meta.max_steps).toBe('15');
+    });
+
+    it('should recognize agent without params', () => {
+      const content = '```agent\n任务描述\n```';
+      const doc = parseMarkdown(content);
+
+      expect(doc.blocks).toHaveLength(1);
+      expect(doc.blocks[0].type).toBe('agent');
+      expect(doc.blocks[0].meta).toEqual({});
+    });
+  });
+
   describe('edge cases', () => {
     it('should handle empty content', () => {
       const doc = parseMarkdown('');

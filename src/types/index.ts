@@ -2,8 +2,10 @@
  * FlowMD CLI 类型定义
  */
 
+import type { AgentStep } from '../core/blocks/agent/types.js';
+
 /** 代码块类型标识符 */
-export type BlockType = 'ai' | 'data' | 'template' | 'include' | 'run';
+export type BlockType = 'ai' | 'data' | 'template' | 'include' | 'run' | 'agent';
 
 /**
  * 从 Markdown 中提取的可执行代码块
@@ -227,6 +229,8 @@ export interface BlockResult {
   error?: string;
   /** 执行耗时（毫秒） */
   duration: number;
+  /** agent 块步骤轨迹（仅 agent 块返回，ADR-017） */
+  steps?: AgentStep[];
 }
 
 /**

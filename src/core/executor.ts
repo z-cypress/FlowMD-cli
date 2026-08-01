@@ -14,6 +14,7 @@ import { executeAIBlock } from './blocks/ai-block.js';
 import { executeDataBlock } from './blocks/data-block.js';
 import { executeTemplateBlock } from './blocks/template-block.js';
 import { executeRunBlock } from './blocks/run-block.js';
+import { executeAgentBlock, formatAgentStep, formatAgentTrace, formatAgentTraceSummary } from './blocks/agent/agent-block.js';
 import { parseMarkdown } from './parser.js';
 import { buildControlTree, ControlTreeError } from './blocks/control/tree.js';
 import { ConditionSyntaxError } from './blocks/control/condition.js';
@@ -33,6 +34,7 @@ const BLOCK_EMOJI: Record<string, string> = {
   template: '🎨',
   include: '📥',
   run: '⚡',
+  agent: '🕵️',
 };
 
 /** 块执行结果（带偏移量信息） */
@@ -52,7 +54,14 @@ export interface BlockExecState {
   visitedPaths: Set<string>;
   failedOutputs: Set<string>;
   failedBlocks: Array<{ position: number; type: string; error: string }>;
-  blockRecords: Array<{ position: number; type: string; status: 'success' | 'failed'; error?: string; duration_ms: number }>;
+  blockRecords: Array<{
+    position: number;
+    type: string;
+    status: 'success' | 'failed';
+    error?: string;
+    duration_ms: number;
+    trace?: string;
+  }>;
   insertResults: BlockInsertResult[];
   hasError: boolean;
   totalBlocks: number;
@@ -208,6 +217,22 @@ export async function executeOneBlock(
             signal,
             { yes: options.runYes, strict: options.runStrict }
           );
+        case 'agent':
+          return executeAgentBlock(
+            block.content,
+            block.meta,
+            context,
+            config.llm,
+            config.models,
+            signal,
+            {
+              confirm: { yes: options.runYes, strict: options.runStrict },
+              projectRoot: options.currentFile ? path.dirname(options.currentFile) : process.cwd(),
+              onStep: (step) => {
+                if (spinner) spinner.text = `${t('block.running', { emoji, num: blockNum, type: block.type })} ${formatAgentStep(step)}`;
+              },
+            }
+          );
         case 'include': {
           const includePath = metaString(block.meta, 'path');
           if (!includePath) {
@@ -248,7 +273,13 @@ export async function executeOneBlock(
       if (spinner) {
         spinner.succeed(t('block.done', { emoji, num: blockNum, type: block.type, seconds: (result.duration / 1000).toFixed(1) }));
       }
-      state.blockRecords.push({ position: pos, type: block.type, status: 'success', duration_ms: result.duration });
+      state.blockRecords.push({
+        position: pos,
+        type: block.type,
+        status: 'success',
+        duration_ms: result.duration,
+        trace: result.steps ? formatAgentTraceSummary(result.steps) : undefined,
+      });
 
       // step 模式：打印执行结果
       if (options.stepMode && result.output !== null) {
@@ -262,9 +293,10 @@ export async function executeOneBlock(
       // debug 模式：收集需要插入的结果
       // （控制流路径由 execute-region 直接拼进输出，这里跳过避免冗余）
       if (options.debug && result.output !== null && !state.controlFlow) {
+        const trace = formatAgentTrace(result);
         state.insertResults.push({
           sourceEnd: block.sourceEnd,
-          output: result.output,
+          output: trace ? result.output + trace : result.output,
         });
       }
     } else {
@@ -277,7 +309,14 @@ export async function executeOneBlock(
       }
       state.hasError = true;
       state.failedBlocks.push({ position: pos, type: block.type, error: result.error || t('error.unknown') });
-      state.blockRecords.push({ position: pos, type: block.type, status: 'failed', error: result.error, duration_ms: result.duration });
+      state.blockRecords.push({
+        position: pos,
+        type: block.type,
+        status: 'failed',
+        error: result.error,
+        duration_ms: result.duration,
+        trace: result.steps ? formatAgentTraceSummary(result.steps) : undefined,
+      });
 
       // 记录失败块的输出变量名
       const outputName = metaString(block.meta, 'output');
