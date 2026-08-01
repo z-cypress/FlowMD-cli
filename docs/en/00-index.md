@@ -25,6 +25,7 @@
 **Reference & Examples**
 
 - [Complete Examples](03-examples.md) — real-world use cases from simple to complex
+- [HTTP API & Scheduled Tasks](05-api-and-scheduling.md) — serve / schedule
 - [FAQ](04-faq.md) — troubleshooting installation, configuration, and usage issues
 
 ---
@@ -37,6 +38,8 @@ Currently at **MVP stage**, the following is implemented:
 - `flowmd watch` supporting `-o`, `-s`, `--debug`, `--release`
 - `flowmd init` / `flowmd new` / `flowmd config` / `flowmd doctor`
 - `flowmd history` to view execution history (`--detail` / `--clear`)
+- `flowmd serve` local HTTP API (`/execute` `/templates` `/health`)
+- `flowmd schedule` scheduled tasks (cron-triggered)
 - AI blocks supporting OpenAI, Anthropic, and named model presets
 - Data blocks supporting SQLite / MySQL / PostgreSQL (read-only queries)
 - Template blocks supporting Handlebars and the `{{json}}` helper

@@ -217,4 +217,38 @@ export const zh = {
 
   // executor 错误分组
   'summary.failedGrouped': '   - [{positions}] {type} 块: {error}',
+
+  // serve 命令
+  'serve.started': '🚀 FlowMD serve 已启动: http://{host}:{port}',
+  'serve.endpoints': '可用端点:',
+  'serve.endpointExecute': '执行 Markdown 并返回结果',
+  'serve.endpointTemplates': '列出可用模板',
+  'serve.endpointHealth': '健康检查',
+  'serve.exitHint': '按 Ctrl+C 退出',
+  'serve.stopped': '⏹ 已停止',
+  'serve.error': '❌ serve 启动失败: {error}',
+
+  // schedule 命令
+  'schedule.addUsage': '用法: flowmd schedule add <name> <file> --cron "分 时 日 月 周"',
+  'schedule.invalidCronArg': '❌ 无效的 cron 表达式: {cron}',
+  'schedule.fileNotFound': '❌ 文件不存在: {file}',
+  'schedule.added': '✅ 已添加任务 #{id} {name} (cron: {cron})',
+  'schedule.addFailed': '❌ 添加任务失败: {error}',
+  'schedule.listTitle': '\n📅 定时任务:\n',
+  'schedule.empty': '暂无定时任务',
+  'schedule.noneEnabled': '没有已启用的定时任务',
+  'schedule.removed': '✅ 已删除任务: {name}',
+  'schedule.paused': '⏸ 已暂停任务: {name}',
+  'schedule.resumed': '✅ 已恢复任务: {name}',
+  'schedule.notFound': '❌ 未找到任务: {name}',
+  'schedule.needName': '❌ 请指定任务名',
+  'schedule.unknownSub': '❌ 未知子命令: {sub}',
+  'schedule.daemonStarted': '🚀 调度器已启动',
+  'schedule.exitHint': '按 Ctrl+C 退出',
+  'schedule.stopped': '⏹ 已停止',
+  'schedule.registered': '  ⏱ {name} → {cron} ({file})',
+  'schedule.invalidCron': '⚠ 跳过非法 cron 的任务 {name}: {cron}',
+  'schedule.triggerDone': '✅ 任务 {name} 执行完成 ({seconds}s)',
+  'schedule.triggerFailed': '❌ 任务 {name} 执行失败: {file}',
+  'schedule.triggerError': '❌ 任务 {name} 执行出错: {error}',
 } as const;

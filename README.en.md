@@ -220,10 +220,37 @@ Output modes are specified with `-o`:
 | `flowmd run <file> --var-file vars.yml` | Inject variables from a YAML/JSON file |
 | `flowmd watch <file> -o stdout` | Watch for file changes; supports `-o` to specify the output mode |
 | `flowmd init` | Create the `.flow/` config directory |
-| `flowmd new <name>` | Create a document from a template (basic / data / report) |
+| `flowmd new <name>` | Create a document from a template (basic / data / report / meeting / api / changelog) |
 | `flowmd config` | View the current configuration |
 | `flowmd config llm.model --set deepseek-chat` | Set a configuration option |
 | `flowmd doctor` | Environment diagnosis |
+| `flowmd history` | View execution history (`--detail` / `--clear`) |
+| `flowmd serve` | Start a local HTTP API (`POST /execute` / `GET /templates` / `GET /health`) |
+| `flowmd schedule add <name> <file> --cron "0 17 * * 5"` | Add a scheduled task |
+| `flowmd schedule list / remove / pause / resume / run` | Manage scheduled tasks |
+| `flowmd schedule` | Run the scheduler as a foreground daemon |
+
+## HTTP API (flowmd serve)
+
+```bash
+flowmd serve --port 5199
+```
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/execute` | POST | Execute Markdown; body `{markdown, vars?, release?, debug?, quiet?}`, returns `{content, hasError}` |
+| `/templates` | GET | List available templates |
+| `/health` | GET | Health check |
+
+## Scheduled Tasks (flowmd schedule)
+
+```bash
+flowmd schedule add weekly-report ./report.md --cron "0 17 * * 5"
+flowmd schedule run weekly-report   # run once immediately
+flowmd schedule                    # foreground daemon, triggers on cron
+```
+
+Tasks are persisted in `.flow/schedule.db`; each trigger executes the document and writes to execution history.
 
 Full documentation is available at [docs/](docs/en/00-index.md).
 
@@ -238,9 +265,9 @@ pnpm build               # Build
 
 ## Project Status
 
-**MVP stage**. Implemented: eight commands (run/watch/init/new/config/doctor), AI blocks (OpenAI + Anthropic + model presets), data blocks (SQLite/MySQL/PostgreSQL), template blocks (Handlebars + json helper), variable context, `--var`/`--var-file` (including `.env`), dry-run/step/fail-fast/release modes.
+**MVP stage**. Implemented: run/watch/init/new/config/doctor/history/serve/schedule commands, AI blocks (OpenAI + Anthropic + model presets), data blocks (SQLite/MySQL/PostgreSQL), template blocks (Handlebars + json helper), run blocks (js/python sandbox), control flow (if/elif/else/for + collect), variable context, `--var`/`--var-file` (including `.env`), dry-run/step/fail-fast/debug/release modes, HTTP API, scheduled tasks.
 
-**Planned**: error message improvements, interactive initialization.
+**Planned**: VS Code extension, template marketplace, Web IDE.
 
 ## License
 

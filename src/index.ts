@@ -20,6 +20,8 @@ import { newCommand } from './commands/new.js';
 import { configGet, configSet } from './commands/config.js';
 import { doctorCommand } from './commands/doctor.js';
 import { historyCommand } from './commands/history.js';
+import { serveCommand } from './commands/serve.js';
+import { scheduleCommand } from './commands/schedule.js';
 import type { RunOptions, FlowConfig } from './types/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -310,6 +312,34 @@ program
   .option('--clear', 'Clear all history')
   .action(async (options: { detail?: string; clear?: boolean }) => {
     await historyCommand(options);
+  });
+
+program
+  .command('serve')
+  .description('Start a local HTTP server exposing the FlowMD API')
+  .option('--port <port>', 'Port to listen on (default: 5199)')
+  .option('--host <host>', 'Host to bind (default: 127.0.0.1)')
+  .action(async (options: { port?: string; host?: string }) => {
+    try {
+      await serveCommand(options);
+    } catch (error) {
+      console.error(chalk.red(t('cli.runFailed', { error: error instanceof Error ? error.message : String(error) })));
+      process.exit(1);
+    }
+  });
+
+program
+  .command('schedule')
+  .description('Manage scheduled tasks (add/list/remove/pause/resume/run) or run the daemon')
+  .argument('[args...]', 'Subcommand and arguments')
+  .option('--cron <expr>', 'Cron expression (5 fields) for "add"')
+  .action(async (args: string[], options: { cron?: string }) => {
+    try {
+      await scheduleCommand(args || [], options);
+    } catch (error) {
+      console.error(chalk.red(t('cli.runFailed', { error: error instanceof Error ? error.message : String(error) })));
+      process.exit(1);
+    }
   });
 
 program.parse();

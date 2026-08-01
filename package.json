@@ -43,6 +43,7 @@
     "dotenv": "^17.4.2",
     "handlebars": "^4.7.9",
     "isolated-vm": "^7.0.0",
+    "node-cron": "^4.6.0",
     "openai": "^6.48.0",
     "ora": "^9.4.1",
     "remark-parse": "^11.0.0",

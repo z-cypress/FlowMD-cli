@@ -218,12 +218,39 @@ SELECT product, revenue FROM sales ORDER BY revenue DESC
  | `flowmd run <file> --var-file vars.yml` | 从 YAML/JSON 文件注入变量 |
  | `flowmd watch <file> -o stdout` | 监听文件变化，支持 -o 指定输出模式 |
  | `flowmd init` | 创建 `.flow/` 配置目录 |
- | `flowmd new <name>` | 从模板创建文档（basic / data / report） |
+ | `flowmd new <name>` | 从模板创建文档（basic / data / report / meeting / api / changelog） |
  | `flowmd config` | 查看当前配置 |
  | `flowmd config llm.model --set deepseek-chat` | 设置配置项 |
  | `flowmd doctor` | 环境诊断 |
+ | `flowmd history` | 查看执行历史（`--detail` / `--clear`） |
+ | `flowmd serve` | 启动本地 HTTP API（`POST /execute` / `GET /templates` / `GET /health`） |
+ | `flowmd schedule add <name> <file> --cron "0 17 * * 5"` | 添加定时任务 |
+ | `flowmd schedule list / remove / pause / resume / run` | 定时任务管理 |
+ | `flowmd schedule` | 前台守护运行定时任务 |
 
- 完整文档见 [docs/](docs/00-index.md)。
+## HTTP API（flowmd serve）
+
+```bash
+flowmd serve --port 5199
+```
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/execute` | POST | 执行 Markdown，body 传 `{markdown, vars?, release?, debug?, quiet?}`，返回 `{content, hasError}` |
+| `/templates` | GET | 列出可用模板 |
+| `/health` | GET | 健康检查 |
+
+## 定时任务（flowmd schedule）
+
+```bash
+flowmd schedule add weekly-report ./report.md --cron "0 17 * * 5"
+flowmd schedule run weekly-report   # 立即执行一次
+flowmd schedule                    # 前台守护，按 cron 触发
+```
+
+任务持久化在 `.flow/schedule.db`，触发时执行文档并写入执行历史。
+
+完整文档见 [docs/](docs/00-index.md)。
 
  ## 开发
 
@@ -236,9 +263,9 @@ SELECT product, revenue FROM sales ORDER BY revenue DESC
 
  ## 项目状态
 
- **MVP 阶段**。已实现：八个命令（run/watch/init/new/config/doctor）、AI 块（OpenAI + Anthropic + 模型预设）、数据块（SQLite/MySQL/PostgreSQL）、模板块（Handlebars + json helper）、变量上下文、--var/--var-file（含 .env）、试运行/逐步/失败即停/release 模式。
+ **MVP 阶段**。已实现：run/watch/init/new/config/doctor/history/serve/schedule 命令、AI 块（OpenAI + Anthropic + 模型预设）、数据块（SQLite/MySQL/PostgreSQL）、模板块（Handlebars + json helper）、run 块（js/python 沙箱）、控制流（if/elif/else/for + collect）、变量上下文、--var/--var-file（含 .env）、试运行/逐步/失败即停/debug/release 模式、HTTP API、定时任务。
 
- **规划中**：错误信息改进、交互式初始化。
+ **规划中**：VS Code 扩展、模板市场、Web IDE。
 
  ## 许可证
 

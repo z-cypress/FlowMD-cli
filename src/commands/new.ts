@@ -192,6 +192,9 @@ const TEMPLATES: Record<string, string> = {
   changelog: CHANGELOG_TEMPLATE,
 };
 
+/** 可用模板名列表（供 serve GET /templates 使用） */
+export const TEMPLATE_NAMES: string[] = Object.keys(TEMPLATES);
+
 /**
  * 执行 new 命令
  * @param name - 文档名称

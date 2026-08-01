@@ -217,4 +217,38 @@ export const en = {
 
   // executor error grouping
   'summary.failedGrouped': '   - [{positions}] {type} blocks: {error}',
+
+  // serve command
+  'serve.started': '🚀 FlowMD serve started: http://{host}:{port}',
+  'serve.endpoints': 'Available endpoints:',
+  'serve.endpointExecute': 'Execute Markdown and return the result',
+  'serve.endpointTemplates': 'List available templates',
+  'serve.endpointHealth': 'Health check',
+  'serve.exitHint': 'Press Ctrl+C to exit',
+  'serve.stopped': '⏹ Stopped',
+  'serve.error': '❌ Failed to start serve: {error}',
+
+  // schedule command
+  'schedule.addUsage': 'Usage: flowmd schedule add <name> <file> --cron "min hour day month weekday"',
+  'schedule.invalidCronArg': '❌ Invalid cron expression: {cron}',
+  'schedule.fileNotFound': '❌ File not found: {file}',
+  'schedule.added': '✅ Added task #{id} {name} (cron: {cron})',
+  'schedule.addFailed': '❌ Failed to add task: {error}',
+  'schedule.listTitle': '\n📅 Scheduled tasks:\n',
+  'schedule.empty': 'No scheduled tasks',
+  'schedule.noneEnabled': 'No enabled scheduled tasks',
+  'schedule.removed': '✅ Removed task: {name}',
+  'schedule.paused': '⏸ Paused task: {name}',
+  'schedule.resumed': '✅ Resumed task: {name}',
+  'schedule.notFound': '❌ Task not found: {name}',
+  'schedule.needName': '❌ Please specify a task name',
+  'schedule.unknownSub': '❌ Unknown subcommand: {sub}',
+  'schedule.daemonStarted': '🚀 Scheduler started',
+  'schedule.exitHint': 'Press Ctrl+C to exit',
+  'schedule.stopped': '⏹ Stopped',
+  'schedule.registered': '  ⏱ {name} → {cron} ({file})',
+  'schedule.invalidCron': '⚠ Skipping task {name} with invalid cron: {cron}',
+  'schedule.triggerDone': '✅ Task {name} finished ({seconds}s)',
+  'schedule.triggerFailed': '❌ Task {name} failed: {file}',
+  'schedule.triggerError': '❌ Task {name} errored: {error}',
 } as const;

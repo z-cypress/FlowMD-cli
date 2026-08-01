@@ -4,7 +4,7 @@
 
 FlowMD is a CLI tool that executes special code blocks in Markdown files. It parses `.md` files containing `ai`, `data`, and `template` blocks, executes them in sequence, and outputs the rendered result.
 
-**Status**: v0.3.1 — 389 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). Full documentation in `docs/` (bilingual zh/en).
+**Status**: v0.3.1 — 407 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API) + schedule (cron). Full documentation in `docs/` (bilingual zh/en).
 
 ## Tech Stack
 
@@ -25,7 +25,7 @@ FlowMD is a CLI tool that executes special code blocks in Markdown files. It par
 pnpm install          # Install dependencies
 pnpm dev -- run <f>   # Dev mode (tsx)
 pnpm lint             # ESLint (flat config, TS6 API)
-pnpm test:run         # Run all tests (389)
+pnpm test:run         # Run all tests (407)
 pnpm build            # Build to dist/
 npm install -g .      # Global install
 flowmd run <file>     # Execute document
@@ -34,19 +34,23 @@ flowmd init           # Create .flow/ config
 flowmd new <name>     # Create from template
 flowmd config         # View/modify config
 flowmd doctor         # Environment diagnosis
+flowmd serve          # Local HTTP API (/execute /templates /health)
+flowmd schedule       # Scheduled tasks + cron daemon
 ```
 
-## Commands (7 total)
+## Commands (9 total)
 
 | Command | Options | Status |
 |---------|---------|--------|
 | `run <file>` | `-o` (inline/new/stdout), `-d`, `-s`, `-f`, `--debug`, `--release`, `--var`, `--var-file`, `--yes`, `--strict` | ✅ |
 | `watch <file>` | `-o`, `-d`, `-s`, `-f`, `--debug`, `--release`, `--yes`, `--strict` | ✅ |
 | `init` | — | ✅ |
-| `new <name>` | basic/data/report templates | ✅ |
+| `new <name>` | basic/data/report/meeting/api/changelog templates | ✅ |
 | `config [key]` | `--set <value>` | ✅ |
 | `doctor` | — | ✅ |
 | `history` | `--detail <id>`, `--clear` | ✅ |
+| `serve` | `--port`, `--host`; endpoints `/execute` `/templates` `/health` | ✅ |
+| `schedule` | `add <name> <file> --cron`, `list`, `remove`, `pause`, `resume`, `run`, daemon | ✅ |
 
 ## Block Types
 
@@ -118,7 +122,9 @@ src/
 │   ├── new.ts              # Template generator
 │   ├── config.ts           # Config get/set
 │   ├── doctor.ts           # Env diagnosis
-│   └── history.ts          # Execution history (list/detail/clear)
+│   ├── history.ts          # Execution history (list/detail/clear)
+│   ├── serve.ts            # Local HTTP API (native http, /execute /templates /health)
+│   └── schedule.ts         # Scheduled tasks (add/list/remove/pause/resume/run/daemon)
 ├── core/
 │   ├── parser.ts           # Markdown parser
 │   ├── executor.ts         # Block execution + modes + validation
@@ -138,6 +144,14 @@ src/
 │           ├── tree.ts           # directive pairing → control tree
 │           ├── condition.ts      # condition expression evaluator
 │           └── execute-region.ts # tree walking execution
+│   ├── serve/
+│   │   ├── server.ts             # native http server factory + routing
+│   │   ├── routes.ts             # /execute /templates /health handlers
+│   │   └── types.ts              # ExecuteRequest / ApiResponse
+│   └── schedule/
+│       ├── schedule-db.ts        # .flow/schedule.db CRUD
+│       ├── scheduler.ts          # node-cron loading + trigger
+│       └── types.ts              # ScheduleTask
 ├── types/index.ts          # All type defs
 ├── utils/
 │   ├── config.ts           # Multi-layer config loader
@@ -147,7 +161,7 @@ src/
 │   ├── logger.ts           # Terminal output
 │   ├── prompt.ts           # User input
 │   └── error-formatter.ts  # Error formatting
-└── __tests__/              # 25 test files, 389 tests
+└── __tests__/              # 27 test files, 407 tests
 ```
 
 ## Configuration Priority
@@ -166,6 +180,7 @@ CLI args > Env vars / `.env` > Project `.flow/config.yml` > Global `~/.flow/conf
 
 - No template gallery beyond basic/data/report/meeting/api/changelog
 - CI not verified on GitHub
+- VS Code extension / template marketplace / Web IDE not yet built
 
 ## Reference
 

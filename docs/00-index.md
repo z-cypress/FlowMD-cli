@@ -25,6 +25,7 @@
  **参考与示例**
 
  - [完整示例](03-examples.md) — 从简单到复杂的实际用例
+ - [HTTP API 与定时任务](05-api-and-scheduling.md) — serve / schedule
  - [常见问题](04-faq.md) — 安装、配置、使用中的问题排查
 
  ---
@@ -37,6 +38,8 @@
  - `flowmd watch` 支持 `-o`、`-s`、`--debug`、`--release`
  - `flowmd init` / `flowmd new` / `flowmd config` / `flowmd doctor`
  - `flowmd history` 查看执行历史（`--detail` / `--clear`）
+ - `flowmd serve` 本地 HTTP API（`/execute` `/templates` `/health`）
+ - `flowmd schedule` 定时任务（cron 触发）
  - AI 块支持 OpenAI、Anthropic 及命名模型预设
  - 数据块支持 SQLite / MySQL / PostgreSQL（只读查询）
  - 模板块支持 Handlebars 及 `{{json}}` helper
