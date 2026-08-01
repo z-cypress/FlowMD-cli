@@ -12,9 +12,12 @@ import { ExecutionContext } from './context.js';
 import { executeAIBlock } from './blocks/ai-block.js';
 import { executeDataBlock } from './blocks/data-block.js';
 import { executeTemplateBlock } from './blocks/template-block.js';
+import { executeRunBlock } from './blocks/run-block.js';
 import { parseMarkdown } from './parser.js';
 import { getErrorMessage } from '../utils/error-formatter.js';
-import type { ParsedDocument, RunOptions, FlowConfig, BlockResult } from '../types/index.js';
+import { t } from '../utils/i18n.js';
+import { recordExecution } from '../utils/history.js';
+import type { ParsedDocument, RunOptions, FlowConfig, BlockResult, ExecutionResult } from '../types/index.js';
 
 /** 块类型对应的 emoji 图标 */
 const BLOCK_EMOJI: Record<string, string> = {
@@ -22,6 +25,7 @@ const BLOCK_EMOJI: Record<string, string> = {
   data: '🗄️',
   template: '🎨',
   include: '📥',
+  run: '⚡',
 };
 
 /** 块执行结果（带偏移量信息） */
@@ -34,18 +38,34 @@ interface BlockInsertResult {
 const VAR_REF_REGEX = /\{\{([\w.-]+)\}\}/g;
 
 /**
+ * 从块 meta 中取字符串值（数组值取首个，非字符串返回 undefined）
+ * @param meta - 块元数据
+ * @param key - 键名
+ * @returns 字符串值或 undefined
+ */
+function metaString(meta: Record<string, string | string[]>, key: string): string | undefined {
+  const value = meta[key];
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) return value[0];
+  return undefined;
+}
+
+/**
  * 带超时控制的异步执行
- * @param fn - 要执行的异步函数
+ * 超时后会触发 AbortSignal，尽量中止底层请求（如 AI 调用）
+ * @param fn - 要执行的异步函数（接收中止信号）
  * @param timeoutMs - 超时时间（毫秒）
  * @returns 执行结果
  */
-async function executeWithTimeout<T>(fn: () => Promise<T>, timeoutMs: number): Promise<T> {
+async function executeWithTimeout<T>(fn: (signal: AbortSignal) => Promise<T>, timeoutMs: number): Promise<T> {
+  const controller = new AbortController();
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
-      reject(new Error(`执行超时 (${(timeoutMs / 1000).toFixed(0)}s)`));
+      controller.abort();
+      reject(new Error(t('error.timeout', { seconds: (timeoutMs / 1000).toFixed(0) })));
     }, timeoutMs);
 
-    fn()
+    fn(controller.signal)
       .then((result) => {
         clearTimeout(timer);
         resolve(result);
@@ -86,13 +106,13 @@ const SYSTEM_VARS = new Set(['execution_time', 'date', 'datetime', 'timestamp'])
  * @param doc - 解析后的文档，包含块
  * @param options - 运行选项
  * @param config - FlowMD 配置
- * @returns 渲染后的文档内容
+ * @returns 渲染后的文档内容及是否有错误
  */
 export async function executeDocument(
   doc: ParsedDocument,
   options: RunOptions,
   config: FlowConfig
-): Promise<string> {
+): Promise<ExecutionResult> {
   const context = new ExecutionContext();
 
   // 设置预定义变量
@@ -112,8 +132,7 @@ export async function executeDocument(
   // 注入 --var-file 和 --var 变量
   if (options.varFile) {
     try {
-      const fs = await import('node:fs');
-      const raw = fs.readFileSync(options.varFile, 'utf-8');
+      const raw = readFileSync(options.varFile, 'utf-8');
       let parsed: Record<string, unknown>;
 
       if (options.varFile.endsWith('.json')) {
@@ -137,7 +156,6 @@ export async function executeDocument(
         }
       } else {
         // 默认 YAML
-        const { parse: parseYaml } = await import('yaml');
         parsed = parseYaml(raw) as Record<string, unknown>;
       }
       if (parsed && typeof parsed === 'object') {
@@ -146,7 +164,7 @@ export async function executeDocument(
         }
       }
     } catch (err) {
-      console.error(chalk.yellow(`⚠ 无法加载变量文件 ${options.varFile}: ${getErrorMessage(err)}`));
+      console.error(chalk.yellow(t('warning.varFileLoad', { file: options.varFile, error: getErrorMessage(err) })));
     }
   }
   if (options.varArgs) {
@@ -161,7 +179,7 @@ export async function executeDocument(
   while (includeExpandIdx < doc.blocks.length) {
     const block = doc.blocks[includeExpandIdx];
     if (block.type === 'include') {
-      const includePath = block.meta.path;
+      const includePath = metaString(block.meta, 'path');
       if (includePath) {
         const ext = path.extname(includePath).toLowerCase();
         if (ext === '.md') {
@@ -172,9 +190,17 @@ export async function executeDocument(
           const raw = readFileSync(resolvedPath, 'utf-8');
           const subDoc = parseMarkdown(raw);
 
+          // 子块的 sourceStart/sourceEnd 是相对子文件内容的偏移，
+          // 需平移 append 位置对应的偏移，否则 debug 模式插入结果会错位
+          const offset = doc.rawContent.length + 1; // +1 对应拼接的 '\n'
           doc.rawContent += '\n' + subDoc.rawContent;
+          const offsetBlocks = subDoc.blocks.map((b) => ({
+            ...b,
+            sourceStart: b.sourceStart + offset,
+            sourceEnd: b.sourceEnd + offset,
+          }));
 
-          doc.blocks.splice(includeExpandIdx, 1, ...subDoc.blocks);
+          doc.blocks.splice(includeExpandIdx, 1, ...offsetBlocks);
           continue;
         }
       }
@@ -187,12 +213,15 @@ export async function executeDocument(
   const failedOutputs = new Set<string>();
   const failedBlocks: Array<{ position: number; type: string; error: string }> = [];
   let hasError = false;
+  const blockRecords: Array<{ position: number; type: string; status: 'success' | 'failed'; error?: string; duration_ms: number }> = [];
 
-  // 排除 template 块内的变量（Handlebars 循环变量如 {{name}} 不需要顶层定义）
+  // 排除 template/run 块内的变量：
+  // - template 的 Handlebars 循环变量（{{name}}）不需要顶层定义
+  // - run 脚本不依赖 {{}} 插值（变量经 vars 显式传入）
   const nonTemplateVarSet = new Set<string>();
   const varRegex = /\{\{([\w.-]+)\}\}/g;
   for (const block of doc.blocks) {
-    if (block.type === 'template') continue;
+    if (block.type === 'template' || block.type === 'run') continue;
     let m: RegExpExecArray | null;
     while ((m = varRegex.exec(block.content)) !== null) {
       nonTemplateVarSet.add(m[1].split('.')[0].split('[')[0]);
@@ -217,23 +246,23 @@ export async function executeDocument(
   );
 
   if (noOutputBlocks.length > 0) {
-    console.log(chalk.yellow(`\n⚠️  以下块没有指定 output 参数，执行结果不会被保留：`));
+    console.log(chalk.yellow(t('warning.noOutput.title')));
     for (const b of noOutputBlocks) {
-      console.log(chalk.yellow(`   [${b.position + 1}] ${b.type} 块`));
+      console.log(chalk.yellow(t('warning.noOutput.item', { position: b.position + 1, type: b.type })));
     }
     if (options.stepMode) {
-      console.log(chalk.gray(' 按 Enter 继续，或 Ctrl+C 取消'));
+      console.log(chalk.gray(t('prompt.enterContinue')));
       await waitForUserInput();
     }
   }
 
   if (undefinedVars.length > 0) {
-    console.log(chalk.yellow(`\n⚠️  以下变量被引用，但没有对应的块定义它们：`));
+    console.log(chalk.yellow(t('warning.undefinedVar.title')));
     for (const v of undefinedVars) {
-      console.log(chalk.yellow(`   - {{${v}}}`));
+      console.log(chalk.yellow(t('warning.undefinedVar.item', { var: v })));
     }
     if (options.stepMode) {
-      console.log(chalk.gray(' 按 Enter 继续，或 Ctrl+C 取消'));
+      console.log(chalk.gray(t('prompt.enterContinue')));
       await waitForUserInput();
     }
   }
@@ -246,62 +275,73 @@ export async function executeDocument(
 
     // 试运行模式：跳过执行
     if (options.dryRun) {
-      console.log(`${emoji} ${blockNum} ${block.type} 块 (跳过执行)`);
+      console.log(t('block.skipped', { emoji, num: blockNum, type: block.type }));
       continue;
     }
 
     // 依赖检测：检查块引用的变量是否由已失败的块产出
-    const refs = extractVariableRefs(block.content);
+    // （run 块脚本不依赖 {{}} 插值，跳过该检测，依赖经 vars 显式声明）
+    const refs = block.type === 'run' ? [] : extractVariableRefs(block.content);
     const missingDeps = refs.filter(
       (v) => !SYSTEM_VARS.has(v) && failedOutputs.has(v)
     );
     if (missingDeps.length > 0) {
-      spinnerFail(blockNum, emoji, block.type, `跳过（依赖未生成的变量: ${missingDeps.join(', ')}）`);
+      spinnerFail(blockNum, emoji, block.type, t('block.skippedDeps', { vars: missingDeps.join(', ') }));
+      // 跳过块也计入记录，与统计口径保持一致（不执行、不算失败）
+      blockRecords.push({ position: i + 1, type: block.type, status: 'success', duration_ms: 0 });
       continue;
     }
 
     // 逐步执行模式：展示块内容并等待确认
     if (options.stepMode) {
       console.log('');
-      console.log(chalk.cyan(`━━━ ${emoji} ${blockNum} ${block.type.toUpperCase()} 块 ━━━`));
+      console.log(chalk.cyan(t('block.stepTitle', { emoji, num: blockNum, type: block.type.toUpperCase() })));
       // 展示块内容（截取前 200 字符）
       const preview = block.content.length > 200
         ? block.content.slice(0, 200) + '...'
         : block.content;
       console.log(chalk.gray(preview));
       console.log('');
-      console.log(chalk.yellow('按 Enter 继续执行'));
+      console.log(chalk.yellow(t('prompt.enterRun')));
       await waitForUserInput();
     }
 
     // 显示加载动画（带实时耗时）
     const spinner = !options.quiet ? ora({
-      text: `${emoji} ${blockNum} ${block.type} 块执行中...`,
+      text: t('block.running', { emoji, num: blockNum, type: block.type }),
       color: 'cyan',
     }).start() : null;
 
     const startTime = Date.now();
     const elapsedInterval = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTime) / 1000);
-      if (spinner) spinner.text = `${emoji} ${blockNum} ${block.type} 块执行中... (已等待 ${elapsed}s)`;
+      if (spinner) spinner.text = t('block.runningWait', { emoji, num: blockNum, type: block.type, seconds: elapsed });
     }, 1000);
 
     try {
       const timeoutMs = config.execution.timeout * 1000;
 
       // 根据块类型调用对应执行器（带超时控制）
-      const executeBlock = async (): Promise<BlockResult> => {
+      const executeBlock = async (signal: AbortSignal): Promise<BlockResult> => {
         switch (block.type) {
           case 'ai':
-            return executeAIBlock(block.content, block.meta, context, config.llm, config.models);
+            return executeAIBlock(block.content, block.meta, context, config.llm, config.models, signal);
           case 'data':
             return executeDataBlock(block.content, block.meta, context, config.dataSources);
           case 'template':
             return executeTemplateBlock(block.content, block.meta, context);
+          case 'run':
+            return executeRunBlock(
+              block.content,
+              block.meta,
+              context,
+              signal,
+              { yes: options.runYes, strict: options.runStrict }
+            );
           case 'include': {
-            const includePath = block.meta.path;
+            const includePath = metaString(block.meta, 'path');
             if (!includePath) {
-              return { success: false, output: null, error: 'include 块缺少 path 参数', duration: Date.now() - startTime };
+              return { success: false, output: null, error: t('error.includeNoPath'), duration: Date.now() - startTime };
             }
             const ext = path.extname(includePath).toLowerCase();
             if (ext === '.yaml' || ext === '.yml') {
@@ -315,16 +355,16 @@ export async function executeDocument(
                 }
                 return { success: true, output: null, duration: Date.now() - startTime };
               } catch (err) {
-                return { success: false, output: null, error: `YAML include 失败: ${getErrorMessage(err)}`, duration: Date.now() - startTime };
+                return { success: false, output: null, error: t('error.includeYamlFail', { error: getErrorMessage(err) }), duration: Date.now() - startTime };
               }
             }
-            return { success: false, output: null, error: `不支持的 include 文件类型: ${ext}`, duration: Date.now() - startTime };
+            return { success: false, output: null, error: t('error.includeBadExt', { ext }), duration: Date.now() - startTime };
           }
           default:
             return {
               success: false,
               output: null,
-              error: `未知块类型: ${block.type}`,
+              error: t('error.unknownBlockType', { type: block.type }),
               duration: Date.now() - startTime,
             };
         }
@@ -335,15 +375,16 @@ export async function executeDocument(
 
       if (result.success) {
         if (spinner) {
-          spinner.succeed(`${emoji} ${blockNum} ${block.type} 块 - 完成 (${(result.duration / 1000).toFixed(1)}s)`);
+          spinner.succeed(t('block.done', { emoji, num: blockNum, type: block.type, seconds: (result.duration / 1000).toFixed(1) }));
         }
+        blockRecords.push({ position: i + 1, type: block.type, status: 'success', duration_ms: result.duration });
 
         // step 模式：打印执行结果
         if (options.stepMode && result.output !== null) {
           const preview = result.output.length > 300
             ? result.output.slice(0, 300) + '...'
             : result.output;
-          console.log(chalk.gray(' 输出:'));
+          console.log(chalk.gray(t('block.stepOutput')));
           console.log(chalk.gray(preview));
         }
 
@@ -356,63 +397,73 @@ export async function executeDocument(
         }
       } else {
         if (spinner) {
-          spinner.fail(`${emoji} ${blockNum} ${block.type} 块 - 失败`);
+          spinner.fail(t('block.failed', { emoji, num: blockNum, type: block.type }));
         } else {
           // quiet 模式：只用一行输出错误
-          process.stderr.write(`${emoji} ${blockNum} ${block.type} 块失败: ${result.error}
+          process.stderr.write(`${t('block.failedQuiet', { emoji, num: blockNum, type: block.type, error: result.error })}
 `);
         }
         hasError = true;
-        failedBlocks.push({ position: i + 1, type: block.type, error: result.error || '未知错误' });
+        failedBlocks.push({ position: i + 1, type: block.type, error: result.error || t('error.unknown') });
+        blockRecords.push({ position: i + 1, type: block.type, status: 'failed', error: result.error, duration_ms: result.duration });
 
         // 记录失败块的输出变量名
-        if (block.meta.output) {
-          failedOutputs.add(block.meta.output);
+        const outputName = metaString(block.meta, 'output');
+        if (outputName) {
+          failedOutputs.add(outputName);
         }
 
         if (options.failFast) {
-          console.error(chalk.red('\n⛔ --fail-fast: 遇到第一个错误，停止执行'));
+          console.error(chalk.red(t('warning.failFast')));
           break;
         }
       }
     } catch (error) {
       clearInterval(elapsedInterval);
       if (spinner) {
-        spinner.fail(`${emoji} ${blockNum} ${block.type} 块 - 异常`);
+        spinner.fail(t('block.exception', { emoji, num: blockNum, type: block.type }));
       }
-      process.stderr.write(`${emoji} ${blockNum} ${block.type} 块异常: ${getErrorMessage(error)}
+      process.stderr.write(`${t('block.exceptionQuiet', { emoji, num: blockNum, type: block.type, error: getErrorMessage(error) })}
 `);
       hasError = true;
       failedBlocks.push({ position: i + 1, type: block.type, error: getErrorMessage(error) });
+      blockRecords.push({ position: i + 1, type: block.type, status: 'failed', error: getErrorMessage(error), duration_ms: Date.now() - startTime });
 
-      if (block.meta.output) {
-        failedOutputs.add(block.meta.output);
+      const failedOutput = metaString(block.meta, 'output');
+      if (failedOutput) {
+        failedOutputs.add(failedOutput);
       }
 
       if (options.failFast) {
-        console.error(chalk.red('\n⛔ --fail-fast: 遇到第一个错误，停止执行'));
+        console.error(chalk.red(t('warning.failFast')));
         break;
       }
     }
   }
 
-  // 错误恢复汇总：输出成功/失败块统计，有失败时设置退出码
+  // 错误恢复汇总：输出成功/失败块统计（分组输出相同错误）
   if (!options.quiet && !options.dryRun) {
     const successCount = totalBlocks - failedBlocks.length;
     if (failedBlocks.length > 0) {
       console.log('');
-      console.log(chalk.yellow(`⚠️  执行完成: ${successCount}/${totalBlocks} 块成功, ${failedBlocks.length} 块失败`));
+      console.log(chalk.yellow(t('summary.failed', { success: successCount, total: totalBlocks, failed: failedBlocks.length })));
+      const byError = new Map<string, { positions: number[]; type: string }>();
       for (const f of failedBlocks) {
-        console.log(chalk.yellow(`   - [${f.position}] ${f.type} 块: ${f.error}`));
+        const entry = byError.get(f.error);
+        if (entry) {
+          entry.positions.push(f.position);
+        } else {
+          byError.set(f.error, { positions: [f.position], type: f.type });
+        }
+      }
+      for (const [error, entry] of byError) {
+        const positions = entry.positions.join(',');
+        console.log(chalk.yellow(t('summary.failedGrouped', { positions, type: entry.type, error })));
       }
     } else {
       console.log('');
-      console.log(chalk.green(`✅ 执行完成: ${successCount}/${totalBlocks} 块全部成功`));
+      console.log(chalk.green(t('summary.success', { success: successCount, total: totalBlocks })));
     }
-  }
-
-  if (hasError) {
-    process.exitCode = 1;
   }
 
   // 按偏移量倒序插入结果，避免偏移量失效
@@ -429,11 +480,11 @@ export async function executeDocument(
       nonTemplateVarSet
     )].filter((v) => !definedVars.has(v) && !SYSTEM_VARS.has(v));
     if (unresolved.length > 0) {
-      console.log(chalk.yellow('\n⚠️  以下变量在文档中被引用，但未被任何块定义：'));
+      console.log(chalk.yellow(t('warning.unresolvedVar.title')));
       for (const v of unresolved) {
-        console.log(chalk.yellow(`   - {{${v}}}`));
+        console.log(chalk.yellow(t('warning.undefinedVar.item', { var: v })));
       }
-      console.log(chalk.gray('   请检查是否有对应的 ai/data/template 块定义了这些变量。'));
+      console.log(chalk.gray(t('warning.unresolvedVar.hint')));
     }
   }
 
@@ -444,15 +495,58 @@ export async function executeDocument(
     }
   }
 
-  // 使用上下文渲染最终文档
-  const rendered = context.render(outputContent);
+  // 使用上下文渲染最终文档（屏蔽 template 块内容，避免朴素变量替换破坏 Handlebars 语法）
+  const rendered = renderDocument(outputContent, doc.blocks, context);
 
   // release 模式：从输出中移除所有指令块
-  if (options.release) {
-    return stripCodeBlocks(rendered);
+  const content = options.release ? stripCodeBlocks(rendered) : rendered;
+
+  // 非 dry-run：写入执行历史（best-effort，失败不中断执行）
+  if (!options.dryRun) {
+    try {
+      recordExecution({
+        file: options.currentFile || 'stdin',
+        total_blocks: totalBlocks,
+        success_blocks: totalBlocks - failedBlocks.length,
+        failed_blocks: failedBlocks.length,
+        blocks: blockRecords,
+      });
+    } catch {
+      // 历史写入失败不影响文档执行
+    }
   }
 
-  return rendered;
+  return { content, hasError };
+}
+
+/**
+ * 渲染最终文档，屏蔽 template/run 块源码区域以防朴素变量替换破坏其内容
+ * 策略：把内容按受保护块源码区域切成段，只对非保护段落做变量渲染，
+ * 受保护段源码原样保留（长度变化不会导致偏移错位）
+ * @param content - 待渲染内容
+ * @param blocks - 文档中的块（用于定位受保护源码区域）
+ * @param context - 变量上下文
+ * @returns 渲染后的内容
+ */
+function renderDocument(content: string, blocks: Array<{ type: string; sourceStart: number; sourceEnd: number }>, context: ExecutionContext): string {
+  const regions = blocks
+    .filter((b) => (b.type === 'template' || b.type === 'run') && b.sourceEnd > b.sourceStart)
+    .map((b) => ({ start: b.sourceStart, end: b.sourceEnd }))
+    .sort((a, b) => a.start - b.start);
+
+  if (regions.length === 0) return context.render(content);
+
+  let result = '';
+  let cursor = 0;
+  for (const r of regions) {
+    if (r.end <= cursor) continue;
+    const start = Math.max(r.start, cursor);
+    result += context.render(content.slice(cursor, start));
+    result += content.slice(start, r.end);
+    cursor = r.end;
+  }
+  result += context.render(content.slice(cursor));
+  return result;
 }
 
 /**
@@ -461,9 +555,9 @@ export async function executeDocument(
  * @returns 移除指令块后的内容
  */
 function stripCodeBlocks(content: string): string {
-  // 匹配 ```ai/data/template 代码块（含可选元数据），包括前后的空行
+  // 匹配 ```ai/data/template/include/run 代码块（含可选元数据），包括前后的空行
   const blockPattern = new RegExp(
-    '```(?:ai|data|template|include)\\s*(?:\\{[^}]*\\})?\\s*\\n[\\s\\S]*?\\n```\\s*\\n*',
+    '```(?:ai|data|template|include|run)\\s*(?:\\{[^}]*\\})?\\s*\\n[\\s\\S]*?\\n```\\s*\\n*',
     'g'
   );
   return content.replace(blockPattern, '');
@@ -473,7 +567,7 @@ function stripCodeBlocks(content: string): string {
  * 在循环外统一输出失败信息（避免重复代码）
  */
 function spinnerFail(blockNum: string, emoji: string, type: string, message: string): void {
-  // 在 quiet 模式下也不打印跳过信息
+  console.log(`${emoji} ${blockNum} ${type} 块 - ${message}`);
 }
 
 /**
@@ -487,7 +581,7 @@ function insertResult(content: string, sourceEnd: number, result: string): strin
   const before = content.slice(0, sourceEnd);
   const after = content.slice(sourceEnd);
 
-  const resultBlock = `\n\n> 📋 执行结果：\n> \n> ${result.split('\n').join('\n> ')}\n`;
+  const resultBlock = t('debug.insertResult', { result: result.split('\n').join('\n> ') });
 
   return before + resultBlock + after;
 }
@@ -516,15 +610,15 @@ function validateIncludePath(
   ext: string
 ): void {
   if (ext !== '.md' && ext !== '.yaml' && ext !== '.yml') {
-    throw new Error(`不支持的 include 文件类型: ${ext}，仅支持 .md / .yaml / .yml`);
+    throw new Error(t('error.includeExtWhitelist', { ext }));
   }
 
   if (!resolvedPath.startsWith(process.cwd())) {
-    throw new Error(`include 路径越界: ${resolvedPath}（仅允许项目目录内的文件）`);
+    throw new Error(t('error.includeOutOfBounds', { path: resolvedPath }));
   }
 
   if (visitedPaths.has(resolvedPath)) {
-    throw new Error(`循环引用 detected: ${resolvedPath}`);
+    throw new Error(t('error.includeCycle', { path: resolvedPath }));
   }
 }
 

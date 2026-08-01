@@ -56,6 +56,11 @@ vi.mock('node:fs', () => ({
   default: {},
 }));
 
+// Mock history to avoid real SQLite writes in executor tests
+vi.mock('../utils/history.js', () => ({
+  recordExecution: vi.fn(),
+}));
+
 // Import after mocks
 const { executeDocument } = await import('../core/executor.js');
 const { executeAIBlock } = await import('../core/blocks/ai-block.js');
@@ -114,7 +119,7 @@ describe('executeDocument', () => {
       ]);
 
       const result = await executeDocument(doc, defaultOptions, defaultConfig);
-      expect(result).toBeDefined();
+      expect(result.content).toBeDefined();
     });
   });
 
@@ -135,7 +140,7 @@ describe('executeDocument', () => {
 
       const result = await executeDocument(doc, defaultOptions, defaultConfig);
       // Template block should be skipped because "insights" failed
-      expect(result).toBeDefined();
+      expect(result.content).toBeDefined();
       // Only the AI block should have been called (template skipped)
       expect(executeAIBlock).toHaveBeenCalledTimes(1);
     });
@@ -258,10 +263,10 @@ describe('executeDocument', () => {
       };
 
       const result = await executeDocument(doc, { ...defaultOptions, release: true }, defaultConfig);
-      expect(result).not.toContain('```template');
-      expect(result).not.toContain('```');
-      expect(result).toContain('# Test');
-      expect(result).toContain('## Footer');
+      expect(result.content).not.toContain('```template');
+      expect(result.content).not.toContain('```');
+      expect(result.content).toContain('# Test');
+      expect(result.content).toContain('## Footer');
     });
 
     it('should strip multiple blocks and keep surrounding content', async () => {
@@ -291,10 +296,53 @@ describe('executeDocument', () => {
       };
 
       const result = await executeDocument(doc, { ...defaultOptions, release: true }, defaultConfig);
-      expect(result).not.toContain('```');
-      expect(result).toContain('# Report');
-      expect(result).toContain('正文内容');
-      expect(result).toContain('---');
+      expect(result.content).not.toContain('```');
+      expect(result.content).toContain('# Report');
+      expect(result.content).toContain('正文内容');
+      expect(result.content).toContain('---');
+    });
+  });
+
+  describe('template block source preservation', () => {
+    it('should preserve Handlebars syntax inside template block source', async () => {
+      const rawContent = [
+        '# Doc',
+        '',
+        '```template',
+        '{{#each items}}',
+        '{{this.name}}',
+        '{{/each}}',
+        '```',
+        '',
+        'Done {{date}}',
+      ].join('\n');
+
+      const doc: ParsedDocument = {
+        blocks: [
+          {
+            type: 'template',
+            content: '{{#each items}}\n{{this.name}}\n{{/each}}',
+            lang: 'template',
+            meta: {},
+            position: 0,
+            sourceStart: 7,
+            sourceEnd: 65,
+          },
+        ],
+        rawContent,
+        variables: ['date'],
+      };
+
+      const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const result = await executeDocument(doc, { ...defaultOptions, quiet: true }, defaultConfig);
+      spy.mockRestore();
+
+      // template 块源码（Handlebars 语法）应原样保留，不被朴素变量替换破坏
+      expect(result.content).toContain('{{#each items}}');
+      expect(result.content).toContain('{{this.name}}');
+      expect(result.content).toContain('{{/each}}');
+      // 块外的 {{date}} 仍应正常渲染
+      expect(result.content).toMatch(/Done 202\d/);
     });
   });
 
@@ -306,7 +354,7 @@ describe('executeDocument', () => {
       doc.variables = ['date'];
 
       const result = await executeDocument(doc, defaultOptions, defaultConfig);
-      expect(result).toContain('Today: 202');
+      expect(result.content).toContain('Today: 202');
     });
 
     it('should inject datetime variable', async () => {
@@ -315,7 +363,7 @@ describe('executeDocument', () => {
       doc.variables = ['datetime'];
 
       const result = await executeDocument(doc, defaultOptions, defaultConfig);
-      expect(result).toMatch(/Now: \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/);
+      expect(result.content).toMatch(/Now: \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/);
     });
 
     it('should inject timestamp variable', async () => {
@@ -324,7 +372,7 @@ describe('executeDocument', () => {
       doc.variables = ['timestamp'];
 
       const result = await executeDocument(doc, defaultOptions, defaultConfig);
-      expect(result).toMatch(/Ts: \d{10,}/);
+      expect(result.content).toMatch(/Ts: \d{10,}/);
     });
   });
 
@@ -339,7 +387,7 @@ describe('executeDocument', () => {
         { ...defaultOptions, varArgs: { name: 'FlowMD' } },
         defaultConfig
       );
-      expect(result).toContain('Hello FlowMD');
+      expect(result.content).toContain('Hello FlowMD');
     });
 
     it('should prefer varArgs over system variables', async () => {
@@ -352,7 +400,20 @@ describe('executeDocument', () => {
         { ...defaultOptions, varArgs: { date: '2026-01-01' } },
         defaultConfig
       );
-      expect(result).toContain('Date: 2026-01-01');
+      expect(result.content).toContain('Date: 2026-01-01');
+    });
+
+    it('should support dotted varArgs keys', async () => {
+      const doc = makeDoc([makeBlock('template', 'Hello {{user.name}}')]);
+      doc.rawContent = 'Hello {{user.name}}';
+      doc.variables = ['user.name'];
+
+      const result = await executeDocument(
+        doc,
+        { ...defaultOptions, varArgs: { 'user.name': 'Alice' } },
+        defaultConfig
+      );
+      expect(result.content).toContain('Hello Alice');
     });
   });
 
@@ -371,7 +432,7 @@ describe('executeDocument', () => {
         { ...defaultOptions, varFile: '/path/to/config.env' },
         defaultConfig
       );
-      expect(result).toContain('App: FlowMD-1.0.0, DB: localhost:5432');
+      expect(result.content).toContain('App: FlowMD-1.0.0, DB: localhost:5432');
     });
 
     it('should handle KEY=VALUE pairs with quotes in var-file', async () => {
@@ -388,7 +449,116 @@ describe('executeDocument', () => {
         { ...defaultOptions, varFile: '/path/to/config.env' },
         defaultConfig
       );
-      expect(result).toContain('Hello World - Hi there - 42');
+      expect(result.content).toContain('Hello World - Hi there - 42');
+    });
+  });
+
+  describe('run block integration', () => {
+    it('should execute a js run block and render its output', async () => {
+      const rawContent = [
+        '# Doc',
+        '',
+        '```run {runtime: "js", output: "greeting"}',
+        'console.log(JSON.stringify({ hello: "world" }))',
+        '```',
+        '',
+        '{{greeting}}',
+      ].join('\n');
+
+      const doc: ParsedDocument = {
+        blocks: [
+          {
+            type: 'run',
+            content: 'console.log(JSON.stringify({ hello: "world" }))',
+            lang: 'run {runtime: "js", output: "greeting"}',
+            meta: { runtime: 'js', output: 'greeting' },
+            position: 0,
+            sourceStart: 0,
+            sourceEnd: 0,
+          },
+        ],
+        rawContent,
+        variables: ['greeting'],
+      };
+
+      const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const result = await executeDocument(
+        doc,
+        { ...defaultOptions, quiet: true, runYes: true },
+        defaultConfig
+      );
+      spy.mockRestore();
+
+      expect(result.hasError).toBe(false);
+      expect(result.content).toContain('"hello": "world"');
+    });
+
+    it('should mark hasError when a run block script fails', async () => {
+      const doc: ParsedDocument = {
+        blocks: [
+          {
+            type: 'run',
+            content: 'throw new Error("boom")',
+            lang: 'run {runtime: "js"}',
+            meta: { runtime: 'js' },
+            position: 0,
+            sourceStart: 0,
+            sourceEnd: 0,
+          },
+        ],
+        rawContent: '```run {runtime: "js"}\nthrow new Error("boom")\n```',
+        variables: [],
+      };
+
+      const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const result = await executeDocument(
+        doc,
+        { ...defaultOptions, quiet: true, runYes: true },
+        defaultConfig
+      );
+      spy.mockRestore();
+
+      expect(result.hasError).toBe(true);
+    });
+
+    it('should strip run blocks from output in release mode', async () => {
+      const rawContent = [
+        '# Doc',
+        '',
+        '```run {runtime: "js"}',
+        'console.log(1)',
+        '```',
+        '',
+        'Body',
+      ].join('\n');
+
+      const doc: ParsedDocument = {
+        blocks: [
+          {
+            type: 'run',
+            content: 'console.log(1)',
+            lang: 'run {runtime: "js"}',
+            meta: { runtime: 'js' },
+            position: 0,
+            sourceStart: 0,
+            sourceEnd: 0,
+          },
+        ],
+        rawContent,
+        variables: [],
+      };
+
+      const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const result = await executeDocument(
+        doc,
+        { ...defaultOptions, quiet: true, release: true, runYes: true },
+        defaultConfig
+      );
+      spy.mockRestore();
+
+      expect(result.content).not.toContain('```run');
+      expect(result.content).toContain('# Doc');
+      expect(result.content).toContain('Body');
     });
   });
 
@@ -452,8 +622,8 @@ describe('include YAML', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const result = await executeDocument(doc, { ...defaultOptions, quiet: true, currentFile: join(process.cwd(), 'test.md') }, defaultConfig);
     spy.mockRestore();
-    expect(result).toContain('hello');
-    expect(result).toContain('42');
+    expect(result.content).toContain('hello');
+    expect(result.content).toContain('42');
   });
 
   it('should reject invalid include extension', async () => {
@@ -485,7 +655,7 @@ describe('include YAML', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const result = await executeDocument(doc, { ...defaultOptions, quiet: true, currentFile: join(process.cwd(), 'test.md') }, defaultConfig);
     spy.mockRestore();
-    expect(result).toBeDefined();
+    expect(result.content).toBeDefined();
   });
 });
 
@@ -534,7 +704,7 @@ describe('include .md', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const result = await executeDocument(doc, { ...defaultOptions, quiet: true, currentFile: join(process.cwd(), 'main.md') }, defaultConfig);
     spy.mockRestore();
-    expect(result).toContain('Final:');
+    expect(result.content).toContain('Final:');
     expect(executeAIBlock).toHaveBeenCalled();
   });
 });
@@ -580,7 +750,67 @@ describe('error recovery', () => {
     expect(executeAIBlock).toHaveBeenCalledTimes(1);
   });
 
-  it('should set exit code 1 when a block fails', async () => {
+  it('should skip dependent block, then continue independent block', async () => {
+    vi.mocked(executeAIBlock)
+      .mockResolvedValueOnce({
+        success: false,
+        output: null,
+        error: 'API limit',
+        duration: 100,
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        output: 'independent',
+        duration: 100,
+      });
+
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const doc = makeDoc([
+      makeBlock('ai', 'Fail block', { output: 'data' }),
+      makeBlock('template', 'Dependent: {{data}}'),
+      makeBlock('ai', 'Independent', { output: 'ok' }),
+    ]);
+
+    const result = await executeDocument(doc, { ...defaultOptions, quiet: true }, defaultConfig);
+    spy.mockRestore();
+    // 失败块 1 执行，依赖块 2 跳过，独立块 3 执行
+    expect(executeAIBlock).toHaveBeenCalledTimes(2);
+    expect(result.hasError).toBe(true);
+  });
+
+  it('should group identical errors in failure summary', async () => {
+    vi.mocked(executeAIBlock)
+      .mockResolvedValueOnce({
+        success: false,
+        output: null,
+        error: 'API limit',
+        duration: 100,
+      })
+      .mockResolvedValueOnce({
+        success: false,
+        output: null,
+        error: 'API limit',
+        duration: 100,
+      });
+
+    const logCalls: string[] = [];
+    const spy = vi.spyOn(console, 'log').mockImplementation((...args) => {
+      logCalls.push(args.join(' '));
+    });
+    const doc = makeDoc([
+      makeBlock('ai', 'Fail 1', { output: 'a' }),
+      makeBlock('ai', 'Fail 2', { output: 'b' }),
+    ]);
+
+    await executeDocument(doc, { ...defaultOptions }, defaultConfig);
+    spy.mockRestore();
+
+    const grouped = logCalls.find((c) => c.includes('1,2'));
+    expect(grouped).toBeDefined();
+    expect(grouped).toContain('API limit');
+  });
+
+  it('should return hasError true when a block fails', async () => {
     vi.mocked(executeAIBlock).mockResolvedValueOnce({
       success: false,
       output: null,
@@ -591,18 +821,18 @@ describe('error recovery', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const doc = makeDoc([makeBlock('ai', 'Fail block', { output: 'x' })]);
 
-    await executeDocument(doc, { ...defaultOptions, quiet: true }, defaultConfig);
+    const result = await executeDocument(doc, { ...defaultOptions, quiet: true }, defaultConfig);
     spy.mockRestore();
-    expect(process.exitCode).toBe(1);
+    expect(result.hasError).toBe(true);
   });
 
-  it('should not set exit code when all blocks succeed', async () => {
+  it('should return hasError false when all blocks succeed', async () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const doc = makeDoc([makeBlock('ai', 'OK block', { output: 'x' })]);
 
-    await executeDocument(doc, { ...defaultOptions, quiet: true }, defaultConfig);
+    const result = await executeDocument(doc, { ...defaultOptions, quiet: true }, defaultConfig);
     spy.mockRestore();
-    expect(process.exitCode).toBe(0);
+    expect(result.hasError).toBe(false);
   });
 
   it('should print failure summary with failed block info', async () => {

@@ -6,10 +6,12 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { basename, extname } from 'node:path';
 import chokidar from 'chokidar';
+import type { FSWatcher } from 'chokidar';
 import chalk from 'chalk';
 import { parseMarkdown } from '../core/parser.js';
 import { executeDocument } from '../core/executor.js';
 import { loadConfig } from '../utils/config.js';
+import { t } from '../utils/i18n.js';
 import type { RunOptions, FlowConfig } from '../types/index.js';
 
 /** 执行锁：防止并发执行 */
@@ -17,6 +19,24 @@ let isExecuting = false;
 
 /** 待执行标记：有新的变更等待处理 */
 let pendingExecution = false;
+
+/** 当前活动的 watcher（供 SIGINT 处理关闭） */
+let activeWatcher: FSWatcher | null = null;
+
+/** SIGINT 处理器是否已注册（避免多次注册导致监听器泄漏） */
+let sigintRegistered = false;
+
+/**
+ * 注册 SIGINT 优雅退出处理器（只注册一次）
+ */
+function registerSigintHandler(): void {
+  if (sigintRegistered) return;
+  process.on('SIGINT', () => {
+    activeWatcher?.close();
+    process.exit(0);
+  });
+  sigintRegistered = true;
+}
 
 /**
  * 执行 watch 命令
@@ -48,12 +68,14 @@ export async function watchCommand(file: string, opts?: Partial<RunOptions> | st
       quiet: opts.quiet || false,
       varArgs: opts.varArgs || {},
       varFile: opts.varFile,
+      runYes: opts.runYes,
+      runStrict: opts.runStrict,
     };
   }
 
   // 初始执行
-  console.log(chalk.blue('🚀 FlowMD 开始监听'));
-  console.log(chalk.gray(`📄 文件: ${file}`));
+  console.log(chalk.blue(t('watch.started')));
+  console.log(chalk.gray(t('cli.file', { file })));
   console.log('');
 
   await executeFile(file, config, runOptions);
@@ -66,6 +88,8 @@ export async function watchCommand(file: string, opts?: Partial<RunOptions> | st
       pollInterval: 100,
     },
   });
+  activeWatcher = watcher;
+  registerSigintHandler();
 
   watcher.on('change', async () => {
     // 如果正在执行，标记有待处理的变更
@@ -76,7 +100,7 @@ export async function watchCommand(file: string, opts?: Partial<RunOptions> | st
 
     isExecuting = true;
     console.clear();
-    console.log(chalk.blue('🔄 文件变化，重新执行...'));
+    console.log(chalk.blue(t('watch.reexecuting')));
     console.log('');
 
     await executeFile(file, config, runOptions);
@@ -85,24 +109,18 @@ export async function watchCommand(file: string, opts?: Partial<RunOptions> | st
     while (pendingExecution) {
       pendingExecution = false;
       console.clear();
-      console.log(chalk.blue('🔄 文件变化，重新执行...'));
+      console.log(chalk.blue(t('watch.reexecuting')));
       console.log('');
       await executeFile(file, config, runOptions);
     }
 
     isExecuting = false;
     console.log('');
-    console.log(chalk.cyan('👀 正在监听... (Ctrl+C 退出)'));
-  });
-
-  // 优雅退出
-  process.on('SIGINT', () => {
-    watcher.close();
-    process.exit(0);
+    console.log(chalk.cyan(t('watch.listening')));
   });
 
   console.log('');
-  console.log(chalk.cyan('👀 正在监听... (Ctrl+C 退出)'));
+  console.log(chalk.cyan(t('watch.listening')));
 }
 
 /**
@@ -120,34 +138,34 @@ async function executeFile(
     const content = readFileSync(file, 'utf-8');
     const doc = parseMarkdown(content);
 
-    console.log(chalk.gray(`📦 找到 ${doc.blocks.length} 个代码块`));
+    console.log(chalk.gray(t('logger.foundBlocks', { count: doc.blocks.length })));
     console.log('');
 
     const startTime = Date.now();
     options.currentFile = file;
-    const result = await executeDocument(doc, options, config);
+    const { content: rendered } = await executeDocument(doc, options, config);
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
     if (options.output === 'stdout') {
       console.log('');
-      console.log(result);
+      console.log(rendered);
       console.log('');
-      console.log(chalk.gray(`⏱ ${elapsed}s`));
+      console.log(chalk.gray(t('watch.elapsed', { seconds: elapsed })));
     } else if (options.output === 'inline') {
-      writeFileSync(file, result, 'utf-8');
+      writeFileSync(file, rendered, 'utf-8');
       console.log('');
-      console.log(chalk.green(`✅ 已覆盖: ${file} (${elapsed}s)`));
+      console.log(chalk.green(t('watch.inlineWritten', { file, seconds: elapsed })));
     } else {
       const ext = extname(file);
       const name = basename(file, ext);
       const date = new Date().toISOString().split('T')[0];
       const time = new Date().toISOString().split('T')[1].replace(/:/g, '-').slice(0, 8);
       const newFile = `${name}_${date}_${time}${ext}`;
-      writeFileSync(newFile, result, 'utf-8');
+      writeFileSync(newFile, rendered, 'utf-8');
       console.log('');
-      console.log(chalk.green(`✅ 已写入: ${newFile} (${elapsed}s)`));
+      console.log(chalk.green(t('watch.newWritten', { file: newFile, seconds: elapsed })));
     }
   } catch (error) {
-    console.error(chalk.red(`❌ 执行失败: ${error instanceof Error ? error.message : String(error)}`));
+    console.error(chalk.red(t('cli.runFailed', { error: error instanceof Error ? error.message : String(error) })));
   }
 }

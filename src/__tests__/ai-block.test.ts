@@ -6,14 +6,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ExecutionContext } from '../core/context.js';
 import type { LLMConfig } from '../types/index.js';
 
+// Hoisted spies，便于断言发给 SDK 的请求参数
+const mockOpenAICreate = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ choices: [{ message: { content: 'Mocked AI response' } }] })
+);
+const mockAnthropicCreate = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ content: [{ type: 'text', text: 'Mocked Anthropic response' }] })
+);
+
 // Mock OpenAI and Anthropic modules
 vi.mock('openai', () => ({
   default: class MockOpenAI {
     chat = {
       completions: {
-        create: vi.fn().mockResolvedValue({
-          choices: [{ message: { content: 'Mocked AI response' } }],
-        }),
+        create: mockOpenAICreate,
       },
     };
     constructor() {}
@@ -23,9 +29,7 @@ vi.mock('openai', () => ({
 vi.mock('@anthropic-ai/sdk', () => ({
   default: class MockAnthropic {
     messages = {
-      create: vi.fn().mockResolvedValue({
-        content: [{ type: 'text', text: 'Mocked Anthropic response' }],
-      }),
+      create: mockAnthropicCreate,
     };
     constructor() {}
   },
@@ -196,6 +200,36 @@ describe('executeAIBlock', () => {
         models
       );
       expect(result.success).toBe(true);
+    });
+
+    it('should send resolved preset model (not the preset name) to the API', async () => {
+      const models = {
+        fast: { model: 'gpt-4o-mini', temperature: 0.3 },
+      };
+      const result = await executeAIBlock(
+        'Test',
+        { model: 'fast' },
+        context,
+        openaiConfig,
+        models
+      );
+      expect(result.success).toBe(true);
+      const sentModel = mockOpenAICreate.mock.calls.at(-1)?.[0]?.model;
+      expect(sentModel).toBe('gpt-4o-mini');
+    });
+
+    it('should send direct block model name when not a preset', async () => {
+      const models = { fast: { model: 'gpt-4o-mini' } };
+      const result = await executeAIBlock(
+        'Test',
+        { model: 'gpt-4o' },
+        context,
+        openaiConfig,
+        models
+      );
+      expect(result.success).toBe(true);
+      const sentModel = mockOpenAICreate.mock.calls.at(-1)?.[0]?.model;
+      expect(sentModel).toBe('gpt-4o');
     });
 
     it('should fall back to direct model name if not in presets', async () => {

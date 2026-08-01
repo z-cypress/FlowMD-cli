@@ -3,7 +3,7 @@
  */
 
 /** 代码块类型标识符 */
-export type BlockType = 'ai' | 'data' | 'template' | 'include';
+export type BlockType = 'ai' | 'data' | 'template' | 'include' | 'run';
 
 /**
  * 从 Markdown 中提取的可执行代码块
@@ -15,8 +15,8 @@ export interface ExecutableBlock {
   content: string;
   /** 完整语言标识符，如 "ai {model: gpt-4o, output: x}" */
   lang: string;
-  /** 解析后的元数据，如 {model: 'gpt-4o', output: 'x'} */
-  meta: Record<string, string>;
+  /** 解析后的元数据，如 {model: 'gpt-4o', output: 'x'}；值可为字符串或字符串数组（如 vars） */
+  meta: Record<string, string | string[]>;
   /** 在文档中的顺序索引（0-based） */
   position: number;
   /** 在原文档字符串中的起始字符偏移 */
@@ -61,6 +61,10 @@ export interface RunOptions {
   varFile?: string;
   /** 当前执行文件路径（用于 include 相对路径解析） */
   currentFile?: string;
+  /** run 块：--yes 跳过执行确认 */
+  runYes?: boolean;
+  /** run 块：--strict 每次执行强制确认 */
+  runStrict?: boolean;
 }
 
 /**
@@ -75,6 +79,8 @@ export interface LLMConfig {
   model: string;
   /** 温度参数（可选） */
   temperature?: number;
+  /** 最大输出 Token 数（可选） */
+  max_tokens?: number;
   /** 自定义 API 基础 URL（可选） */
   baseURL?: string;
 }
@@ -116,6 +122,11 @@ export interface FlowConfig {
     /** 超时时间（秒） */
     timeout: number;
   };
+  /** CLI 行为配置 */
+  cli?: {
+    /** 输出语言（zh | en），默认自动检测 */
+    lang?: 'zh' | 'en';
+  };
 }
 
 /**
@@ -130,4 +141,14 @@ export interface BlockResult {
   error?: string;
   /** 执行耗时（毫秒） */
   duration: number;
+}
+
+/**
+ * executeDocument 的返回值
+ */
+export interface ExecutionResult {
+  /** 渲染后的文档内容 */
+  content: string;
+  /** 是否有块执行失败 */
+  hasError: boolean;
 }

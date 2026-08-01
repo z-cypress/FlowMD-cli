@@ -6,6 +6,7 @@
 import Handlebars from 'handlebars';
 import type { ExecutionContext } from '../context.js';
 import type { BlockResult } from '../../types/index.js';
+import { t } from '../../utils/i18n.js';
 
 /** 注册 Handlebars json helper：将变量序列化为格式化 JSON */
 Handlebars.registerHelper('json', function (value: unknown) {
@@ -80,7 +81,7 @@ function getErrorMessage(error: unknown): string {
 
     // Handlebars 特定错误
     if (message.includes('Handlebars') || message.includes('template')) {
-      return `模板语法错误: ${message}`;
+      return t('error.template.handlebars', { error: message });
     }
 
     return message;
@@ -90,5 +91,5 @@ function getErrorMessage(error: unknown): string {
     return error;
   }
 
-  return '未知错误';
+  return t('error.unknown');
 }

@@ -7,6 +7,7 @@ import { mkdirSync, writeFileSync, existsSync, readFileSync, appendFileSync } fr
 import { join } from 'node:path';
 import chalk from 'chalk';
 import { confirm } from '../utils/prompt.js';
+import { t } from '../utils/i18n.js';
 
 const DEFAULT_CONFIG = `# FlowMD 配置文件
 # 详见文档了解更多信息
@@ -49,11 +50,11 @@ export async function initCommand(force?: boolean): Promise<void> {
   // 检查 .flow 目录是否已存在
   if (existsSync(flowDir)) {
     if (force) {
-      console.log(chalk.yellow('⚠ 覆盖已有配置'));
+      console.log(chalk.yellow(t('common.overwrite')));
     } else {
-      const confirmed = await confirm('.flow/ 目录已存在，是否覆盖？');
+      const confirmed = await confirm(t('init.confirmOverwrite'));
       if (!confirmed) {
-        console.log(chalk.yellow('⚠ 已取消'));
+        console.log(chalk.yellow(t('common.cancelled')));
         return;
       }
     }
@@ -75,19 +76,19 @@ export async function initCommand(force?: boolean): Promise<void> {
     // 更新 .gitignore
     updateGitignore();
 
-    console.log(chalk.green('✅ FlowMD 配置已初始化'));
+    console.log(chalk.green(t('init.done')));
     console.log('');
-    console.log(chalk.blue('📁 已创建:'));
-    console.log(chalk.gray('  .flow/config.yml          - 主配置文件'));
-    console.log(chalk.gray('  .flow/credentials.yml.example - 凭据模板'));
-    console.log(chalk.gray('  .flow/history/            - 历史记录目录'));
+    console.log(chalk.blue(t('init.created')));
+    console.log(chalk.gray(t('init.createdConfig')));
+    console.log(chalk.gray(t('init.createdCredentials')));
+    console.log(chalk.gray(t('init.createdHistory')));
     console.log('');
-    console.log(chalk.blue('📝 下一步:'));
-    console.log(chalk.gray('  1. 复制 .flow/credentials.yml.example 为 .flow/credentials.yml'));
-    console.log(chalk.gray('  2. 在 credentials.yml 中填入你的 API Key'));
-    console.log(chalk.gray('  3. 运行 flow run <file> 开始使用'));
+    console.log(chalk.blue(t('init.nextSteps')));
+    console.log(chalk.gray(t('init.step1')));
+    console.log(chalk.gray(t('init.step2')));
+    console.log(chalk.gray(t('init.step3')));
   } catch (error) {
-    console.error(chalk.red(`❌ 初始化失败: ${error instanceof Error ? error.message : String(error)}`));
+    console.error(chalk.red(t('cli.initFailed', { error: error instanceof Error ? error.message : String(error) })));
   }
 }
 

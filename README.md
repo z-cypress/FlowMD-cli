@@ -145,7 +145,20 @@ export OPENAI_API_KEY="sk-xxxxxxxx"
  flowmd run sales-report.md
  ```
 
- 三种块的详细说明见 [docs/blocks/](docs/blocks/)。
+ ## run 块：在沙箱中执行脚本
+
+ ```run {runtime: "python", vars: ["orders"], output: "summary"}
+ import json, sys
+ data = json.load(sys.stdin)["orders"]
+ print(json.dumps({"count": len(data), "total": sum(x["revenue"] for x in data)}))
+ ```
+
+ - **js**：isolated-vm 强隔离沙箱，零能力默认（无文件系统/网络/进程 API）
+ - **python**：子进程 + 资源限制（需系统安装 `python3`）
+ - 首次执行需确认，同意后按 runtime 记忆（`--yes` 跳过，`--strict` 强制确认）
+ - 变量通过 `vars` 显式声明传入，stdout 为 JSON 时结构化存入变量
+
+ 四种块的详细说明见 [docs/blocks/](docs/blocks/)。
 
  ## 执行模式
 

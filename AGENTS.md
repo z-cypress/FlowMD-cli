@@ -4,15 +4,16 @@
 
 FlowMD is a CLI tool that executes special code blocks in Markdown files. It parses `.md` files containing `ai`, `data`, and `template` blocks, executes them in sequence, and outputs the rendered result.
 
-**Status**: v0.1.0 — 162 tests passing. SQLite/MySQL/PostgreSQL support. Full documentation in `docs/`.
+**Status**: v0.3.1 — 299 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Full documentation in `docs/` (bilingual zh/en).
 
 ## Tech Stack
 
 - **Runtime**: Node.js >= 18
-- **Language**: TypeScript 7.x (strict mode)
+- **Language**: TypeScript 7.x (strict mode; `tsc` via `@typescript/native`, `typescript` alias resolves TS 6 API for typescript-eslint)
 - **Package manager**: pnpm
 - **Testing**: vitest
 - **CLI framework**: commander
+- **Lint**: ESLint 10 (flat config via `eslint.config.js`)
 - **Markdown parsing**: unified + remark-parse + unist-util-visit
 - **AI SDK**: openai, @anthropic-ai/sdk
 - **Database**: better-sqlite3
@@ -23,7 +24,8 @@ FlowMD is a CLI tool that executes special code blocks in Markdown files. It par
 ```bash
 pnpm install          # Install dependencies
 pnpm dev -- run <f>   # Dev mode (tsx)
-pnpm test:run         # Run all tests (128)
+pnpm lint             # ESLint (flat config, TS6 API)
+pnpm test:run         # Run all tests (299)
 pnpm build            # Build to dist/
 npm install -g .      # Global install
 flowmd run <file>     # Execute document
@@ -34,24 +36,27 @@ flowmd config         # View/modify config
 flowmd doctor         # Environment diagnosis
 ```
 
-## Commands (8 total)
+## Commands (7 total)
 
 | Command | Options | Status |
 |---------|---------|--------|
-| `run <file>` | `-o` (inline/new/stdout), `-d`, `-s`, `-f`, `--debug`, `--release`, `--var`, `--var-file` | ✅ |
-| `watch <file>` | `-o`, `-d`, `-s`, `-f`, `--debug`, `--release` | ✅ |
+| `run <file>` | `-o` (inline/new/stdout), `-d`, `-s`, `-f`, `--debug`, `--release`, `--var`, `--var-file`, `--yes`, `--strict` | ✅ |
+| `watch <file>` | `-o`, `-d`, `-s`, `-f`, `--debug`, `--release`, `--yes`, `--strict` | ✅ |
 | `init` | — | ✅ |
 | `new <name>` | basic/data/report templates | ✅ |
 | `config [key]` | `--set <value>` | ✅ |
 | `doctor` | — | ✅ |
+| `history` | `--detail <id>`, `--clear` | ✅ |
 
 ## Block Types
 
 | Block | Purpose | Parameters |
 |-------|---------|------------|
-| `ai` | Call LLM (OpenAI / Anthropic) | `model`, `output`, `temperature` |
-| `data` | Query SQLite (read-only) | `from`, `output` |
+| `ai` | Call LLM (OpenAI / Anthropic) | `model`, `output`, `temperature`, `max_tokens` |
+| `data` | Query SQLite/MySQL/PostgreSQL (read-only) | `from`, `output` |
 | `template` | Render Handlebars | `output` |
+| `include` | Inline external `.md`/`.yaml` file | `path` |
+| `run` | Execute script in sandbox (js isolated-vm / python subprocess) | `runtime`, `vars`, `output`, `timeout`, `memory`, `permissions` |
 
 ## Run Modes
 
@@ -101,7 +106,8 @@ src/
 │   ├── init.ts             # .flow/ creator
 │   ├── new.ts              # Template generator
 │   ├── config.ts           # Config get/set
-│   └── doctor.ts           # Env diagnosis
+│   ├── doctor.ts           # Env diagnosis
+│   └── history.ts          # Execution history (list/detail/clear)
 ├── core/
 │   ├── parser.ts           # Markdown parser
 │   ├── executor.ts         # Block execution + modes + validation
@@ -109,14 +115,23 @@ src/
 │   └── blocks/
 │       ├── ai-block.ts     # AI executor + model presets
 │       ├── data-block.ts   # SQLite executor + security
-│       └── template-block.ts # Handlebars + json helper
+│       ├── template-block.ts # Handlebars + json helper
+│       ├── run-block.ts    # run executor (runtime dispatch + confirm)
+│       └── run/
+│           ├── js-sandbox.ts     # isolated-vm sandbox
+│           ├── python-sandbox.ts # subprocess sandbox
+│           ├── run-confirm.ts    # runtime confirmation persistence
+│           └── types.ts          # SandboxResult/SandboxOptions
 ├── types/index.ts          # All type defs
 ├── utils/
 │   ├── config.ts           # Multi-layer config loader
+│   ├── i18n.ts             # Bilingual (zh/en) message lookup
+│   ├── locales/            # zh.ts / en.ts message tables
+│   ├── history.ts          # Execution history SQLite persistence
 │   ├── logger.ts           # Terminal output
 │   ├── prompt.ts           # User input
 │   └── error-formatter.ts  # Error formatting
-└── __tests__/              # 10 test files, 162 tests
+└── __tests__/              # 22 test files, 299 tests
 ```
 
 ## Configuration Priority
@@ -134,7 +149,6 @@ CLI args > Env vars / `.env` > Project `.flow/config.yml` > Global `~/.flow/conf
 ## Known Gaps
 
 - No template gallery beyond basic/data/report/meeting/api/changelog
-- No English localization for CLI output
 - CI not verified on GitHub
 
 ## Reference

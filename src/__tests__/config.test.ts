@@ -106,4 +106,10 @@ describe('config command', () => {
     configGet('nonexistent.key');
     // Just verify no exception
   });
+
+  it('should set and persist cli.lang', () => {
+    configSet('cli.lang', 'en');
+    const cfg = readConfig();
+    expect((cfg.cli as Record<string, unknown>).lang).toBe('en');
+  });
 });

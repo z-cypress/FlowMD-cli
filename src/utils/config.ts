@@ -37,10 +37,17 @@ const DEFAULT_CONFIG: FlowConfig = Object.freeze({
 
 /**
  * 合并配置对象（深拷贝）
+ * llm.models 按 key 逐项合并，使全局与项目配置的预设模型可以共存
  */
 function mergeConfig(target: FlowConfig, source: Partial<FlowConfig>): void {
   if (source.llm) {
-    target.llm = { ...target.llm, ...source.llm };
+    const targetLlm = target.llm as LLMConfig & { models?: Record<string, Partial<LLMConfig>> };
+    const sourceLlm = source.llm as LLMConfig & { models?: Record<string, Partial<LLMConfig>> };
+    target.llm = {
+      ...target.llm,
+      ...source.llm,
+      models: { ...targetLlm.models, ...sourceLlm.models },
+    } as LLMConfig;
   }
   if (source.dataSources) {
     target.dataSources = { ...target.dataSources, ...source.dataSources };
@@ -50,6 +57,9 @@ function mergeConfig(target: FlowConfig, source: Partial<FlowConfig>): void {
   }
   if (source.execution) {
     target.execution = { ...target.execution, ...source.execution };
+  }
+  if (source.cli) {
+    target.cli = { ...target.cli, ...source.cli };
   }
 }
 
@@ -139,21 +149,10 @@ export function loadConfig(): FlowConfig {
     }
   }
 
-  // 5. 从配置中提取命名模型预设（llm.models）
-  // models 已在 mergeConfig 中从文件加载到 config.llm 中
-  // 将其提取到顶层方便 ai-block 使用
-  // 从项目配置中提取命名模型预设（llm.models）
-  if (existsSync(projectConfigPath)) {
-    try {
-      const raw = readFileSync(projectConfigPath, 'utf-8');
-      const parsed = parseYaml(raw) as Record<string, unknown>;
-      const llmSection = parsed.llm as Record<string, unknown> | undefined;
-      if (llmSection?.models && typeof llmSection.models === 'object') {
-        config.models = llmSection.models as Record<string, Partial<LLMConfig>>;
-      }
-    } catch {
-      // ignore parse errors
-    }
+  // 5. 从合并后的配置中提取命名模型预设（llm.models，全局+项目配置）
+  const mergedLlm = config.llm as LLMConfig & { models?: Record<string, Partial<LLMConfig>> };
+  if (mergedLlm.models && Object.keys(mergedLlm.models).length > 0) {
+    config.models = mergedLlm.models;
   }
 
   return config;

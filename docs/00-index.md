@@ -1,6 +1,6 @@
  # FlowMD 文档
 
- > **版本**: 0.1.0 (MVP) | **许可证**: MIT
+ > **版本**: 0.3.1 | **许可证**: MIT
  >
  > FlowMD 是一个 CLI 工具，用于执行 Markdown 文件中的特殊代码块。它支持调用 AI（LLM）、查询数据库、渲染模板，并将结果填充回文档。
 
@@ -18,6 +18,7 @@
  - [AI 块](blocks/01-ai.md) — 调用大语言模型（OpenAI / Anthropic）
  - [数据块](blocks/02-data.md) — 查询 SQLite / MySQL / PostgreSQL 数据库（只读）
  - [模板块](blocks/03-template.md) — 用 Handlebars 渲染输出
+ - [run 块](blocks/04-run.md) — 在沙箱中执行脚本代码（js / python）
 
  **参考与示例**
 
@@ -33,11 +34,16 @@
  - `flowmd run` 及 `--var`/`--var-file` 变量注入
  - `flowmd watch` 支持 `-o`、`-s`、`--debug`、`--release`
  - `flowmd init` / `flowmd new` / `flowmd config` / `flowmd doctor`
+ - `flowmd history` 查看执行历史（`--detail` / `--clear`）
  - AI 块支持 OpenAI、Anthropic 及命名模型预设
  - 数据块支持 SQLite / MySQL / PostgreSQL（只读查询）
  - 模板块支持 Handlebars 及 `{{json}}` helper
+ - run 块支持 js（isolated-vm 沙箱）与 python（子进程），含首次确认与资源限制
  - 系统变量：`{{date}}`、`{{datetime}}`、`{{timestamp}}`、`{{execution_time}}`
  - 执行模式：试运行、逐步、失败即停、debug、release
+ - 错误恢复：依赖跳过、错误分组汇总、退出码 0/1/2
+ - 中英文双语输出（`cli.lang` 或 `LANG` 环境变量切换）
+ - 英文文档（[English docs](en/00-index.md)）
 
 
  ---

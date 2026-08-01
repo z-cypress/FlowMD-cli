@@ -7,6 +7,7 @@ import Database from 'better-sqlite3';
 import type { ExecutionContext } from '../context.js';
 import type { DBConnectionConfig, BlockResult } from '../../types/index.js';
 import { getErrorMessage } from '../../utils/error-formatter.js';
+import { t } from '../../utils/i18n.js';
 
 /** 数据块配置 */
 interface DataBlockConfig {
@@ -16,8 +17,8 @@ interface DataBlockConfig {
   output?: string;
 }
 
-/** 不安全的字符正则：SQL 注入常见字符（不含分号，分号由多语句检测单独处理） */
-const UNSAFE_CHARS_REGEX = /"\\|--|\/\*|\*\/|xp_|sp_/i;
+/** 不安全的字符正则：SQL 注释与危险存储过程前缀（分号由多语句检测单独处理） */
+const UNSAFE_CHARS_REGEX = /--|\/\*|\*\/|xp_|sp_/i;
 
 /** 危险 SQL 关键字列表（大写） */
 const DANGEROUS_KEYWORDS = [
@@ -62,7 +63,7 @@ export async function executeDataBlock(
       return {
         success: false,
         output: null,
-        error: `变量渲染后 SQL 不安全: ${postError}`,
+        error: t('error.data.insecureSql', { error: postError }),
         duration: Date.now() - startTime,
       };
     }
@@ -75,7 +76,7 @@ export async function executeDataBlock(
       return {
         success: false,
         output: null,
-        error: `数据源 '${sourceName}' 未配置`,
+        error: t('error.data.sourceNotConfigured', { source: sourceName }),
         duration: Date.now() - startTime,
       };
     }
@@ -93,7 +94,7 @@ export async function executeDataBlock(
       return {
         success: false,
         output: null,
-        error: `不支持的数据库类型: ${sourceConfig.type}`,
+        error: t('error.data.badType', { type: sourceConfig.type }),
         duration: Date.now() - startTime,
       };
     }
@@ -137,7 +138,7 @@ function validateSQL(sql: string): string | null {
 
   // 1. 必须是 SELECT 开头
   if (!trimmed.toUpperCase().startsWith('SELECT')) {
-    return '仅支持 SELECT 查询';
+    return t('error.data.selectOnly');
   }
 
   // 2. 移除字符串字面量后检测危险关键字
@@ -146,19 +147,19 @@ function validateSQL(sql: string): string | null {
 
   for (const keyword of DANGEROUS_KEYWORDS) {
     if (upperWithout.includes(keyword)) {
-      return `禁止使用 ${keyword} 语句。FlowMD 仅支持只读查询`;
+      return t('error.data.forbidden', { keyword });
     }
   }
 
   // 3. 禁止多语句（分号检测，忽略字符串中的分号）
   const semicolonsOutside = withoutStrings.split(';').length - 1;
   if (semicolonsOutside > 0) {
-    return '禁止执行多条语句';
+    return t('error.data.multiStatement');
   }
 
   // 4. 检测危险字符（对去除了字符串字面量的内容检测）
   if (UNSAFE_CHARS_REGEX.test(withoutStrings)) {
-    return 'SQL 中包含潜在危险字符';
+    return t('error.data.unsafeChars');
   }
 
   return null;
@@ -174,7 +175,7 @@ function executeSQLite(sql: string, config: DBConnectionConfig): unknown[] {
   const filename = config.filename || config.database;
 
   if (!filename) {
-    throw new Error('SQLite 数据库文件路径未指定');
+    throw new Error(t('error.data.sqlitePathMissing'));
   }
 
   const db = new Database(filename);
@@ -194,11 +195,11 @@ function executeSQLite(sql: string, config: DBConnectionConfig): unknown[] {
  * @returns 查询结果行
  */
 async function executeMySQL(sql: string, config: DBConnectionConfig): Promise<unknown[]> {
-  let mysql: any;
+  let mysql: typeof import('mysql2/promise');
   try {
     mysql = await import('mysql2/promise');
   } catch {
-    throw new Error('需要安装 mysql2 包：pnpm add mysql2');
+    throw new Error(t('error.data.mysqlMissing'));
   }
 
   const connection = await mysql.createConnection({
@@ -224,11 +225,11 @@ async function executeMySQL(sql: string, config: DBConnectionConfig): Promise<un
  * @returns 查询结果行
  */
 async function executePostgreSQL(sql: string, config: DBConnectionConfig): Promise<unknown[]> {
-  let pg: any;
+  let pg: typeof import('pg');
   try {
     pg = await import('pg');
   } catch {
-    throw new Error('需要安装 pg 包：pnpm add pg');
+    throw new Error(t('error.data.pgMissing'));
   }
 
   const client = new pg.Client({

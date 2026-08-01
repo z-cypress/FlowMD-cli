@@ -3,11 +3,13 @@
  * 调用 LLM API（OpenAI、Anthropic）处理提示词
  */
 
+import { createHash } from 'node:crypto';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import type { ExecutionContext } from '../context.js';
 import type { LLMConfig, BlockResult } from '../../types/index.js';
 import { getErrorMessage } from '../../utils/error-formatter.js';
+import { t } from '../../utils/i18n.js';
 
 /** AI 块配置 */
 interface AIBlockConfig {
@@ -31,12 +33,21 @@ const openaiClients = new Map<ClientCacheKey, OpenAI>();
 const anthropicClients = new Map<ClientCacheKey, Anthropic>();
 
 /**
+ * 对 API Key 做哈希，避免明文出现在缓存键中
+ * @param apiKey - API Key
+ * @returns 哈希后的键片段
+ */
+function hashApiKey(apiKey: string): string {
+  return createHash('sha256').update(apiKey).digest('hex').slice(0, 16);
+}
+
+/**
  * 获取或创建 OpenAI 客户端
  * @param llmConfig - LLM 配置
  * @returns OpenAI 客户端
  */
 function getOpenAIClient(llmConfig: LLMConfig): OpenAI {
-  const key = `${llmConfig.apiKey}:${llmConfig.baseURL || ''}`;
+  const key = `${hashApiKey(llmConfig.apiKey)}:${llmConfig.baseURL || ''}`;
   let client = openaiClients.get(key);
   if (!client) {
     client = new OpenAI({
@@ -54,7 +65,7 @@ function getOpenAIClient(llmConfig: LLMConfig): OpenAI {
  * @returns Anthropic 客户端
  */
 function getAnthropicClient(llmConfig: LLMConfig): Anthropic {
-  const key = llmConfig.apiKey;
+  const key = hashApiKey(llmConfig.apiKey);
   let client = anthropicClients.get(key);
   if (!client) {
     client = new Anthropic({
@@ -71,6 +82,8 @@ function getAnthropicClient(llmConfig: LLMConfig): Anthropic {
  * @param config - 块级配置
  * @param context - 变量上下文，用于渲染
  * @param llmConfig - LLM 提供商配置
+ * @param models - 命名模型预设
+ * @param signal - 可选的中止信号（超时/取消时触发）
  * @returns 块执行结果
  */
 export async function executeAIBlock(
@@ -78,25 +91,31 @@ export async function executeAIBlock(
   config: AIBlockConfig,
   context: ExecutionContext,
   llmConfig: LLMConfig,
-  models?: Record<string, Partial<LLMConfig>>
+  models?: Record<string, Partial<LLMConfig>>,
+  signal?: AbortSignal
 ): Promise<BlockResult> {
   const startTime = Date.now();
 
   try {
-    // 如果 model 参数匹配命名模型预设，合并预设配置
+    // 解析实际使用的模型：块级 model 参数 → 命名预设 → 全局默认
     const resolvedConfig = { ...llmConfig };
-    if (config.model && models && models[config.model]) {
-      const preset = models[config.model];
-      if (preset.provider) resolvedConfig.provider = preset.provider;
-      if (preset.model) resolvedConfig.model = preset.model;
-      if (preset.temperature !== undefined) resolvedConfig.temperature = preset.temperature;
-      if ((preset as any).max_tokens !== undefined) (config as any).max_tokens = (preset as any).max_tokens;
-      if (preset.baseURL) resolvedConfig.baseURL = preset.baseURL;
-      // 预设切换了提供商时，解析对应的 API Key
-      if (preset.provider && preset.provider !== llmConfig.provider) {
-        resolvedConfig.apiKey = preset.provider === 'openai'
-          ? (process.env.OPENAI_API_KEY || '')
-          : (process.env.ANTHROPIC_API_KEY || '');
+    if (config.model) {
+      const preset = models?.[config.model];
+      if (preset) {
+        if (preset.provider) resolvedConfig.provider = preset.provider;
+        if (preset.temperature !== undefined) resolvedConfig.temperature = preset.temperature;
+        if (preset.max_tokens !== undefined) config.max_tokens = preset.max_tokens;
+        if (preset.baseURL) resolvedConfig.baseURL = preset.baseURL;
+        // 预设切换了提供商时，解析对应的 API Key
+        if (preset.provider && preset.provider !== llmConfig.provider) {
+          resolvedConfig.apiKey = preset.provider === 'openai'
+            ? (process.env.OPENAI_API_KEY || '')
+            : (process.env.ANTHROPIC_API_KEY || '');
+        }
+        resolvedConfig.model = preset.model || resolvedConfig.model;
+      } else {
+        // 直接使用块级指定的模型名
+        resolvedConfig.model = config.model;
       }
     }
 
@@ -105,7 +124,7 @@ export async function executeAIBlock(
       return {
         success: false,
         output: null,
-        error: `API Key 未配置。请设置环境变量 ${resolvedConfig.provider === 'openai' ? 'OPENAI_API_KEY' : 'ANTHROPIC_API_KEY'}，或运行 flow init 配置`,
+        error: t('error.ai.noApiKey', { envVar: resolvedConfig.provider === 'openai' ? 'OPENAI_API_KEY' : 'ANTHROPIC_API_KEY' }),
         duration: Date.now() - startTime,
       };
     }
@@ -117,14 +136,14 @@ export async function executeAIBlock(
     let resultText: string;
 
     if (resolvedConfig.provider === 'openai') {
-      resultText = await callOpenAI(renderedPrompt, config, resolvedConfig);
+      resultText = await callOpenAI(renderedPrompt, config, resolvedConfig, signal);
     } else if (resolvedConfig.provider === 'anthropic') {
-      resultText = await callAnthropic(renderedPrompt, config, resolvedConfig);
+      resultText = await callAnthropic(renderedPrompt, config, resolvedConfig, signal);
     } else {
       return {
         success: false,
         output: null,
-        error: `不支持的 LLM 提供商: ${resolvedConfig.provider}`,
+        error: t('error.ai.badProvider', { provider: resolvedConfig.provider }),
         duration: Date.now() - startTime,
       };
     }
@@ -153,13 +172,15 @@ export async function executeAIBlock(
  * 调用 OpenAI API
  * @param prompt - 渲染后的提示词
  * @param config - 块级配置
- * @param llmConfig - LLM 配置
+ * @param llmConfig - LLM 配置（含解析后的模型）
+ * @param signal - 可选的中止信号
  * @returns 生成的文本
  */
 async function callOpenAI(
   prompt: string,
   config: AIBlockConfig,
-  llmConfig: LLMConfig
+  llmConfig: LLMConfig,
+  signal?: AbortSignal
 ): Promise<string> {
   const client = getOpenAIClient(llmConfig);
 
@@ -173,11 +194,11 @@ async function callOpenAI(
     : config.max_tokens;
 
   const response = await client.chat.completions.create({
-    model: config.model || llmConfig.model,
+    model: llmConfig.model,
     temperature: temperature,
     max_tokens: maxTokens,
     messages: [{ role: 'user', content: prompt }],
-  });
+  }, { signal });
 
   return response.choices[0].message.content || '';
 }
@@ -186,13 +207,15 @@ async function callOpenAI(
  * 调用 Anthropic API
  * @param prompt - 渲染后的提示词
  * @param config - 块级配置
- * @param llmConfig - LLM 配置
+ * @param llmConfig - LLM 配置（含解析后的模型）
+ * @param signal - 可选的中止信号
  * @returns 生成的文本
  */
 async function callAnthropic(
   prompt: string,
   config: AIBlockConfig,
-  llmConfig: LLMConfig
+  llmConfig: LLMConfig,
+  signal?: AbortSignal
 ): Promise<string> {
   const client = getAnthropicClient(llmConfig);
 
@@ -206,11 +229,11 @@ async function callAnthropic(
     : (config.max_tokens ?? 4096);
 
   const response = await client.messages.create({
-    model: config.model || llmConfig.model,
+    model: llmConfig.model,
     max_tokens: maxTokens,
     temperature: temperature,
     messages: [{ role: 'user', content: prompt }],
-  });
+  }, { signal });
 
   // 从响应内容中提取文本
   const textBlock = response.content.find((block) => block.type === 'text');

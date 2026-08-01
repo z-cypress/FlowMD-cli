@@ -225,6 +225,48 @@
 
  诊断项目：Node.js 版本、配置文件、API Key、环境变量、`.env` 文件。
 
+ ## CLI 输出语言
+
+ FlowMD 支持中文（默认）和英文 CLI 输出。
+
+ ### 设置语言
+
+ 语言解析优先级（高 → 低）：
+
+ | 优先级 | 来源 | 示例 |
+|--------|------|------|
+ | 1（最高） | `--lang` 命令行参数 | `flowmd --lang en run doc.md` |
+ | 2 | 配置 `cli.lang` | `.flow/config.yml` |
+ | 3（最低） | 环境变量 | `LANG=en_US.UTF-8` |
+
+ ### 命令行参数
+
+ ```bash
+ # 英文输出
+ flowmd --lang en run doc.md
+
+ # 中文输出（默认）
+ flowmd --lang zh run doc.md
+ ```
+
+ ### 配置文件
+
+ ```yaml
+ # .flow/config.yml
+ cli:
+   lang: en        # 输出语言：zh | en
+ ```
+
+ ### 环境变量
+
+ ```bash
+ export LANG=en_US.UTF-8
+ ```
+
+ 支持变量：`LANG`、`LC_ALL`、`LC_MESSAGES`（按优先级）。
+
+ > 注意：`--lang` 参数需放在子命令之前（如 `flowmd --lang en run`）。
+
  ## 自定义变量
 
  FlowMD 支持从多个来源向文档注入变量，用于填充 `{{变量}}` 占位符。

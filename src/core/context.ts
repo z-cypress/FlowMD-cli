@@ -56,10 +56,15 @@ export class ExecutionContext {
 
   /**
    * 解析点号分隔的路径为值
+   * 优先匹配完整键（支持 --var user.name=x 这类直接注入的带点号键），
+   * 再回退到嵌套对象路径解析（如 store 中 user 为对象时的 user.name）
    * @param path - 点号分隔的路径（如 "user.name"）
    * @returns 解析后的值，未找到则返回 undefined
    */
   private resolvePath(path: string): unknown {
+    if (this.store.has(path)) {
+      return this.store.get(path);
+    }
     const parts = path.split('.');
     let current: unknown = this.store.get(parts[0]);
 

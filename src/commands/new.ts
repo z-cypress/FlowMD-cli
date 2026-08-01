@@ -7,6 +7,7 @@ import { writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import chalk from 'chalk';
 import { askQuestion, confirm } from '../utils/prompt.js';
+import { t } from '../utils/i18n.js';
 
 const BASIC_TEMPLATE = `# {{title}}
 
@@ -173,13 +174,13 @@ const CHANGELOG_TEMPLATE = `# 更新日志 - {{date}}
 {{log}}
 `;
 
-const TEMPLATE_DESCS: Record<string, string> = {
-  basic: '基础 AI 模板',
-  data: '数据报告模板',
-  report: '周报模板',
-  meeting: '会议纪要模板',
-  api: 'API 文档模板',
-  changelog: '更新日志模板',
+const TEMPLATE_DESC_KEYS: Record<string, string> = {
+  basic: 'new.desc.basic',
+  data: 'new.desc.data',
+  report: 'new.desc.report',
+  meeting: 'new.desc.meeting',
+  api: 'new.desc.api',
+  changelog: 'new.desc.changelog',
 };
 
 const TEMPLATES: Record<string, string> = {
@@ -199,13 +200,14 @@ const TEMPLATES: Record<string, string> = {
 export async function newCommand(name: string, opts: { template?: string; list?: boolean; force?: boolean } = {}): Promise<void> {
   // --list 模式：列出可用模板
   if (opts.list) {
-    console.log(chalk.blue('\n可用模板：\n'));
-    for (const [key, _value] of Object.entries(TEMPLATES)) {
-      const desc = TEMPLATE_DESCS[key] || '';
+    console.log(chalk.blue(t('new.templatesTitle')));
+    for (const key of Object.keys(TEMPLATES)) {
+      const descKey = TEMPLATE_DESC_KEYS[key];
+      const desc = descKey ? t(descKey) : '';
       console.log(chalk.gray(`  ${key.padEnd(12)} ${desc}`));
     }
     console.log('');
-    console.log(chalk.gray('使用: flowmd new <name> --template <模板名>'));
+    console.log(chalk.gray(t('new.templatesUsage')));
     return;
   }
 
@@ -215,11 +217,11 @@ export async function newCommand(name: string, opts: { template?: string; list?:
   // 检查文件是否已存在
   if (existsSync(filepath)) {
     if (opts.force) {
-      console.log(chalk.yellow(`⚠ 覆盖已有文件: ${filename}`));
+      console.log(chalk.yellow(t('new.overwrite', { file: filename })));
     } else {
-      const confirmed = await confirm(`文件 ${filename} 已存在，是否覆盖？`);
+      const confirmed = await confirm(t('new.confirmOverwrite', { file: filename }));
       if (!confirmed) {
-        console.log(chalk.yellow('⚠ 已取消'));
+        console.log(chalk.yellow(t('common.cancelled')));
         return;
       }
     }
@@ -228,7 +230,7 @@ export async function newCommand(name: string, opts: { template?: string; list?:
   // 选择模板类型
   let templateType = opts.template;
   if (!templateType) {
-    templateType = await askQuestion('选择模板 (basic/data/report/meeting/api/changelog) [basic]: ');
+    templateType = await askQuestion(t('new.chooseTemplate'));
   }
   const template = TEMPLATES[templateType] || TEMPLATES.basic;
 
@@ -237,20 +239,20 @@ export async function newCommand(name: string, opts: { template?: string; list?:
   const content = template
     .replace(/\{\{title\}\}/g, name.replace(/\.md$/, ''))
     .replace(/\{\{date\}\}/g, date)
-    .replace(/\{\{content\}\}/g, '在此输入你的内容')
+    .replace(/\{\{content\}\}/g, t('new.contentPlaceholder'))
     .replace(/\{\{week_start\}\}/g, getWeekStart())
     .replace(/\{\{week_range\}\}/g, getWeekRange());
 
   try {
     writeFileSync(filepath, content, 'utf-8');
-    console.log(chalk.green(`✅ 已创建: ${filename}`));
+    console.log(chalk.green(t('new.created', { file: filename })));
     console.log('');
-    console.log(chalk.blue('📝 下一步:'));
-    console.log(chalk.gray(`  1. 编辑 ${filename} 添加你的内容`));
-    console.log(chalk.gray(`  2. 运行 flow run ${filename} 执行`));
-    console.log(chalk.gray(`  3. 或运行 flow watch ${filename} 监听变化`));
+    console.log(chalk.blue(t('init.nextSteps')));
+    console.log(chalk.gray(t('new.step1', { file: filename })));
+    console.log(chalk.gray(t('new.step2', { file: filename })));
+    console.log(chalk.gray(t('new.step3', { file: filename })));
   } catch (error) {
-    console.error(chalk.red(`❌ 创建失败: ${error instanceof Error ? error.message : String(error)}`));
+    console.error(chalk.red(t('cli.newFailed', { error: error instanceof Error ? error.message : String(error) })));
   }
 }
 

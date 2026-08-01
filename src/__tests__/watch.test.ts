@@ -75,7 +75,7 @@ describe('watchCommand', () => {
       rawContent: '# Test\n\n{{result}}',
       variables: ['result'],
     });
-    mockExecuteDocument.mockResolvedValue('# Test\n\nhello');
+    mockExecuteDocument.mockResolvedValue({ content: '# Test\n\nhello', hasError: false });
     mockLoadConfig.mockReturnValue({
       llm: { provider: 'openai', apiKey: '', model: 'gpt-4o', temperature: 0.7 },
       dataSources: {},
@@ -95,6 +95,19 @@ describe('watchCommand', () => {
     await watchCommand('test.md', { output: 'stdout' });
 
     expect(mockExecuteDocument).toHaveBeenCalledTimes(1);
+  });
+
+  it('should output the rendered content in stdout mode', async () => {
+    const logCalls: string[] = [];
+    const spy = vi.spyOn(console, 'log').mockImplementation((...args) => {
+      logCalls.push(args.join(' '));
+    });
+
+    await watchCommand('test.md', { output: 'stdout' });
+    spy.mockRestore();
+
+    expect(logCalls.some((c) => c.includes('# Test'))).toBe(true);
+    expect(logCalls.some((c) => c.includes('hello'))).toBe(true);
   });
 
   it('should re-execute on file change event', async () => {

@@ -5,6 +5,7 @@
 
 import chalk from 'chalk';
 import ora, { type Ora } from 'ora';
+import { t } from './i18n.js';
 
 /** 日志级别类型 */
 export type LogLevel = 'info' | 'success' | 'warning' | 'error';
@@ -60,8 +61,8 @@ export function logSeparator(): void {
  * @param blocks - 找到的块数量
  */
 export function logFileInfo(filename: string, blocks: number): void {
-  console.log(chalk.gray(`📄 文件: ${filename}`));
-  console.log(chalk.gray(`📦 找到 ${blocks} 个代码块`));
+  console.log(chalk.gray(t('logger.file', { file: filename })));
+  console.log(chalk.gray(t('logger.foundBlocks', { count: blocks })));
 }
 
 /**
@@ -72,7 +73,7 @@ export function logFileInfo(filename: string, blocks: number): void {
  */
 export function logBlockProgress(current: number, total: number, type: string): void {
   const emoji = getBlockEmoji(type);
-  console.log(`${emoji} [${current}/${total}] ${type} 块执行中...`);
+  console.log(t('logger.blockProgress', { emoji, current, total, type }));
 }
 
 /**
@@ -95,11 +96,11 @@ function getBlockEmoji(type: string): string {
  * @param suggestion - 可选的建议
  */
 export function logError(message: string, suggestion?: string): void {
-  console.error(chalk.red(`❌ 错误: ${message}`));
+  console.error(chalk.red(t('logger.error', { message })));
   if (suggestion) {
-    console.error(chalk.yellow(`💡 建议: ${suggestion}`));
+    console.error(chalk.yellow(t('logger.suggestion', { suggestion })));
   }
-  console.error(chalk.gray('🔧 运行 flow doctor 进行环境诊断'));
+  console.error(chalk.gray(t('logger.doctor')));
 }
 
 /**

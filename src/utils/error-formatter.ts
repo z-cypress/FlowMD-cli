@@ -3,6 +3,8 @@
  * 将错误格式化为用户友好的消息
  */
 
+import { t } from './i18n.js';
+
 /** 格式化后的错误对象 */
 export interface FormattedError {
   /** 错误消息 */
@@ -11,6 +13,16 @@ export interface FormattedError {
   suggestion?: string;
   /** 错误代码（可选） */
   code?: string;
+}
+
+/**
+ * 为消息添加上下文前缀
+ * @param message - 基础消息
+ * @param context - 可选的错误上下文
+ * @returns 带前缀的消息
+ */
+function withContext(message: string, context?: string): string {
+  return context ? `${context}: ${message}` : message;
 }
 
 /**
@@ -26,8 +38,8 @@ export function formatError(error: unknown, context?: string): FormattedError {
   // 网络错误
   if (errorCode === 'ENOTFOUND' || errorCode === 'ETIMEDOUT' || errorCode === 'ECONNREFUSED') {
     return {
-      message: context ? `${context}: 网络连接失败` : '网络连接失败',
-      suggestion: '请检查网络和代理设置',
+      message: withContext(t('error.network'), context),
+      suggestion: t('error.network.suggestion'),
       code: errorCode,
     };
   }
@@ -35,24 +47,24 @@ export function formatError(error: unknown, context?: string): FormattedError {
   // HTTP 错误
   if (errorCode === '401' || errorMessage.includes('401')) {
     return {
-      message: context ? `${context}: API Key 无效` : 'API Key 无效',
-      suggestion: '请运行 flow init 检查配置，或设置环境变量 OPENAI_API_KEY',
+      message: withContext(t('error.apiKeyInvalid'), context),
+      suggestion: t('error.apiKeyInvalid.suggestion'),
       code: '401',
     };
   }
 
   if (errorCode === '429' || errorMessage.includes('429')) {
     return {
-      message: context ? `${context}: 请求频率超限` : '请求频率超限',
-      suggestion: '请稍后重试',
+      message: withContext(t('error.rateLimited'), context),
+      suggestion: t('error.rateLimited.suggestion'),
       code: '429',
     };
   }
 
   if (errorCode === '500' || errorCode === '502' || errorCode === '503') {
     return {
-      message: context ? `${context}: AI 服务暂时不可用` : 'AI 服务暂时不可用',
-      suggestion: '请稍后重试',
+      message: withContext(t('error.serviceUnavailable'), context),
+      suggestion: t('error.rateLimited.suggestion'),
       code: errorCode,
     };
   }
@@ -60,8 +72,8 @@ export function formatError(error: unknown, context?: string): FormattedError {
   // 文件错误
   if (errorCode === 'ENOENT') {
     return {
-      message: `文件不存在: ${errorMessage}`,
-      suggestion: '请检查路径是否正确',
+      message: t('error.fileNotFound', { error: errorMessage }),
+      suggestion: t('error.fileNotFound.suggestion'),
       code: 'ENOENT',
     };
   }
@@ -69,36 +81,36 @@ export function formatError(error: unknown, context?: string): FormattedError {
   // MySQL 错误
   if (errorCode === 'ER_ACCESS_DENIED_ERROR' || errorMessage.includes('ER_ACCESS_DENIED_ERROR') || errorCode === '1045') {
     return {
-      message: context ? `${context}: 数据库连接拒绝` : '数据库连接拒绝',
-      suggestion: '请检查数据库用户名和密码',
+      message: withContext(t('error.dbAuth'), context),
+      suggestion: t('error.dbAuth.suggestion'),
       code: 'DB_AUTH_ERROR',
     };
   }
   if (errorCode === 'ER_BAD_DB_ERROR' || errorMessage.includes('ER_BAD_DB_ERROR') || errorCode === '1049') {
     return {
-      message: context ? `${context}: 数据库不存在` : '数据库不存在',
-      suggestion: '请检查数据库名称是否正确',
+      message: withContext(t('error.dbNotFound'), context),
+      suggestion: t('error.dbNotFound.suggestion'),
       code: 'DB_NOT_FOUND',
     };
   }
   if (errorCode === 'ER_PARSE_ERROR' || errorMessage.includes('ER_PARSE_ERROR') || errorCode === '1064') {
     return {
-      message: context ? `${context}: SQL 语法错误` : 'SQL 语法错误',
-      suggestion: '请检查 SQL 语法',
+      message: withContext(t('error.sqlSyntax'), context),
+      suggestion: t('error.sqlSyntax.suggestion'),
       code: 'SQL_ERROR',
     };
   }
   if (errorCode === 'ER_NO_SUCH_TABLE' || errorMessage.includes('ER_NO_SUCH_TABLE') || errorCode === '1146') {
     return {
-      message: context ? `${context}: 表不存在` : '表不存在',
-      suggestion: '请检查表名是否正确',
+      message: withContext(t('error.tableNotFound'), context),
+      suggestion: t('error.tableNotFound.suggestion'),
       code: 'DB_TABLE_NOT_FOUND',
     };
   }
   if (errorCode === 'ER_DUP_ENTRY' || errorMessage.includes('ER_DUP_ENTRY') || errorCode === '1062') {
     return {
-      message: context ? `${context}: 数据重复` : '数据重复',
-      suggestion: '请检查数据是否已存在',
+      message: withContext(t('error.dbDuplicate'), context),
+      suggestion: t('error.dbDuplicate.suggestion'),
       code: 'DB_DUPLICATE',
     };
   }
@@ -106,36 +118,36 @@ export function formatError(error: unknown, context?: string): FormattedError {
   // PostgreSQL 错误（先按代码匹配，再按消息内容兜底）
   if (errorCode === '28P01' || errorMessage.includes('28P01') || errorMessage.includes('password authentication failed')) {
     return {
-      message: context ? `${context}: 数据库认证失败` : '数据库认证失败',
-      suggestion: '请检查 PostgreSQL 用户名和密码',
+      message: withContext(t('error.dbAuthPg'), context),
+      suggestion: t('error.dbAuthPg.suggestion'),
       code: 'DB_AUTH_ERROR',
     };
   }
   if (errorCode === '3D000' || errorMessage.includes('3D000') || (errorMessage.includes('does not exist') && errorMessage.includes('database'))) {
     return {
-      message: context ? `${context}: 数据库不存在` : '数据库不存在',
-      suggestion: '请检查 PostgreSQL 数据库名称是否正确',
+      message: withContext(t('error.dbNotFound'), context),
+      suggestion: t('error.dbNotFoundPg.suggestion'),
       code: 'DB_NOT_FOUND',
     };
   }
   if (errorCode === '42P01' || errorMessage.includes('42P01') || (errorMessage.includes('relation') && errorMessage.includes('does not exist'))) {
     return {
-      message: context ? `${context}: 表不存在` : '表不存在',
-      suggestion: '请检查表名是否正确',
+      message: withContext(t('error.tableNotFound'), context),
+      suggestion: t('error.tableNotFound.suggestion'),
       code: 'DB_TABLE_NOT_FOUND',
     };
   }
   if (errorCode === '42601' || errorMessage.includes('42601')) {
     return {
-      message: context ? `${context}: SQL 语法错误` : 'SQL 语法错误',
-      suggestion: '请检查 SQL 语法',
+      message: withContext(t('error.sqlSyntax'), context),
+      suggestion: t('error.sqlSyntax.suggestion'),
       code: 'SQL_ERROR',
     };
   }
   if (errorCode === '08001' || errorMessage.includes('08001')) {
     return {
-      message: context ? `${context}: 数据库连接失败` : '数据库连接失败',
-      suggestion: '请检查 PostgreSQL 服务是否运行',
+      message: withContext(t('error.dbConnectionPg'), context),
+      suggestion: t('error.dbConnectionPg.suggestion'),
       code: 'DB_CONNECTION_ERROR',
     };
   }
@@ -144,8 +156,8 @@ export function formatError(error: unknown, context?: string): FormattedError {
   if (errorCode === 'SQLITE_ERROR' || errorCode === 'SQLITE_CANTOPEN' ||
       errorMessage.includes('SQLITE_') || errorMessage.includes('syntax error')) {
     return {
-      message: context ? `${context}: SQL 查询错误` : `SQL 查询错误: ${errorMessage}`,
-      suggestion: '请检查 SQL 语法',
+      message: context ? withContext(t('error.sqlQuery'), context) : `${t('error.sqlQuery')}: ${errorMessage}`,
+      suggestion: t('error.sqlSyntax.suggestion'),
       code: 'SQL_ERROR',
     };
   }
@@ -155,8 +167,8 @@ export function formatError(error: unknown, context?: string): FormattedError {
       errorMessage.includes('table') || errorMessage.includes('sql') ||
       errorMessage.includes('SQL')) {
     return {
-      message: context ? `${context}: 数据库错误` : `数据库错误: ${errorMessage}`,
-      suggestion: '请检查数据库配置',
+      message: context ? withContext(t('error.dbError'), context) : `${t('error.dbError')}: ${errorMessage}`,
+      suggestion: t('error.dbError.suggestion'),
       code: 'DB_ERROR',
     };
   }
@@ -164,8 +176,8 @@ export function formatError(error: unknown, context?: string): FormattedError {
   // 模板错误（检查消息内容）
   if (errorMessage.includes('Parse error') || errorMessage.includes('missing closing')) {
     return {
-      message: context ? `${context}: 模板语法错误` : `模板语法错误: ${errorMessage}`,
-      suggestion: '请检查模板语法',
+      message: context ? withContext(t('error.templateSyntax'), context) : `${t('error.templateSyntax')}: ${errorMessage}`,
+      suggestion: t('error.templateSyntax.suggestion'),
       code: 'TEMPLATE_ERROR',
     };
   }
@@ -173,7 +185,7 @@ export function formatError(error: unknown, context?: string): FormattedError {
   // 通用错误
   return {
     message: context ? `${context}: ${errorMessage}` : errorMessage,
-    suggestion: '运行 flow doctor 进行环境诊断',
+    suggestion: t('error.generic.suggestion'),
     code: errorCode || 'UNKNOWN',
   };
 }
@@ -184,13 +196,13 @@ export function formatError(error: unknown, context?: string): FormattedError {
  * @returns 终端显示的格式化字符串
  */
 export function formatErrorForDisplay(error: FormattedError): string {
-  let output = `❌ 错误: ${error.message}`;
+  let output = t('error.display.title', { message: error.message });
 
   if (error.suggestion) {
-    output += `\n   💡 建议: ${error.suggestion}`;
+    output += `\n${t('error.display.suggestion', { suggestion: error.suggestion })}`;
   }
 
-  output += '\n   🔧 运行 flow doctor 进行环境诊断';
+  output += `\n${t('error.display.doctor')}`;
 
   return output;
 }
@@ -207,7 +219,7 @@ export function getErrorMessage(error: unknown): string {
   if (typeof error === 'string') {
     return sanitizeMessage(error);
   }
-  return '未知错误';
+  return t('error.unknown');
 }
 
 /**

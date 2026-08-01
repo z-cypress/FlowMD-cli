@@ -345,7 +345,7 @@ describe('executeDataBlock', () => {
 
   describe('unsupported databases', () => {
     it('should return error for unknown database type', async () => {
-      const badConfig = { type: 'mongodb' as any, database: 'test' };
+      const badConfig = { type: 'mongodb', database: 'test' } as unknown as DBConnectionConfig;
       const result = await executeDataBlock(
         'SELECT 1',
         {},

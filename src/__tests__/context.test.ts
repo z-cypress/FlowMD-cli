@@ -74,6 +74,14 @@ describe('ExecutionContext', () => {
       expect(ctx.render('{{user.email}}')).toBe('alice@example.com');
     });
 
+    it('should resolve variables injected directly with dotted keys', () => {
+      // 模拟 --var user.name=Alice 的注入方式（整键存储）
+      const ctx = new ExecutionContext();
+      ctx.set('user.name', 'Alice');
+
+      expect(ctx.render('{{user.name}}')).toBe('Alice');
+    });
+
     it('should handle deeply nested variables', () => {
       const ctx = new ExecutionContext();
       ctx.set('config', { database: { host: 'localhost', port: 5432 } });

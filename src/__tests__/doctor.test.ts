@@ -2,7 +2,7 @@
  * Doctor command unit tests
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, vi, beforeEach, afterEach } from 'vitest';
 import { existsSync, writeFileSync, unlinkSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -44,7 +44,11 @@ describe('doctor command', () => {
   afterEach(() => {
     // Clean up test config files
     if (existsSync(projectConfigPath)) unlinkSync(projectConfigPath);
-    try { if (existsSync(globalConfigPath)) unlinkSync(globalConfigPath); } catch {}
+    try {
+      if (existsSync(globalConfigPath)) unlinkSync(globalConfigPath);
+    } catch {
+      // 忽略清理错误
+    }
   });
 
   it('should run without crashing', async () => {

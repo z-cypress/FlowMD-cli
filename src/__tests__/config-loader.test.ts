@@ -127,6 +127,39 @@ describe('loadConfig', () => {
     expect(config.models).toBeDefined();
     expect(config.models?.['fast']).toMatchObject({ model: 'gpt-4o-mini', temperature: 0.3 });
   });
+
+  it('should extract llm.models presets from global config', () => {
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('.flow/config.yml')) return true;
+      return false;
+    });
+    mockReadFileSync.mockImplementation((p: string) => {
+      if (p === '/home/user/.flow/config.yml') {
+        return 'llm:\n  provider: openai\n  model: gpt-4o\n  models:\n    fast:\n      model: gpt-4o-mini\n';
+      }
+      return 'llm:\n  provider: openai\n  model: gpt-4o\n';
+    });
+
+    const config = loadConfig();
+    expect(config.models?.['fast']).toMatchObject({ model: 'gpt-4o-mini' });
+  });
+
+  it('should merge models from global and project configs by key', () => {
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('.flow/config.yml')) return true;
+      return false;
+    });
+    mockReadFileSync.mockImplementation((p: string) => {
+      if (p === '/home/user/.flow/config.yml') {
+        return 'llm:\n  provider: openai\n  model: gpt-4o\n  models:\n    fast:\n      model: gpt-4o-mini\n      temperature: 0.3\n';
+      }
+      return 'llm:\n  provider: openai\n  model: gpt-4o\n  models:\n    strong:\n      model: gpt-4-turbo\n';
+    });
+
+    const config = loadConfig();
+    expect(config.models?.['fast']).toMatchObject({ model: 'gpt-4o-mini', temperature: 0.3 });
+    expect(config.models?.['strong']).toMatchObject({ model: 'gpt-4-turbo' });
+  });
 });
 
 describe('getLLMConfig', () => {

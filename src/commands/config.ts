@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import chalk from 'chalk';
 import { loadConfig } from '../utils/config.js';
+import { t } from '../utils/i18n.js';
 
 /**
  * 获取配置文件的路径（惰性计算，便于测试时切换工作目录）
@@ -81,7 +82,7 @@ export function configGet(key?: string): void {
   if (key) {
     const value = getNested(configAny, key);
     if (value === undefined) {
-      console.log(chalk.yellow(`配置项 "${key}" 未设置`));
+      console.log(chalk.yellow(t('config.notSet', { key })));
     } else {
       console.log(stringifyYaml({ [key]: value }, { lineWidth: 120 }).trim());
     }
@@ -107,5 +108,5 @@ export function configSet(key: string, value: string): void {
   setNested(data, key, parsed);
   saveConfigFile(data);
 
-  console.log(chalk.green(`✅ 已设置 ${key} = ${value}`));
+  console.log(chalk.green(t('config.set', { key, value })));
 }

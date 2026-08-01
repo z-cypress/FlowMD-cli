@@ -1,0 +1,219 @@
+# FlowMD-cli
+
+Turn Markdown into executable files — drive AI workflows by writing documents.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org)
+
+[简体中文](README.md) | [English](README.en.md)
+
+## Installation
+
+```bash
+git clone https://github.com/z-cypress/FlowMD-cli.git
+cd FlowMD-cli
+pnpm install
+pnpm build
+npm install -g @z-cypress/flow-md
+npm install -g .  # Development mode
+```
+
+## Configuration
+
+Configuration file `.flow/config.yml` (created with `flowmd init`):
+
+```yaml
+# .flow/config.yml
+llm:
+  provider: openai            # openai | anthropic
+  model: deepseek-v4-flash        # Default model
+  temperature: 0.7
+  apiKey: ""                  # API Key (environment variable takes precedence)
+  baseURL: https://api.deepseek.com  # Compatible API endpoint
+
+dataSources:
+  default:
+    type: sqlite
+    filename: ./data.db
+
+execution:
+  timeout: 30
+```
+
+Supported AI providers:
+
+| Provider | `provider` value | API Key |
+|--------|--------------|---------|
+| OpenAI | `openai` | `OPENAI_API_KEY` |
+| Anthropic | `anthropic` | `ANTHROPIC_API_KEY` |
+| DeepSeek and other compatible APIs | `openai` + `baseURL` | `OPENAI_API_KEY` |
+| Multi-model presets | configure `llm.models` | environment variables per provider |
+
+The API Key can be written in the config file or set via environment variable (the environment variable takes precedence):
+
+```bash
+# When provider is openai, the code reads OPENAI_API_KEY
+export OPENAI_API_KEY="sk-xxxxxxxx"
+```
+
+Supported databases: **SQLite** (MySQL, PostgreSQL planned). See the [Configuration docs](docs/en/02-configuration.md) for details.
+
+## Quick Start
+
+```bash
+flowmd init
+flowmd new hello
+flowmd run hello.md --output stdout
+```
+
+`{{variables}}` in the document body are automatically replaced with execution results.
+
+## Usage Examples
+
+### Calling AI
+
+````markdown
+# hello.md
+```ai {output: "summary"}
+Summarize the trend of remote work in one sentence.
+```
+
+Summary: {{summary}}
+````
+
+```bash
+flowmd run hello.md --output stdout
+```
+
+### Querying the Database
+
+````markdown
+# report.md
+```data {from: "default", output: "users"}
+SELECT name, email FROM users LIMIT 5
+```
+
+There are {{users.length}} users in total.
+````
+
+```bash
+flowmd run report.md -o new
+```
+
+### Template Layout
+
+````markdown
+# template.md
+```template
+| Name | Email |
+|------|------|
+{{#each users}}
+| {{name}} | {{email}} |
+{{/each}}
+```
+````
+
+```bash
+flowmd run template.md
+```
+
+### Combined Workflow
+
+````markdown
+# sales-report.md
+## Data
+```data {output: "orders"}
+SELECT product, revenue FROM sales ORDER BY revenue DESC
+```
+
+## AI Analysis
+```ai {output: "insight"}
+Analyze the sales data: {{orders}}
+```
+
+## Report
+```template
+| Product | Revenue |
+|------|------|
+{{#each orders}}
+| {{product}} | ¥{{revenue}} |
+{{/each}}
+
+{{insight}}
+```
+````
+
+```bash
+flowmd run sales-report.md
+```
+
+## Run Block: execute scripts in a sandbox
+
+```run {runtime: "python", vars: ["orders"], output: "summary"}
+import json, sys
+data = json.load(sys.stdin)["orders"]
+print(json.dumps({"count": len(data), "total": sum(x["revenue"] for x in data)}))
+```
+
+- **js**: strong isolation via isolated-vm, zero capability by default (no filesystem/network/process APIs)
+- **python**: subprocess + resource limits (requires `python3` on the system)
+- First execution requires confirmation; the choice is remembered per runtime (`--yes` to skip, `--strict` to always confirm)
+- Variables are passed explicitly via `vars`; stdout is stored structurally when it is JSON
+
+Detailed documentation for the four block types can be found in [docs/blocks/](docs/en/blocks/).
+
+## Execution Modes
+
+In the default execution mode, each block is executed sequentially in document order, results are stored in the variable context, and `{{variables}}` in the document body are automatically replaced.
+
+| Mode | Command | Effect |
+|------|------|------|
+| Default | `flowmd run file.md` | Execute all blocks and output the document with variables replaced |
+| Debug | `flowmd run file.md --debug` | Insert execution results below each code block in the output document |
+| Release | `flowmd run file.md --release` | Remove all directive blocks after execution, keeping only the rendered result |
+| Dry-run | `flowmd run file.md -d` | Parse only without executing, view variable dependencies |
+| Step | `flowmd run file.md -s` | Pause before each block executes, press Enter to continue |
+| Fail-fast | `flowmd run file.md -f` | Stop immediately at the first error |
+
+Output modes are specified with `-o`:
+
+| Output mode | Command | Description |
+|----------|------|------|
+| New file (default) | `flowmd run file.md` | Generates `file_date.md` |
+| Overwrite original file | `flowmd run file.md -o inline` | Overwrites in place |
+| Terminal output | `flowmd run file.md -o stdout` | Prints to the terminal |
+
+## Command Reference
+
+| Command | Description |
+|------|------|
+| `flowmd run <file>` | Execute a document; see execution and output modes above |
+| `flowmd run <file> --var key=value` | Inject variables (repeatable) |
+| `flowmd run <file> --var-file vars.yml` | Inject variables from a YAML/JSON file |
+| `flowmd watch <file> -o stdout` | Watch for file changes; supports `-o` to specify the output mode |
+| `flowmd init` | Create the `.flow/` config directory |
+| `flowmd new <name>` | Create a document from a template (basic / data / report) |
+| `flowmd config` | View the current configuration |
+| `flowmd config llm.model --set deepseek-chat` | Set a configuration option |
+| `flowmd doctor` | Environment diagnosis |
+
+Full documentation is available at [docs/](docs/en/00-index.md).
+
+## Development
+
+```bash
+pnpm install
+pnpm dev -- run doc.md   # Development mode
+pnpm test                # Run tests
+pnpm build               # Build
+```
+
+## Project Status
+
+**MVP stage**. Implemented: eight commands (run/watch/init/new/config/doctor), AI blocks (OpenAI + Anthropic + model presets), data blocks (SQLite/MySQL/PostgreSQL), template blocks (Handlebars + json helper), variable context, `--var`/`--var-file` (including `.env`), dry-run/step/fail-fast/release modes.
+
+**Planned**: error message improvements, interactive initialization.
+
+## License
+
+MIT

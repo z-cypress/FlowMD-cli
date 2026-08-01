@@ -90,6 +90,15 @@ describe('parseMarkdown', () => {
       expect(doc.blocks[0].type).toBe('ai');
       expect(doc.blocks[0].meta).toEqual({});
     });
+
+    it('should keep commas inside quoted metadata values', () => {
+      const content = '```ai {model: "gpt-4o,fast", output: "x"}\nprompt\n```';
+      const doc = parseMarkdown(content);
+
+      expect(doc.blocks).toHaveLength(1);
+      expect(doc.blocks[0].meta.model).toBe('gpt-4o,fast');
+      expect(doc.blocks[0].meta.output).toBe('x');
+    });
   });
 
   describe('nested-vars.md - variable extraction', () => {
@@ -152,6 +161,44 @@ describe('parseMarkdown', () => {
       expect(doc.blocks).toHaveLength(1);
       expect(doc.blocks[0].type).toBe('include');
       expect(doc.blocks[0].content).toBe('');
+    });
+  });
+
+  describe('run blocks', () => {
+    it('should recognize run blocks and parse runtime', () => {
+      const content = '```run {runtime: "python"}\nprint(1)\n```';
+      const doc = parseMarkdown(content);
+
+      expect(doc.blocks).toHaveLength(1);
+      expect(doc.blocks[0].type).toBe('run');
+      expect(doc.blocks[0].meta.runtime).toBe('python');
+    });
+
+    it('should parse vars as an array', () => {
+      const content = '```run {runtime: "js", vars: ["a", "b"], output: "result"}\nconsole.log(a)\n```';
+      const doc = parseMarkdown(content);
+
+      expect(doc.blocks).toHaveLength(1);
+      expect(doc.blocks[0].meta.vars).toEqual(['a', 'b']);
+      expect(doc.blocks[0].meta.output).toBe('result');
+    });
+
+    it('should parse timeout and memory params', () => {
+      const content = '```run {runtime: "python", timeout: 60, memory: 256}\nprint(1)\n```';
+      const doc = parseMarkdown(content);
+
+      expect(doc.blocks[0].meta.runtime).toBe('python');
+      expect(doc.blocks[0].meta.timeout).toBe('60');
+      expect(doc.blocks[0].meta.memory).toBe('256');
+    });
+
+    it('should run without any params', () => {
+      const content = '```run\nprint("hello")\n```';
+      const doc = parseMarkdown(content);
+
+      expect(doc.blocks).toHaveLength(1);
+      expect(doc.blocks[0].type).toBe('run');
+      expect(doc.blocks[0].meta).toEqual({});
     });
   });
 

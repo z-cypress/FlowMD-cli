@@ -9,7 +9,7 @@ import { visit } from 'unist-util-visit';
 import type { ParsedDocument, ExecutableBlock, BlockType } from '../types/index.js';
 
 /** 支持的代码块类型列表 */
-const BLOCK_TYPES: BlockType[] = ['ai', 'data', 'template', 'include'];
+const BLOCK_TYPES: BlockType[] = ['ai', 'data', 'template', 'include', 'run'];
 
 /**
  * 解析 Markdown 内容，提取可执行块
@@ -81,11 +81,12 @@ function detectBlockType(lang: string): BlockType | null {
  * 从 meta 字符串解析元数据
  * 输入：'{from: "default", output: "sales"}'
  * 输出：{from: 'default', output: 'sales'}
+ * 数组值（如 vars: ["a", "b"]）解析为字符串数组
  * @param metaStr - remark 解析的原始 meta 字符串
  * @returns 解析后的元数据对象
  */
-function parseMetadata(metaStr: string): Record<string, string> {
-  const meta: Record<string, string> = {};
+function parseMetadata(metaStr: string): Record<string, string | string[]> {
+  const meta: Record<string, string | string[]> = {};
 
   // 使用花括号计数提取内容，支持嵌套
   const startIndex = metaStr.indexOf('{');
@@ -109,27 +110,73 @@ function parseMetadata(metaStr: string): Record<string, string> {
   const content = metaStr.slice(startIndex + 1, endIndex);
   if (!content.trim()) return meta;
 
-  // 按逗号分割，再按冒号分割键值对
-  const pairs = content.split(',');
+  // 按顶层逗号分割键值对（忽略引号内部的逗号）
+  const pairs = splitTopLevel(content);
   for (const pair of pairs) {
     const colonIndex = pair.indexOf(':');
     if (colonIndex === -1) continue;
 
     const key = pair.slice(0, colonIndex).trim();
-    let value = pair.slice(colonIndex + 1).trim();
+    const value = pair.slice(colonIndex + 1).trim();
 
-    // 如果值有引号，移除引号并处理转义
-    if ((value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1);
-      // 处理转义字符
-      value = value.replace(/\\"/g, '"').replace(/\\'/g, "'").replace(/\\\\/g, '\\');
+    // 数组值：[a, b] 或 ["a", "b"]
+    if (value.startsWith('[') && value.endsWith(']')) {
+      const inner = value.slice(1, -1).trim();
+      meta[key] = inner
+        ? splitTopLevel(inner).map((item) => unquoteValue(item.trim()))
+        : [];
+      continue;
     }
 
     if (key) {
-      meta[key] = value;
+      meta[key] = unquoteValue(value);
     }
   }
 
   return meta;
+}
+
+/**
+ * 移除值两侧的引号并处理转义
+ * @param value - 原始值
+ * @returns 去引号后的值
+ */
+function unquoteValue(value: string): string {
+  let result = value;
+  if ((result.startsWith('"') && result.endsWith('"')) ||
+      (result.startsWith("'") && result.endsWith("'"))) {
+    result = result.slice(1, -1);
+    // 处理转义字符
+    result = result.replace(/\\"/g, '"').replace(/\\'/g, "'").replace(/\\\\/g, '\\');
+  }
+  return result;
+}
+
+/**
+ * 按顶层逗号分割字符串，忽略引号或方括号内部的逗号
+ * @param str - 要分割的字符串
+ * @returns 分割后的片段数组
+ */
+function splitTopLevel(str: string): string[] {
+  const parts: string[] = [];
+  let current = '';
+  let inSingle = false;
+  let inDouble = false;
+  let bracketDepth = 0;
+
+  for (const ch of str) {
+    if (ch === "'" && !inDouble) inSingle = !inSingle;
+    else if (ch === '"' && !inSingle) inDouble = !inDouble;
+    else if (ch === '[' && !inSingle && !inDouble) bracketDepth++;
+    else if (ch === ']' && !inSingle && !inDouble) bracketDepth--;
+
+    if (ch === ',' && !inSingle && !inDouble && bracketDepth === 0) {
+      parts.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  parts.push(current);
+  return parts;
 }
