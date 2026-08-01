@@ -4,7 +4,7 @@
 
 FlowMD is a CLI tool that executes special code blocks in Markdown files. It parses `.md` files containing `ai`, `data`, and `template` blocks, executes them in sequence, and outputs the rendered result.
 
-**Status**: v0.3.1 — 299 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Full documentation in `docs/` (bilingual zh/en).
+**Status**: v0.3.1 — 389 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). Full documentation in `docs/` (bilingual zh/en).
 
 ## Tech Stack
 
@@ -25,7 +25,7 @@ FlowMD is a CLI tool that executes special code blocks in Markdown files. It par
 pnpm install          # Install dependencies
 pnpm dev -- run <f>   # Dev mode (tsx)
 pnpm lint             # ESLint (flat config, TS6 API)
-pnpm test:run         # Run all tests (299)
+pnpm test:run         # Run all tests (389)
 pnpm build            # Build to dist/
 npm install -g .      # Global install
 flowmd run <file>     # Execute document
@@ -58,6 +58,17 @@ flowmd doctor         # Environment diagnosis
 | `include` | Inline external `.md`/`.yaml` file | `path` |
 | `run` | Execute script in sandbox (js isolated-vm / python subprocess) | `runtime`, `vars`, `output`, `timeout`, `memory`, `permissions` |
 
+## Control Flow (v1.3)
+
+HTML comment directives wrapping body text + blocks. Not a block type; parsed as `directives` and executed via a control tree.
+
+- `<!-- if: EXPR -->` / `<!-- elif: EXPR -->` / `<!-- else -->` / `<!-- endif -->`
+- `<!-- for: X in LIST [ {collect: "NAME"} ] -->` / `<!-- endfor -->`
+- Condition evaluator: whitelist (comparisons + `&&` `||` `!`), undefined → falsy
+- for: body blocks re-execute per round; body text re-renders per round; loop var cleared after loop; `collect` accumulates single output into array
+- Directive comments kept in default/debug output, stripped in release
+- Errors (unmatched directives, syntax) reported pre-execution
+
 ## Run Modes
 
 | Mode | Flag | Effect |
@@ -86,7 +97,7 @@ Named presets in `llm.models` config, referenced by `model` in AI blocks. Preset
 ## Pre-execution Validation
 
 1. Blocks without `output` → warning (step mode: pause with prompt)
-2. Undefined `{{variable}}` references → warning (excludes Handlebars loop vars)
+2. Undefined `{{variable}}` references → warning (excludes Handlebars loop vars, run vars, and control-flow loop vars / collect names)
 
 ## Security (Data Block)
 
@@ -122,6 +133,11 @@ src/
 │           ├── python-sandbox.ts # subprocess sandbox
 │           ├── run-confirm.ts    # runtime confirmation persistence
 │           └── types.ts          # SandboxResult/SandboxOptions
+│       └── control/
+│           ├── directives.ts     # HTML comment directive parsing
+│           ├── tree.ts           # directive pairing → control tree
+│           ├── condition.ts      # condition expression evaluator
+│           └── execute-region.ts # tree walking execution
 ├── types/index.ts          # All type defs
 ├── utils/
 │   ├── config.ts           # Multi-layer config loader
@@ -131,7 +147,7 @@ src/
 │   ├── logger.ts           # Terminal output
 │   ├── prompt.ts           # User input
 │   └── error-formatter.ts  # Error formatting
-└── __tests__/              # 22 test files, 299 tests
+└── __tests__/              # 25 test files, 389 tests
 ```
 
 ## Configuration Priority
@@ -156,3 +172,13 @@ CLI args > Env vars / `.env` > Project `.flow/config.yml` > Global `~/.flow/conf
 - User docs: `docs/00-index.md`
 - Test guide: `note/测试指南.md`
 - Commit format: `feat:`, `fix:`, `test:`
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked as markdown files under `.scratch/<feature>/`. See `note/agents/issue-tracker.md`.
+
+### Domain docs
+
+Feature planning docs (CONTEXT/PLAN/ADR) live in `note/<feature>/`; `docs/` is user-facing only. See `note/agents/domain.md`.

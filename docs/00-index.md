@@ -19,6 +19,8 @@
  - [数据块](blocks/02-data.md) — 查询 SQLite / MySQL / PostgreSQL 数据库（只读）
  - [模板块](blocks/03-template.md) — 用 Handlebars 渲染输出
  - [run 块](blocks/04-run.md) — 在沙箱中执行脚本代码（js / python）
+ - [控制流](blocks/05-control.md) — if / elif / else / for 条件与循环
+ - [include 指令](blocks/06-include.md) — 引入外部文档与变量文件
 
  **参考与示例**
 
@@ -39,6 +41,7 @@
  - 数据块支持 SQLite / MySQL / PostgreSQL（只读查询）
  - 模板块支持 Handlebars 及 `{{json}}` helper
  - run 块支持 js（isolated-vm 沙箱）与 python（子进程），含首次确认与资源限制
+ - 控制流：`<!-- if/elif/else/endif -->` 条件分支与 `<!-- for/endfor -->` 循环（含 collect 累积）
  - 系统变量：`{{date}}`、`{{datetime}}`、`{{timestamp}}`、`{{execution_time}}`
  - 执行模式：试运行、逐步、失败即停、debug、release
  - 错误恢复：依赖跳过、错误分组汇总、退出码 0/1/2

@@ -194,6 +194,45 @@ describe('ExecutionContext', () => {
     });
   });
 
+  describe('resolve', () => {
+    it('should resolve simple values', () => {
+      const ctx = new ExecutionContext();
+      ctx.set('name', 'Alice');
+
+      expect(ctx.resolve('name')).toBe('Alice');
+    });
+
+    it('should resolve deeply nested paths', () => {
+      const ctx = new ExecutionContext();
+      ctx.set('user', { profile: { age: 30 } });
+
+      expect(ctx.resolve('user.profile.age')).toBe(30);
+    });
+
+    it('should resolve array index access', () => {
+      const ctx = new ExecutionContext();
+      ctx.set('items', [{ price: 100 }, { price: 200 }]);
+
+      expect(ctx.resolve('items.0.price')).toBe(100);
+      expect(ctx.resolve('items.1.price')).toBe(200);
+    });
+
+    it('should resolve dotted keys injected directly', () => {
+      const ctx = new ExecutionContext();
+      ctx.set('user.name', 'Alice');
+
+      expect(ctx.resolve('user.name')).toBe('Alice');
+    });
+
+    it('should return undefined for missing paths', () => {
+      const ctx = new ExecutionContext();
+
+      expect(ctx.resolve('missing')).toBeUndefined();
+      expect(ctx.resolve('user.nope')).toBeUndefined();
+      expect(ctx.resolve('a.b.c')).toBeUndefined();
+    });
+  });
+
   describe('dump', () => {
     it('should return empty object when no variables set', () => {
       const ctx = new ExecutionContext();

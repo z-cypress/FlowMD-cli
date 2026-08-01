@@ -26,6 +26,23 @@ export class ExecutionContext {
   }
 
   /**
+   * 删除变量
+   * @param name - 变量名
+   */
+  delete(name: string): void {
+    this.store.delete(name);
+  }
+
+  /**
+   * 解析点号分隔的路径为值（与 render 内部一致，供控制流条件等场景使用）
+   * @param path - 点号分隔的路径（如 "user.name" / "items.0.price"）
+   * @returns 解析后的值，未找到则返回 undefined
+   */
+  resolve(path: string): unknown {
+    return this.resolvePath(path);
+  }
+
+  /**
    * 渲染模板字符串，替换 {{variable}} 占位符
    * @param template - 包含 {{variable}} 占位符的模板字符串
    * @returns 替换变量后的字符串

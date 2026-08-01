@@ -35,6 +35,92 @@ export interface ParsedDocument {
   rawContent: string;
   /** 去重后的所有 {{变量名}} 引用列表 */
   variables: string[];
+  /** 控制流指令（if/elif/else/endif/for/endfor），按 source 顺序 */
+  directives?: ControlDirective[];
+}
+
+/**
+ * 控制流指令类型
+ * if/elif 带条件；else/endif/endfor 无参数；for 带循环变量、列表与可选 collect
+ */
+export type ControlDirectiveKind = 'if' | 'elif' | 'else' | 'endif' | 'for' | 'endfor';
+
+/**
+ * 控制流指令（源自 Markdown HTML 注释，如 `<!-- if: {{score}} > 80 -->`）
+ */
+export interface ControlDirective {
+  /** 指令类型 */
+  kind: ControlDirectiveKind;
+  /** 完整注释文本（含 `<!-- -->`，用于 release 剥离定位） */
+  raw: string;
+  /** if/elif 的条件表达式 */
+  condition?: string;
+  /** for 的循环变量名 */
+  loopVar?: string;
+  /** for 的列表变量名 */
+  listExpr?: string;
+  /** for 的 collect 累积数组名（可选） */
+  collect?: string;
+  /** 在原文档字符串中的起始字符偏移 */
+  sourceStart: number;
+  /** 在原文档字符串中的结束字符偏移 */
+  sourceEnd: number;
+}
+
+/**
+ * 控制流树节点：块 | if 区 | for 区
+ */
+export type ControlNode = BlockNode | IfNode | ForNode;
+
+/** 块节点：包装单个可执行块 */
+export interface BlockNode {
+  kind: 'block';
+  /** 包裹的块 */
+  block: ExecutableBlock;
+}
+
+/** if 区的分支（then / elif / else） */
+export interface IfBranch {
+  /** 分支条件（else 分支为 undefined） */
+  condition?: string;
+  /** 分支体起始偏移（指令结束后） */
+  start: number;
+  /** 分支体结束偏移（下一指令或 endif 开始前） */
+  end: number;
+  /** 分支体中的子节点 */
+  children: ControlNode[];
+}
+
+/** if 区节点 */
+export interface IfNode {
+  kind: 'if';
+  /** if 指令起始偏移 */
+  sourceStart: number;
+  /** endif 指令结束偏移 */
+  sourceEnd: number;
+  /** 各分支（then + elifs + 可选 else） */
+  branches: IfBranch[];
+}
+
+/** for 区节点 */
+export interface ForNode {
+  kind: 'for';
+  /** 循环变量名 */
+  loopVar: string;
+  /** 列表表达式（context 变量名） */
+  listExpr: string;
+  /** collect 累积数组名（可选） */
+  collect?: string;
+  /** for 指令起始偏移 */
+  sourceStart: number;
+  /** endfor 指令结束偏移 */
+  sourceEnd: number;
+  /** 循环体起始偏移（for 指令结束后） */
+  bodyStart: number;
+  /** 循环体结束偏移（endfor 指令开始前） */
+  bodyEnd: number;
+  /** 循环体中的子节点 */
+  children: ControlNode[];
 }
 
 /**

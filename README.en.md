@@ -56,7 +56,7 @@ The API Key can be written in the config file or set via environment variable (t
 export OPENAI_API_KEY="sk-xxxxxxxx"
 ```
 
-Supported databases: **SQLite** (MySQL, PostgreSQL planned). See the [Configuration docs](docs/en/02-configuration.md) for details.
+Supported databases: **SQLite, MySQL, PostgreSQL** (read-only queries). See the [Configuration docs](docs/en/02-configuration.md) for details.
 
 ## Quick Start
 
@@ -160,7 +160,35 @@ print(json.dumps({"count": len(data), "total": sum(x["revenue"] for x in data)})
 - First execution requires confirmation; the choice is remembered per runtime (`--yes` to skip, `--strict` to always confirm)
 - Variables are passed explicitly via `vars`; stdout is stored structurally when it is JSON
 
-Detailed documentation for the four block types can be found in [docs/blocks/](docs/en/blocks/).
+Detailed documentation for the block types can be found in [docs/blocks/](docs/en/blocks/).
+
+## Control Flow: Conditionals and Loops
+
+Use HTML comment directives to wrap body text and code blocks for conditional branches and loop execution:
+
+````markdown
+# Sales Report
+```data {output: "orders"}
+SELECT product, revenue FROM sales ORDER BY revenue DESC
+```
+
+<!-- if: {{total_revenue}} > 10000 -->
+Target met 🎉
+<!-- else -->
+Below target, needs attention.
+<!-- endif -->
+
+<!-- for: item in orders -->
+| {{item.product}} | ¥{{item.revenue}} |
+<!-- endfor -->
+````
+
+- `<!-- if/elif/else/endif -->` conditional branches, `<!-- for/endfor -->` loops
+- Blocks inside a loop re-execute each round; body text re-renders per round
+- `{collect: "NAME"}` accumulates the loop's output variable into an array for post-loop aggregation
+- Conditions support comparisons (`==` `>` etc.) and boolean logic (`&&` `||` `!`); undefined variables are falsy
+
+See [Control Flow docs](docs/en/blocks/05-control.md).
 
 ## Execution Modes
 

@@ -1,6 +1,7 @@
 /**
  * FlowMD 文档执行器
  * 协调执行解析文档中的所有代码块
+ * 支持控制流：有 directives 时走指令区树执行，否则走原有平铺逻辑
  */
 
 import ora from 'ora';
@@ -14,10 +15,16 @@ import { executeDataBlock } from './blocks/data-block.js';
 import { executeTemplateBlock } from './blocks/template-block.js';
 import { executeRunBlock } from './blocks/run-block.js';
 import { parseMarkdown } from './parser.js';
+import { buildControlTree, ControlTreeError } from './blocks/control/tree.js';
+import { ConditionSyntaxError } from './blocks/control/condition.js';
+import { executeControlFlow, ControlFlowStop } from './blocks/control/execute-region.js';
 import { getErrorMessage } from '../utils/error-formatter.js';
 import { t } from '../utils/i18n.js';
 import { recordExecution } from '../utils/history.js';
-import type { ParsedDocument, RunOptions, FlowConfig, BlockResult, ExecutionResult } from '../types/index.js';
+import type {
+  ParsedDocument, RunOptions, FlowConfig, BlockResult, ExecutionResult,
+  ExecutableBlock, ControlNode,
+} from '../types/index.js';
 
 /** 块类型对应的 emoji 图标 */
 const BLOCK_EMOJI: Record<string, string> = {
@@ -36,6 +43,22 @@ interface BlockInsertResult {
 
 /** 变量引用正则（与 parser/context 保持一致） */
 const VAR_REF_REGEX = /\{\{([\w.-]+)\}\}/g;
+
+/** 单个块执行时共享的状态（flat 与 control 路径共用） */
+export interface BlockExecState {
+  context: ExecutionContext;
+  options: RunOptions;
+  config: FlowConfig;
+  visitedPaths: Set<string>;
+  failedOutputs: Set<string>;
+  failedBlocks: Array<{ position: number; type: string; error: string }>;
+  blockRecords: Array<{ position: number; type: string; status: 'success' | 'failed'; error?: string; duration_ms: number }>;
+  insertResults: BlockInsertResult[];
+  hasError: boolean;
+  totalBlocks: number;
+  /** 控制流路径标志：debug 结果由 execute-region 直接拼进 parts，不再写入 insertResults */
+  controlFlow?: boolean;
+}
 
 /**
  * 从块 meta 中取字符串值（数组值取首个，非字符串返回 undefined）
@@ -100,6 +123,259 @@ function extractVariableRefs(text: string): string[] {
  * 系统预定义变量名
  */
 const SYSTEM_VARS = new Set(['execution_time', 'date', 'datetime', 'timestamp']);
+
+/**
+ * 执行单个块（含 UI 展示、依赖检测、超时、失败记录）
+ * flat 路径与 control 路径共用。返回继续/停止信号与块结果
+ * @param block - 要执行的块
+ * @param state - 共享执行状态
+ * @returns { action: 'continue' | 'stop'（fail-fast 停止）; result?: BlockResult }
+ */
+export async function executeOneBlock(
+  block: ExecutableBlock,
+  state: BlockExecState,
+  displayPos?: number
+): Promise<{ action: 'continue' | 'stop'; result?: BlockResult }> {
+  const { context, options, config } = state;
+  const pos = (displayPos ?? block.position) + 1;
+  const blockNum = `[${pos}/${state.totalBlocks}]`;
+  const emoji = BLOCK_EMOJI[block.type] || '📦';
+
+  // 试运行模式：跳过执行
+  if (options.dryRun) {
+    console.log(t('block.skipped', { emoji, num: blockNum, type: block.type }));
+    return { action: 'continue' };
+  }
+
+  // 依赖检测：检查块引用的变量是否由已失败的块产出
+  // （run 块脚本不依赖 {{}} 插值，跳过该检测，依赖经 vars 显式声明）
+  const refs = block.type === 'run' ? [] : extractVariableRefs(block.content);
+  const missingDeps = refs.filter(
+    (v) => !SYSTEM_VARS.has(v) && state.failedOutputs.has(v)
+  );
+  if (missingDeps.length > 0) {
+    spinnerFail(blockNum, emoji, block.type, t('block.skippedDeps', { vars: missingDeps.join(', ') }));
+    // 跳过块也计入记录，与统计口径保持一致（不执行、不算失败）
+    state.blockRecords.push({ position: pos, type: block.type, status: 'success', duration_ms: 0 });
+    return { action: 'continue' };
+  }
+
+  // 逐步执行模式：展示块内容并等待确认
+  if (options.stepMode) {
+    console.log('');
+    console.log(chalk.cyan(t('block.stepTitle', { emoji, num: blockNum, type: block.type.toUpperCase() })));
+    // 展示块内容（截取前 200 字符）
+    const preview = block.content.length > 200
+      ? block.content.slice(0, 200) + '...'
+      : block.content;
+    console.log(chalk.gray(preview));
+    console.log('');
+    console.log(chalk.yellow(t('prompt.enterRun')));
+    await waitForUserInput();
+  }
+
+  // 显示加载动画（带实时耗时）
+  const spinner = !options.quiet ? ora({
+    text: t('block.running', { emoji, num: blockNum, type: block.type }),
+    color: 'cyan',
+  }).start() : null;
+
+  const startTime = Date.now();
+  const elapsedInterval = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    if (spinner) spinner.text = t('block.runningWait', { emoji, num: blockNum, type: block.type, seconds: elapsed });
+  }, 1000);
+
+  let lastResult: BlockResult | undefined;
+
+  try {
+    const timeoutMs = config.execution.timeout * 1000;
+
+    // 根据块类型调用对应执行器（带超时控制）
+    const executeBlock = async (signal: AbortSignal): Promise<BlockResult> => {
+      switch (block.type) {
+        case 'ai':
+          return executeAIBlock(block.content, block.meta, context, config.llm, config.models, signal);
+        case 'data':
+          return executeDataBlock(block.content, block.meta, context, config.dataSources);
+        case 'template':
+          return executeTemplateBlock(block.content, block.meta, context);
+        case 'run':
+          return executeRunBlock(
+            block.content,
+            block.meta,
+            context,
+            signal,
+            { yes: options.runYes, strict: options.runStrict }
+          );
+        case 'include': {
+          const includePath = metaString(block.meta, 'path');
+          if (!includePath) {
+            return { success: false, output: null, error: t('error.includeNoPath'), duration: Date.now() - startTime };
+          }
+          const ext = path.extname(includePath).toLowerCase();
+          if (ext === '.yaml' || ext === '.yml') {
+            try {
+              const resolvedPath = resolveIncludePath(includePath, options.currentFile);
+              validateIncludePath(resolvedPath, state.visitedPaths, ext);
+              const raw = readFileSync(resolvedPath, 'utf-8');
+              const parsed = parseYaml(raw) as Record<string, unknown>;
+              for (const [k, v] of Object.entries(parsed)) {
+                context.set(k, v);
+              }
+              return { success: true, output: null, duration: Date.now() - startTime };
+            } catch (err) {
+              return { success: false, output: null, error: t('error.includeYamlFail', { error: getErrorMessage(err) }), duration: Date.now() - startTime };
+            }
+          }
+          return { success: false, output: null, error: t('error.includeBadExt', { ext }), duration: Date.now() - startTime };
+        }
+        default:
+          return {
+            success: false,
+            output: null,
+            error: t('error.unknownBlockType', { type: block.type }),
+            duration: Date.now() - startTime,
+          };
+      }
+    };
+
+    const result = await executeWithTimeout(executeBlock, timeoutMs);
+    clearInterval(elapsedInterval);
+    lastResult = result;
+
+    if (result.success) {
+      if (spinner) {
+        spinner.succeed(t('block.done', { emoji, num: blockNum, type: block.type, seconds: (result.duration / 1000).toFixed(1) }));
+      }
+      state.blockRecords.push({ position: pos, type: block.type, status: 'success', duration_ms: result.duration });
+
+      // step 模式：打印执行结果
+      if (options.stepMode && result.output !== null) {
+        const preview = result.output.length > 300
+          ? result.output.slice(0, 300) + '...'
+          : result.output;
+        console.log(chalk.gray(t('block.stepOutput')));
+        console.log(chalk.gray(preview));
+      }
+
+      // debug 模式：收集需要插入的结果
+      // （控制流路径由 execute-region 直接拼进输出，这里跳过避免冗余）
+      if (options.debug && result.output !== null && !state.controlFlow) {
+        state.insertResults.push({
+          sourceEnd: block.sourceEnd,
+          output: result.output,
+        });
+      }
+    } else {
+      if (spinner) {
+        spinner.fail(t('block.failed', { emoji, num: blockNum, type: block.type }));
+      } else {
+        // quiet 模式：只用一行输出错误
+        process.stderr.write(`${t('block.failedQuiet', { emoji, num: blockNum, type: block.type, error: result.error })}
+`);
+      }
+      state.hasError = true;
+      state.failedBlocks.push({ position: pos, type: block.type, error: result.error || t('error.unknown') });
+      state.blockRecords.push({ position: pos, type: block.type, status: 'failed', error: result.error, duration_ms: result.duration });
+
+      // 记录失败块的输出变量名
+      const outputName = metaString(block.meta, 'output');
+      if (outputName) {
+        state.failedOutputs.add(outputName);
+      }
+
+      if (options.failFast) {
+        console.error(chalk.red(t('warning.failFast')));
+        return { action: 'stop', result };
+      }
+    }
+  } catch (error) {
+    clearInterval(elapsedInterval);
+    if (spinner) {
+      spinner.fail(t('block.exception', { emoji, num: blockNum, type: block.type }));
+    }
+    process.stderr.write(`${t('block.exceptionQuiet', { emoji, num: blockNum, type: block.type, error: getErrorMessage(error) })}
+`);
+    state.hasError = true;
+    state.failedBlocks.push({ position: pos, type: block.type, error: getErrorMessage(error) });
+    state.blockRecords.push({ position: pos, type: block.type, status: 'failed', error: getErrorMessage(error), duration_ms: Date.now() - startTime });
+
+    const failedOutput = metaString(block.meta, 'output');
+    if (failedOutput) {
+      state.failedOutputs.add(failedOutput);
+    }
+
+    if (options.failFast) {
+      console.error(chalk.red(t('warning.failFast')));
+      return { action: 'stop' };
+    }
+  }
+  return { action: 'continue', result: lastResult };
+}
+
+/**
+ * 输出执行汇总（成功/失败统计，分组相同错误）
+ * @param state - 执行状态
+ */
+export function printSummary(state: BlockExecState): void {
+  const { options } = state;
+  if (options.quiet || options.dryRun) return;
+
+  const totalBlocks = state.totalBlocks;
+  const failed = state.failedBlocks.length;
+  const success = totalBlocks - failed;
+
+  if (failed > 0) {
+    console.log('');
+    console.log(chalk.yellow(t('summary.failed', { success, total: totalBlocks, failed })));
+    const byError = new Map<string, { positions: number[]; type: string }>();
+    for (const f of state.failedBlocks) {
+      const entry = byError.get(f.error);
+      if (entry) {
+        entry.positions.push(f.position);
+      } else {
+        byError.set(f.error, { positions: [f.position], type: f.type });
+      }
+    }
+    for (const [error, entry] of byError) {
+      const positions = entry.positions.join(',');
+      console.log(chalk.yellow(t('summary.failedGrouped', { positions, type: entry.type, error })));
+    }
+  } else {
+    console.log('');
+    console.log(chalk.green(t('summary.success', { success, total: totalBlocks })));
+  }
+}
+
+/**
+ * 写入执行历史（best-effort，失败不中断执行）
+ * @param state - 执行状态
+ * @param currentFile - 当前执行文件路径
+ */
+export function recordExecutionHistory(state: BlockExecState, currentFile?: string): void {
+  if (state.options.dryRun) return;
+  try {
+    recordExecution({
+      file: currentFile || 'stdin',
+      total_blocks: state.totalBlocks,
+      success_blocks: state.totalBlocks - state.failedBlocks.length,
+      failed_blocks: state.failedBlocks.length,
+      blocks: state.blockRecords,
+    });
+  } catch {
+    // 历史写入失败不影响文档执行
+  }
+}
+
+/**
+ * 收集文档中的所有控制流指令（供 hasControlFlow 判断）
+ * @param doc - 解析后的文档
+ * @returns 是否有控制流指令
+ */
+export function hasControlFlow(doc: ParsedDocument): boolean {
+  return (doc.directives?.length ?? 0) > 0;
+}
 
 /**
  * 执行解析文档中的所有块
@@ -199,8 +475,17 @@ export async function executeDocument(
             sourceStart: b.sourceStart + offset,
             sourceEnd: b.sourceEnd + offset,
           }));
+          // 子文档中的控制流指令同样平移偏移
+          const offsetDirectives = (subDoc.directives ?? []).map((d) => ({
+            ...d,
+            sourceStart: d.sourceStart + offset,
+            sourceEnd: d.sourceEnd + offset,
+          }));
 
           doc.blocks.splice(includeExpandIdx, 1, ...offsetBlocks);
+          if (offsetDirectives.length > 0) {
+            doc.directives = [...(doc.directives ?? []), ...offsetDirectives];
+          }
           continue;
         }
       }
@@ -208,16 +493,24 @@ export async function executeDocument(
     includeExpandIdx++;
   }
 
-  const totalBlocks = doc.blocks.length;
-  const insertResults: BlockInsertResult[] = [];
-  const failedOutputs = new Set<string>();
-  const failedBlocks: Array<{ position: number; type: string; error: string }> = [];
-  let hasError = false;
-  const blockRecords: Array<{ position: number; type: string; status: 'success' | 'failed'; error?: string; duration_ms: number }> = [];
+  const state: BlockExecState = {
+    context,
+    options,
+    config,
+    visitedPaths,
+    failedOutputs: new Set<string>(),
+    failedBlocks: [],
+    blockRecords: [],
+    insertResults: [],
+    hasError: false,
+    totalBlocks: doc.blocks.length,
+  };
 
   // 排除 template/run 块内的变量：
   // - template 的 Handlebars 循环变量（{{name}}）不需要顶层定义
   // - run 脚本不依赖 {{}} 插值（变量经 vars 显式传入）
+  // 控制流路径额外排除循环变量（{{item}} 等）
+  const loopVars = hasControlFlow(doc) ? collectLoopVars(buildTreeSafe(doc) ?? []) : new Set<string>();
   const nonTemplateVarSet = new Set<string>();
   const varRegex = /\{\{([\w.-]+)\}\}/g;
   for (const block of doc.blocks) {
@@ -238,11 +531,14 @@ export async function executeDocument(
   }
 
   // 预执行校验：检查 blocks 缺少 output、变量引用未定义
+  // collect 变量（for 区运行时累积的数组）视为已定义
+  const collectVars = hasControlFlow(doc) ? collectCollectVars(buildTreeSafe(doc) ?? []) : new Set<string>();
   const blockOutputs = new Set(doc.blocks.map((b) => b.meta.output).filter(Boolean));
+  for (const c of collectVars) blockOutputs.add(c);
   const noOutputBlocks = doc.blocks.filter((b) => !b.meta.output);
   const injectedVars = new Set(Object.keys(context.dump()));
   const undefinedVars = [...nonTemplateVarSet].filter(
-    (v) => !blockOutputs.has(v) && !SYSTEM_VARS.has(v) && !injectedVars.has(v)
+    (v) => !blockOutputs.has(v) && !SYSTEM_VARS.has(v) && !injectedVars.has(v) && !loopVars.has(v)
   );
 
   if (noOutputBlocks.length > 0) {
@@ -267,209 +563,44 @@ export async function executeDocument(
     }
   }
 
-  // 遍历执行每个块
-  for (let i = 0; i < doc.blocks.length; i++) {
-    const block = doc.blocks[i];
-    const blockNum = `[${i + 1}/${totalBlocks}]`;
-    const emoji = BLOCK_EMOJI[block.type] || '📦';
-
-    // 试运行模式：跳过执行
-    if (options.dryRun) {
-      console.log(t('block.skipped', { emoji, num: blockNum, type: block.type }));
-      continue;
-    }
-
-    // 依赖检测：检查块引用的变量是否由已失败的块产出
-    // （run 块脚本不依赖 {{}} 插值，跳过该检测，依赖经 vars 显式声明）
-    const refs = block.type === 'run' ? [] : extractVariableRefs(block.content);
-    const missingDeps = refs.filter(
-      (v) => !SYSTEM_VARS.has(v) && failedOutputs.has(v)
-    );
-    if (missingDeps.length > 0) {
-      spinnerFail(blockNum, emoji, block.type, t('block.skippedDeps', { vars: missingDeps.join(', ') }));
-      // 跳过块也计入记录，与统计口径保持一致（不执行、不算失败）
-      blockRecords.push({ position: i + 1, type: block.type, status: 'success', duration_ms: 0 });
-      continue;
-    }
-
-    // 逐步执行模式：展示块内容并等待确认
-    if (options.stepMode) {
-      console.log('');
-      console.log(chalk.cyan(t('block.stepTitle', { emoji, num: blockNum, type: block.type.toUpperCase() })));
-      // 展示块内容（截取前 200 字符）
-      const preview = block.content.length > 200
-        ? block.content.slice(0, 200) + '...'
-        : block.content;
-      console.log(chalk.gray(preview));
-      console.log('');
-      console.log(chalk.yellow(t('prompt.enterRun')));
-      await waitForUserInput();
-    }
-
-    // 显示加载动画（带实时耗时）
-    const spinner = !options.quiet ? ora({
-      text: t('block.running', { emoji, num: blockNum, type: block.type }),
-      color: 'cyan',
-    }).start() : null;
-
-    const startTime = Date.now();
-    const elapsedInterval = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - startTime) / 1000);
-      if (spinner) spinner.text = t('block.runningWait', { emoji, num: blockNum, type: block.type, seconds: elapsed });
-    }, 1000);
-
+  // 控制流路径：遍历指令区树执行 + 流式构建输出
+  if (hasControlFlow(doc)) {
+    state.controlFlow = true;
     try {
-      const timeoutMs = config.execution.timeout * 1000;
-
-      // 根据块类型调用对应执行器（带超时控制）
-      const executeBlock = async (signal: AbortSignal): Promise<BlockResult> => {
-        switch (block.type) {
-          case 'ai':
-            return executeAIBlock(block.content, block.meta, context, config.llm, config.models, signal);
-          case 'data':
-            return executeDataBlock(block.content, block.meta, context, config.dataSources);
-          case 'template':
-            return executeTemplateBlock(block.content, block.meta, context);
-          case 'run':
-            return executeRunBlock(
-              block.content,
-              block.meta,
-              context,
-              signal,
-              { yes: options.runYes, strict: options.runStrict }
-            );
-          case 'include': {
-            const includePath = metaString(block.meta, 'path');
-            if (!includePath) {
-              return { success: false, output: null, error: t('error.includeNoPath'), duration: Date.now() - startTime };
-            }
-            const ext = path.extname(includePath).toLowerCase();
-            if (ext === '.yaml' || ext === '.yml') {
-              try {
-                const resolvedPath = resolveIncludePath(includePath, options.currentFile);
-                validateIncludePath(resolvedPath, visitedPaths, ext);
-                const raw = readFileSync(resolvedPath, 'utf-8');
-                const parsed = parseYaml(raw) as Record<string, unknown>;
-                for (const [k, v] of Object.entries(parsed)) {
-                  context.set(k, v);
-                }
-                return { success: true, output: null, duration: Date.now() - startTime };
-              } catch (err) {
-                return { success: false, output: null, error: t('error.includeYamlFail', { error: getErrorMessage(err) }), duration: Date.now() - startTime };
-              }
-            }
-            return { success: false, output: null, error: t('error.includeBadExt', { ext }), duration: Date.now() - startTime };
-          }
-          default:
-            return {
-              success: false,
-              output: null,
-              error: t('error.unknownBlockType', { type: block.type }),
-              duration: Date.now() - startTime,
-            };
-        }
-      };
-
-      const result = await executeWithTimeout(executeBlock, timeoutMs);
-      clearInterval(elapsedInterval);
-
-      if (result.success) {
-        if (spinner) {
-          spinner.succeed(t('block.done', { emoji, num: blockNum, type: block.type, seconds: (result.duration / 1000).toFixed(1) }));
-        }
-        blockRecords.push({ position: i + 1, type: block.type, status: 'success', duration_ms: result.duration });
-
-        // step 模式：打印执行结果
-        if (options.stepMode && result.output !== null) {
-          const preview = result.output.length > 300
-            ? result.output.slice(0, 300) + '...'
-            : result.output;
-          console.log(chalk.gray(t('block.stepOutput')));
-          console.log(chalk.gray(preview));
-        }
-
-        // debug 模式：收集需要插入的结果
-        if (options.debug && result.output !== null) {
-          insertResults.push({
-            sourceEnd: block.sourceEnd,
-            output: result.output,
-          });
-        }
-      } else {
-        if (spinner) {
-          spinner.fail(t('block.failed', { emoji, num: blockNum, type: block.type }));
-        } else {
-          // quiet 模式：只用一行输出错误
-          process.stderr.write(`${t('block.failedQuiet', { emoji, num: blockNum, type: block.type, error: result.error })}
-`);
-        }
-        hasError = true;
-        failedBlocks.push({ position: i + 1, type: block.type, error: result.error || t('error.unknown') });
-        blockRecords.push({ position: i + 1, type: block.type, status: 'failed', error: result.error, duration_ms: result.duration });
-
-        // 记录失败块的输出变量名
-        const outputName = metaString(block.meta, 'output');
-        if (outputName) {
-          failedOutputs.add(outputName);
-        }
-
-        if (options.failFast) {
-          console.error(chalk.red(t('warning.failFast')));
-          break;
-        }
-      }
+      const tree = buildControlTree(doc);
+      const content = await executeControlFlow(tree, doc.rawContent, state);
+      printSummary(state);
+      recordExecutionHistory(state, options.currentFile);
+      return { content, hasError: state.hasError };
     } catch (error) {
-      clearInterval(elapsedInterval);
-      if (spinner) {
-        spinner.fail(t('block.exception', { emoji, num: blockNum, type: block.type }));
+      if (error instanceof ControlTreeError || error instanceof ConditionSyntaxError) {
+        console.error(chalk.red(t('error.control.tree', { error: error.message })));
+        state.hasError = true;
+        recordExecutionHistory(state, options.currentFile);
+        return { content: doc.rawContent, hasError: true };
       }
-      process.stderr.write(`${t('block.exceptionQuiet', { emoji, num: blockNum, type: block.type, error: getErrorMessage(error) })}
-`);
-      hasError = true;
-      failedBlocks.push({ position: i + 1, type: block.type, error: getErrorMessage(error) });
-      blockRecords.push({ position: i + 1, type: block.type, status: 'failed', error: getErrorMessage(error), duration_ms: Date.now() - startTime });
-
-      const failedOutput = metaString(block.meta, 'output');
-      if (failedOutput) {
-        failedOutputs.add(failedOutput);
+      // fail-fast 停止：返回已构建的部分输出
+      if (error instanceof ControlFlowStop) {
+        printSummary(state);
+        recordExecutionHistory(state, options.currentFile);
+        return { content: doc.rawContent, hasError: state.hasError };
       }
-
-      if (options.failFast) {
-        console.error(chalk.red(t('warning.failFast')));
-        break;
-      }
+      throw error;
     }
   }
 
-  // 错误恢复汇总：输出成功/失败块统计（分组输出相同错误）
-  if (!options.quiet && !options.dryRun) {
-    const successCount = totalBlocks - failedBlocks.length;
-    if (failedBlocks.length > 0) {
-      console.log('');
-      console.log(chalk.yellow(t('summary.failed', { success: successCount, total: totalBlocks, failed: failedBlocks.length })));
-      const byError = new Map<string, { positions: number[]; type: string }>();
-      for (const f of failedBlocks) {
-        const entry = byError.get(f.error);
-        if (entry) {
-          entry.positions.push(f.position);
-        } else {
-          byError.set(f.error, { positions: [f.position], type: f.type });
-        }
-      }
-      for (const [error, entry] of byError) {
-        const positions = entry.positions.join(',');
-        console.log(chalk.yellow(t('summary.failedGrouped', { positions, type: entry.type, error })));
-      }
-    } else {
-      console.log('');
-      console.log(chalk.green(t('summary.success', { success: successCount, total: totalBlocks })));
-    }
+  // 平铺路径：顺序遍历每个块
+  for (let i = 0; i < doc.blocks.length; i++) {
+    const { action } = await executeOneBlock(doc.blocks[i], state, i);
+    if (action === 'stop') break;
   }
+
+  printSummary(state);
 
   // 按偏移量倒序插入结果，避免偏移量失效
   let outputContent = doc.rawContent;
-  insertResults.sort((a, b) => b.sourceEnd - a.sourceEnd);
-  for (const insert of insertResults) {
+  state.insertResults.sort((a, b) => b.sourceEnd - a.sourceEnd);
+  for (const insert of state.insertResults) {
     outputContent = insertResult(outputContent, insert.sourceEnd, insert.output);
   }
 
@@ -478,7 +609,7 @@ export async function executeDocument(
     const definedVars = new Set(Object.keys(context.dump()));
     const unresolved = [...new Set(
       nonTemplateVarSet
-    )].filter((v) => !definedVars.has(v) && !SYSTEM_VARS.has(v));
+    )].filter((v) => !definedVars.has(v) && !SYSTEM_VARS.has(v) && !loopVars.has(v));
     if (unresolved.length > 0) {
       console.log(chalk.yellow(t('warning.unresolvedVar.title')));
       for (const v of unresolved) {
@@ -501,22 +632,68 @@ export async function executeDocument(
   // release 模式：从输出中移除所有指令块
   const content = options.release ? stripCodeBlocks(rendered) : rendered;
 
-  // 非 dry-run：写入执行历史（best-effort，失败不中断执行）
-  if (!options.dryRun) {
-    try {
-      recordExecution({
-        file: options.currentFile || 'stdin',
-        total_blocks: totalBlocks,
-        success_blocks: totalBlocks - failedBlocks.length,
-        failed_blocks: failedBlocks.length,
-        blocks: blockRecords,
-      });
-    } catch {
-      // 历史写入失败不影响文档执行
-    }
-  }
+  recordExecutionHistory(state, options.currentFile);
 
-  return { content, hasError };
+  return { content, hasError: state.hasError };
+}
+
+/**
+ * 安全构建控制流树（失败时返回 null，不抛错，供变量收集等辅助使用）
+ * @param doc - 解析后的文档
+ * @returns 树或 null
+ */
+function buildTreeSafe(doc: ParsedDocument): ControlNode[] | null {
+  try {
+    return buildControlTree(doc);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 收集树中所有 for 区的循环变量名
+ * @param nodes - 树节点数组
+ * @returns 循环变量名集合
+ */
+function collectLoopVars(nodes: ControlNode[]): Set<string> {
+  const result = new Set<string>();
+  const walk = (list: ControlNode[]): void => {
+    for (const node of list) {
+      if (node.kind === 'for') {
+        result.add(node.loopVar);
+        walk(node.children);
+      } else if (node.kind === 'if') {
+        for (const branch of node.branches) {
+          walk(branch.children);
+        }
+      }
+    }
+  };
+  walk(nodes);
+  return result;
+}
+
+/**
+ * 收集树中所有 for 区的 collect 累积数组名
+ * @param nodes - 树节点数组
+ * @returns collect 变量名集合
+ */
+function collectCollectVars(nodes: ControlNode[]): Set<string> {
+  const result = new Set<string>();
+  const walk = (list: ControlNode[]): void => {
+    for (const node of list) {
+      if (node.kind === 'for') {
+        if (node.collect) result.add(node.collect);
+        walk(node.children);
+      } else if (node.kind === 'if') {
+        for (const branch of node.branches) {
+          walk(branch.children);
+        }
+      }
+    }
+  };
+  walk(nodes);
+  return result;
 }
 
 /**
@@ -550,7 +727,7 @@ function renderDocument(content: string, blocks: Array<{ type: string; sourceSta
 }
 
 /**
- * 移除 Markdown 中的所有 FlowMD 指令块（ai / data / template）
+ * 移除 Markdown 中的所有 FlowMD 指令块（ai / data / template / run）
  * @param content - 渲染后的文档内容
  * @returns 移除指令块后的内容
  */

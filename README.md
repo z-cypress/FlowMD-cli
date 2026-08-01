@@ -54,7 +54,7 @@ npm install -g .  # 开发模式
 export OPENAI_API_KEY="sk-xxxxxxxx"
  ```
 
- 支持的数据库：**SQLite**（MySQL、PostgreSQL 规划中）。详见 [配置文档](docs/02-configuration.md)。
+ 支持的数据库：**SQLite、MySQL、PostgreSQL**（只读查询）。详见 [配置文档](docs/02-configuration.md)。
 
  ## 快速开始
 
@@ -158,9 +158,37 @@ export OPENAI_API_KEY="sk-xxxxxxxx"
  - 首次执行需确认，同意后按 runtime 记忆（`--yes` 跳过，`--strict` 强制确认）
  - 变量通过 `vars` 显式声明传入，stdout 为 JSON 时结构化存入变量
 
- 四种块的详细说明见 [docs/blocks/](docs/blocks/)。
+  四种块的详细说明见 [docs/blocks/](docs/blocks/)。
 
- ## 执行模式
+## 控制流：条件与循环
+
+用 HTML 注释指令包裹正文与代码块，实现条件分支和循环执行：
+
+````markdown
+# 销售报告
+```data {output: "orders"}
+SELECT product, revenue FROM sales ORDER BY revenue DESC
+```
+
+<!-- if: {{total_revenue}} > 10000 -->
+业绩达标 🎉
+<!-- else -->
+业绩未达标，需要关注。
+<!-- endif -->
+
+<!-- for: item in orders -->
+| {{item.product}} | ¥{{item.revenue}} |
+<!-- endfor -->
+````
+
+- `<!-- if/elif/else/endif -->` 条件分支，`<!-- for/endfor -->` 循环
+- 循环体内代码块每轮重新执行，正文每轮重复渲染
+- `{collect: "NAME"}` 把循环体内产出变量累积为数组，循环外聚合使用
+- 条件支持比较（`==` `>` 等）、布尔逻辑（`&&` `||` `!`），未定义变量视为假
+
+详见 [控制流文档](docs/blocks/05-control.md)。
+
+## 执行模式
 
  默认执行时，每个块按文档顺序依次执行，结果存入变量上下文，文档正文中的 `{{变量}}` 被自动替换。
 

@@ -64,6 +64,9 @@ export const en = {
   'error.includeCycle': 'Circular reference: {path}',
   'error.unknownBlockType': 'Unknown block type: {type}',
 
+  // Control flow (executor.ts / execute-region.ts)
+  'error.control.tree': 'Control directive error: {error}',
+
   // Error formatting (error-formatter.ts)
   'error.network': 'Network connection failed',
   'error.network.suggestion': 'Check your network and proxy settings',

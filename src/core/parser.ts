@@ -6,7 +6,8 @@
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import { visit } from 'unist-util-visit';
-import type { ParsedDocument, ExecutableBlock, BlockType } from '../types/index.js';
+import type { ParsedDocument, ExecutableBlock, BlockType, ControlDirective } from '../types/index.js';
+import { parseDirective } from './blocks/control/directives.js';
 
 /** 支持的代码块类型列表 */
 const BLOCK_TYPES: BlockType[] = ['ai', 'data', 'template', 'include', 'run'];
@@ -20,6 +21,7 @@ export function parseMarkdown(content: string): ParsedDocument {
   // 使用 unified + remark-parse 解析 Markdown 为 AST
   const tree = unified().use(remarkParse).parse(content);
   const blocks: ExecutableBlock[] = [];
+  const directives: ControlDirective[] = [];
   const variables = new Set<string>();
   let position = 0;
 
@@ -48,6 +50,17 @@ export function parseMarkdown(content: string): ParsedDocument {
     });
   });
 
+  // 遍历所有 HTML 注释节点，识别控制流指令
+  visit(tree, 'html', (node) => {
+    const nodePosition = node.position;
+    const start = nodePosition?.start?.offset ?? -1;
+    if (start < 0) return;
+    const directive = parseDirective(node.value as string, start);
+    if (directive) {
+      directives.push(directive);
+    }
+  });
+
   // 提取文档中所有 {{变量名}} 引用（支持连字符）
   const variableRegex = /\{\{([\w-]+(?:\.[\w-]+)*)\}\}/g;
   let match;
@@ -59,6 +72,7 @@ export function parseMarkdown(content: string): ParsedDocument {
     blocks,
     rawContent: content,
     variables: [...variables],
+    directives,
   };
 }
 

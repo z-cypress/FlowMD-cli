@@ -19,6 +19,8 @@
 - [Data Blocks](blocks/02-data.md) — query SQLite / MySQL / PostgreSQL databases (read-only)
 - [Template Blocks](blocks/03-template.md) — render output with Handlebars
 - [Run Blocks](blocks/04-run.md) — execute script code in a sandbox (js / python)
+- [Control Flow](blocks/05-control.md) — if / elif / else / for conditionals and loops
+- [Include Directive](blocks/06-include.md) — inline external documents and variable files
 
 **Reference & Examples**
 
@@ -39,6 +41,7 @@ Currently at **MVP stage**, the following is implemented:
 - Data blocks supporting SQLite / MySQL / PostgreSQL (read-only queries)
 - Template blocks supporting Handlebars and the `{{json}}` helper
 - Run blocks supporting js (isolated-vm sandbox) and python (subprocess), with first-run confirmation and resource limits
+- Control flow: `<!-- if/elif/else/endif -->` conditionals and `<!-- for/endfor -->` loops (with collect accumulation)
 - System variables: `{{date}}`, `{{datetime}}`, `{{timestamp}}`, `{{execution_time}}`
 - Execution modes: dry-run, step, fail-fast, debug, release
 - Error recovery: dependency skip, grouped failure summary, exit codes 0/1/2

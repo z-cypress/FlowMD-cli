@@ -64,6 +64,9 @@ export const zh = {
   'error.includeCycle': '循环引用: {path}',
   'error.unknownBlockType': '未知块类型: {type}',
 
+  // 控制流 (executor.ts / execute-region.ts)
+  'error.control.tree': '控制流指令错误: {error}',
+
   // 错误格式化 (error-formatter.ts)
   'error.network': '网络连接失败',
   'error.network.suggestion': '请检查网络和代理设置',
