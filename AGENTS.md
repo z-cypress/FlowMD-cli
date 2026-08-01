@@ -180,7 +180,6 @@ CLI args > Env vars / `.env` > Project `.flow/config.yml` > Global `~/.flow/conf
 ## Known Gaps
 
 - No template gallery beyond basic/data/report/meeting/api/changelog
-- CI not verified on GitHub
 - VS Code extension / template marketplace not yet built
 
 ## Reference
