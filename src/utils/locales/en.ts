@@ -154,8 +154,10 @@ export const en = {
   'error.agent.confirmDeclined': 'Agent execution cancelled',
   'error.agent.costDeclined': 'Agent execution cancelled (over cost budget)',
   'agent.step': 'Step {num}:',
+  'agent.trace': 'agent step trace',
   'agent.confirmPrompt': 'This document contains an agent block (goal: {goal}) that will autonomously execute multi-step tasks. Continue?',
   'agent.costPrompt': 'The agent is estimated to consume ~{estimated} tokens (budget limit {limit}). Continue?',
+  'warning.agent.directIgnoresTools': '⚠ The direct adapter does not use tools; declared tools are ignored',
 
   // AI block (ai-block.ts)
   'error.ai.noApiKey': 'API Key is not configured. Set the {envVar} environment variable, or run flow init',
@@ -250,6 +252,7 @@ export const en = {
   'history.detailBlocks': '  Blocks: {success}/{total} succeeded, {failed} failed',
   'history.blockItem': '    [{position}] {type} block: {status}',
   'history.blockError': '    Error: {error}',
+  'history.blockTrace': '    Trace: {trace}',
   'history.cleared': '✅ Execution history cleared',
   'history.invalidId': '❌ Invalid record ID: {id}',
 

@@ -8,6 +8,7 @@ import ora from 'ora';
 import chalk from 'chalk';
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
+import { realpath } from 'node:fs/promises';
 import { parse as parseYaml } from 'yaml';
 import { ExecutionContext } from './context.js';
 import { executeAIBlock } from './blocks/ai-block.js';
@@ -238,7 +239,6 @@ export async function executeOneBlock(
             block.meta,
             context,
             config.llm,
-            config.models,
             signal,
             {
               confirm: { yes: options.runYes, strict: options.runStrict },
@@ -260,7 +260,7 @@ export async function executeOneBlock(
           if (ext === '.yaml' || ext === '.yml') {
             try {
               const resolvedPath = resolveIncludePath(includePath, options.currentFile);
-              validateIncludePath(resolvedPath, state.visitedPaths, ext);
+              await validateIncludePath(resolvedPath, state.visitedPaths, ext);
               const raw = readFileSync(resolvedPath, 'utf-8');
               const parsed = parseYaml(raw) as Record<string, unknown>;
               for (const [k, v] of Object.entries(parsed)) {
@@ -292,7 +292,15 @@ export async function executeOneBlock(
             if (state.visitedPaths.has(resolvedPath)) {
               return { success: false, output: null, error: t('error.doc.cycle', { path: docPath }), duration: Date.now() - startMs };
             }
-            if (!resolvedPath.startsWith(process.cwd())) {
+            // realpath 双侧校验防符号链接逃逸（与 file_read 的防线一致）
+            const rootReal = await realpath(process.cwd());
+            let fileReal: string;
+            try {
+              fileReal = await realpath(resolvedPath);
+            } catch {
+              fileReal = resolvedPath;
+            }
+            if (fileReal !== rootReal && !fileReal.startsWith(rootReal + path.sep)) {
               return { success: false, output: null, error: t('error.doc.outOfBounds', { path: docPath }), duration: Date.now() - startMs };
             }
             // 加入已访问集合，子文档经共享 visitedPaths 统一做循环引用检测
@@ -310,7 +318,7 @@ export async function executeOneBlock(
 
             const raw = readFileSync(resolvedPath, 'utf-8');
             const subDoc = parseMarkdown(raw);
-            const sub = await executeSubDocument(subDoc, state, inputs);
+            const sub = await executeSubDocument(subDoc, state, inputs, resolvedPath);
 
             // 命名空间回传：{{output}} = 渲染内容；{{output.<var>}} = 子文档产出变量
             context.set(ns, sub.content);
@@ -576,47 +584,7 @@ export async function executeDocument(
 
   // 预展开 .md include 块：将 include 块替换为被引入文件的块
   const visitedPaths = new Set<string>();
-  let includeExpandIdx = 0;
-  while (includeExpandIdx < doc.blocks.length) {
-    const block = doc.blocks[includeExpandIdx];
-    if (block.type === 'include') {
-      const includePath = metaString(block.meta, 'path');
-      if (includePath) {
-        const ext = path.extname(includePath).toLowerCase();
-        if (ext === '.md') {
-          const resolvedPath = resolveIncludePath(includePath, options.currentFile);
-          validateIncludePath(resolvedPath, visitedPaths, ext);
-          visitedPaths.add(resolvedPath);
-
-          const raw = readFileSync(resolvedPath, 'utf-8');
-          const subDoc = parseMarkdown(raw);
-
-          // 子块的 sourceStart/sourceEnd 是相对子文件内容的偏移，
-          // 需平移 append 位置对应的偏移，否则 debug 模式插入结果会错位
-          const offset = doc.rawContent.length + 1; // +1 对应拼接的 '\n'
-          doc.rawContent += '\n' + subDoc.rawContent;
-          const offsetBlocks = subDoc.blocks.map((b) => ({
-            ...b,
-            sourceStart: b.sourceStart + offset,
-            sourceEnd: b.sourceEnd + offset,
-          }));
-          // 子文档中的控制流指令同样平移偏移
-          const offsetDirectives = (subDoc.directives ?? []).map((d) => ({
-            ...d,
-            sourceStart: d.sourceStart + offset,
-            sourceEnd: d.sourceEnd + offset,
-          }));
-
-          doc.blocks.splice(includeExpandIdx, 1, ...offsetBlocks);
-          if (offsetDirectives.length > 0) {
-            doc.directives = [...(doc.directives ?? []), ...offsetDirectives];
-          }
-          continue;
-        }
-      }
-    }
-    includeExpandIdx++;
-  }
+  await expandMdIncludes(doc, options.currentFile, visitedPaths);
 
   const state: BlockExecState = {
     context,
@@ -800,12 +768,14 @@ interface SubExecutionResult {
  * @param subDoc - 解析后的子文档
  * @param parentState - 父执行状态（继承 options/config，共享 visitedPaths）
  * @param inputs - 从父上下文导入的输入变量
+ * @param subDocFile - 子文档文件路径（include 相对路径基准）
  * @returns 子文档执行结果
  */
 async function executeSubDocument(
   subDoc: ParsedDocument,
   parentState: BlockExecState,
-  inputs: Record<string, unknown>
+  inputs: Record<string, unknown>,
+  subDocFile?: string
 ): Promise<SubExecutionResult> {
   const subContext = new ExecutionContext();
   const now = new Date();
@@ -829,6 +799,10 @@ async function executeSubDocument(
     hasError: false,
     totalBlocks: subDoc.blocks.length,
   };
+
+  // 预展开子文档内的 .md include（相对子文档自身位置）
+  await expandMdIncludes(subDoc, subDocFile, subState.visitedPaths);
+  subState.totalBlocks = subDoc.blocks.length;
 
   if (hasControlFlow(subDoc)) {
     const tree = buildControlTree(subDoc);
@@ -998,24 +972,93 @@ function resolveIncludePath(includePath: string, currentFile?: string): string {
 }
 
 /**
+ * 预展开文档中的 .md include 块：把 include 块替换为被引入文件的块（递归）
+ * 被引入文档的相对路径以其自身位置为基准；visitedPaths 做循环引用检测
+ * @param doc - 文档（原地修改 rawContent/blocks/directives）
+ * @param currentFile - 当前文档文件路径（include 相对路径基准）
+ * @param visitedPaths - 已访问路径集合（跨文档共享）
+ */
+async function expandMdIncludes(doc: ParsedDocument, currentFile: string | undefined, visitedPaths: Set<string>): Promise<void> {
+  let idx = 0;
+  while (idx < doc.blocks.length) {
+    const block = doc.blocks[idx];
+    if (block.type === 'include') {
+      const includePath = metaString(block.meta, 'path');
+      if (includePath) {
+        const ext = path.extname(includePath).toLowerCase();
+        if (ext === '.md') {
+          const resolvedPath = resolveIncludePath(includePath, currentFile);
+          await validateIncludePath(resolvedPath, visitedPaths, ext);
+          visitedPaths.add(resolvedPath);
+
+          const raw = readFileSync(resolvedPath, 'utf-8');
+          const subDoc = parseMarkdown(raw);
+          // 递归展开被引入文档自身的 include（相对其自身位置）
+          await expandMdIncludes(subDoc, resolvedPath, visitedPaths);
+
+          // 子块的 sourceStart/sourceEnd 是相对子文件内容的偏移，
+          // 需平移 append 位置对应的偏移，否则 debug 模式插入结果会错位
+          const offset = doc.rawContent.length + 1; // +1 对应拼接的 '\n'
+          doc.rawContent += '\n' + subDoc.rawContent;
+          const offsetBlocks = subDoc.blocks.map((b) => ({
+            ...b,
+            sourceStart: b.sourceStart + offset,
+            sourceEnd: b.sourceEnd + offset,
+          }));
+          // 子文档中的控制流指令同样平移偏移
+          const offsetDirectives = (subDoc.directives ?? []).map((d) => ({
+            ...d,
+            sourceStart: d.sourceStart + offset,
+            sourceEnd: d.sourceEnd + offset,
+          }));
+
+          doc.blocks.splice(idx, 1, ...offsetBlocks);
+          if (offsetDirectives.length > 0) {
+            doc.directives = [...(doc.directives ?? []), ...offsetDirectives];
+          }
+          continue;
+        }
+      }
+    }
+    idx++;
+  }
+}
+
+/**
  * 验证 include 路径的安全性
  * 检查：扩展名白名单、循环引用、路径越界
  */
-function validateIncludePath(
+/**
+ * 验证路径是否位于项目根内（realpath 双端校验，防符号链接逃逸；
+ * realpath 失败时退回词法校验，兼容目标文件尚不存在等场景）
+ * @param resolvedPath - 待校验的绝对路径
+ * @returns 是否越界
+ */
+async function isOutOfBounds(resolvedPath: string): Promise<boolean> {
+  try {
+    const rootReal = await realpath(process.cwd());
+    const fileReal = await realpath(resolvedPath);
+    return fileReal !== rootReal && !fileReal.startsWith(rootReal + path.sep);
+  } catch {
+    return !resolvedPath.startsWith(process.cwd());
+  }
+}
+
+async function validateIncludePath(
   resolvedPath: string,
   visitedPaths: Set<string>,
   ext: string
-): void {
+): Promise<void> {
   if (ext !== '.md' && ext !== '.yaml' && ext !== '.yml') {
     throw new Error(t('error.includeExtWhitelist', { ext }));
   }
 
-  if (!resolvedPath.startsWith(process.cwd())) {
-    throw new Error(t('error.includeOutOfBounds', { path: resolvedPath }));
-  }
-
   if (visitedPaths.has(resolvedPath)) {
     throw new Error(t('error.includeCycle', { path: resolvedPath }));
+  }
+
+  if (await isOutOfBounds(resolvedPath)) {
+    throw new Error(t('error.includeOutOfBounds', { path: resolvedPath }));
   }
 }
 

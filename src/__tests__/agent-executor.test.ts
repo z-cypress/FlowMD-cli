@@ -104,7 +104,7 @@ describe('executeOneBlock (agent)', () => {
     expect(mockExecuteAgentBlock).toHaveBeenCalledOnce();
     expect(state.context.get('report')).toBe('最终报告');
     // 传入 LLM 配置与 projectRoot
-    const [, , , llmConfig, , , options] = mockExecuteAgentBlock.mock.calls[0];
+    const [, , , llmConfig, , options] = mockExecuteAgentBlock.mock.calls[0];
     expect(llmConfig.model).toBe('gpt-4o');
     expect(options.projectRoot).toBe(process.cwd());
   });

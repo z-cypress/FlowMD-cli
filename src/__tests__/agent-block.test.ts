@@ -169,7 +169,7 @@ describe('executeAgentBlock', () => {
     mockRunAgentLoop.mockResolvedValue(agentResult);
     const { createToolRegistry } = await import('../core/blocks/agent/tools/registry.js');
 
-    await executeAgentBlock('任务', { goal: 'g', output: 'o' }, context, llmConfig, undefined, undefined, {
+    await executeAgentBlock('任务', { goal: 'g', output: 'o' }, context, llmConfig, undefined, {
       allowedDomains: ['api.example.com'],
     });
 
@@ -182,7 +182,7 @@ describe('executeAgentBlock', () => {
     mockRunAgentLoop.mockResolvedValue(agentResult);
     const { createToolRegistry } = await import('../core/blocks/agent/tools/registry.js');
 
-    await executeAgentBlock('任务', { goal: 'g', output: 'o' }, context, llmConfig, undefined, undefined, {
+    await executeAgentBlock('任务', { goal: 'g', output: 'o' }, context, llmConfig, undefined, {
       searchEndpoint: 'https://search.example.com/api',
     });
 
@@ -194,7 +194,7 @@ describe('executeAgentBlock', () => {
   it('should fail when the cost budget check is declined', async () => {
     mockCheckCostBudget.mockResolvedValue(false);
 
-    const result = await executeAgentBlock('任务', { goal: 'g', output: 'o' }, context, llmConfig, undefined, undefined, {
+    const result = await executeAgentBlock('任务', { goal: 'g', output: 'o' }, context, llmConfig, undefined, {
       maxEstimatedTokens: 1000,
     });
 
@@ -208,7 +208,7 @@ describe('executeAgentBlock', () => {
 
     await executeAgentBlock('任务描述', {
       goal: 'g', output: 'o', tools: ['file_read'], max_steps: '4',
-    }, context, llmConfig, undefined, undefined, { maxEstimatedTokens: 5000 });
+    }, context, llmConfig, undefined, { maxEstimatedTokens: 5000 });
 
     const costParams = mockCheckCostBudget.mock.calls[0][0];
     expect(costParams.goal).toBe('g');
@@ -238,5 +238,21 @@ describe('executeAgentBlock', () => {
     expect(context.get('o')).toBe('单次结果');
     expect(mockOpenAICreate).toHaveBeenCalledOnce();
     expect(mockRunAgentLoop).not.toHaveBeenCalled();
+  });
+
+  it('should restrict the tool set passed to the adapter to the declared whitelist', async () => {
+    mockRunAgentLoop.mockResolvedValue(agentResult);
+    const { createToolRegistry } = await import('../core/blocks/agent/tools/registry.js');
+    const fakeHandler = { name: 'x', description: 'd', execute: async () => ({ ok: true }) };
+    vi.mocked(createToolRegistry).mockReturnValue(new Map([
+      ['file_read', fakeHandler],
+      ['code_execution', { ...fakeHandler, name: 'code_execution' }],
+    ]));
+
+    await executeAgentBlock('任务', { goal: 'g', output: 'o', tools: ['file_read'] }, context, llmConfig);
+
+    const params = mockRunAgentLoop.mock.calls[0][0];
+    expect(params.tools.has('file_read')).toBe(true);
+    expect(params.tools.has('code_execution')).toBe(false);
   });
 });

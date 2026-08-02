@@ -177,4 +177,17 @@ describe('doc block', () => {
 
     expect(result.hasError).toBe(true);
   });
+
+  it('should expand .md includes inside the sub-document', async () => {
+    writeFileSync(join(tempDir, 'shared.md'), '共享内容');
+    writeFileSync(join(tempDir, 'sub.md'), '```include {path: "./shared.md"}\n```\n\n包含结果\n');
+
+    const doc = parseMarkdown('```doc {path: "./sub.md", output: "sub"}\n```\n\n{{sub}}');
+
+    const result = await executeDocument(doc, fullOptions(), config);
+
+    expect(result.hasError).toBe(false);
+    expect(result.content).toContain('共享内容');
+    expect(result.content).toContain('包含结果');
+  });
 });

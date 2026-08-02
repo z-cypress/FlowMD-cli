@@ -86,7 +86,6 @@ function toAgentConfig(meta: Record<string, string | string[]>): AgentBlockConfi
  * @param meta - 块元数据
  * @param context - 变量上下文
  * @param llmConfig - 全局 LLM 配置
- * @param models - 命名模型预设（预留，agent 块按 provider 解析）
  * @param signal - 中止信号
  * @param options - 执行选项
  * @returns 块执行结果
@@ -96,7 +95,6 @@ export async function executeAgentBlock(
   meta: Record<string, string | string[]>,
   context: ExecutionContext,
   llmConfig: LLMConfig,
-  models?: Record<string, Partial<LLMConfig>>,
   signal?: AbortSignal,
   options?: AgentExecuteOptions
 ): Promise<BlockResult> {
@@ -144,8 +142,13 @@ export async function executeAgentBlock(
     searchEndpoint: options?.searchEndpoint,
   });
 
-  // 4.5 成本预估确认（超阈值弹确认，拒绝则失败）
-  const toolDescriptions = [...registry.values()].map((tool) => tool.description).join('\n');
+  // 4.2 白名单过滤：tools 声明的工具才可用（空 = 全部已注册工具）
+  const activeTools = (config.tools?.length ?? 0) > 0
+    ? new Map([...registry].filter(([name]) => config.tools!.includes(name)))
+    : registry;
+
+  // 4.5 成本预估确认（超阈值弹确认，拒绝则失败；仅统计可用工具描述）
+  const toolDescriptions = [...activeTools.values()].map((tool) => tool.description).join('\n');
   const costOk = await checkCostBudget({
     goal,
     task,
@@ -165,12 +168,16 @@ export async function executeAgentBlock(
 
   // 5. 按 adapter 委托执行（默认 chat = ReAct 循环，ADR-020）
   const adapter = createAdapterRegistry().get(config.adapter ?? 'chat')!;
+  if (adapter.name === 'direct' && (config.tools?.length ?? 0) > 0) {
+    // direct 适配器不使用工具，提示用户避免误解
+    console.warn(t('warning.agent.directIgnoresTools'));
+  }
   const result = await adapter.execute({
     goal,
     task,
     config: resolved,
     temperature: config.temperature,
-    tools: registry,
+    tools: activeTools,
     maxSteps: config.max_steps ?? DEFAULT_MAX_STEPS,
     timeoutMs: config.timeout ? config.timeout * 1000 : 0,
     signal,
@@ -216,7 +223,7 @@ export function formatAgentTrace(result: BlockResult): string {
   const lines = steps.map((s) =>
     `> ${s.stepNumber}. ${s.action}\n>   观察: ${truncate(s.observation || '(无)', 200)}`
   );
-  return `\n\n> 🕵️ agent 步骤轨迹:\n${lines.join('\n')}\n`;
+  return `\n\n> 🕵️ ${t('agent.trace')}:\n${lines.join('\n')}\n`;
 }
 
 /**

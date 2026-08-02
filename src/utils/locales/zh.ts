@@ -154,8 +154,10 @@ export const zh = {
   'error.agent.confirmDeclined': '已取消 agent 执行',
   'error.agent.costDeclined': '已取消 agent 执行（超出成本预算）',
   'agent.step': '步骤 {num}:',
+  'agent.trace': 'agent 步骤轨迹',
   'agent.confirmPrompt': '此文档包含 agent 块（目标：{goal}），将由 LLM 自主执行多步任务。是否继续？',
   'agent.costPrompt': 'agent 预估消耗约 {estimated} tokens（预算上限 {limit}），是否继续？',
+  'warning.agent.directIgnoresTools': '⚠ direct 适配器不使用工具，声明的 tools 会被忽略',
 
   // AI 块 (ai-block.ts)
   'error.ai.noApiKey': 'API Key 未配置。请设置环境变量 {envVar}，或运行 flow init 配置',
@@ -250,6 +252,7 @@ export const zh = {
   'history.detailBlocks': '  块数: {success}/{total} 成功, {failed} 失败',
   'history.blockItem': '    [{position}] {type} 块: {status}',
   'history.blockError': '    错误: {error}',
+  'history.blockTrace': '    轨迹: {trace}',
   'history.cleared': '✅ 已清空执行历史',
   'history.invalidId': '❌ 无效的记录 ID: {id}',
 

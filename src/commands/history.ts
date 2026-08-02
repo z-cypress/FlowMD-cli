@@ -69,6 +69,9 @@ export function historyDetail(idStr: string): void {
     if (b.error) {
       console.log(chalk.gray(t('history.blockError', { error: b.error })));
     }
+    if (b.trace) {
+      console.log(chalk.gray(t('history.blockTrace', { trace: b.trace })));
+    }
   }
 }
 
