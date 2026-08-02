@@ -696,7 +696,16 @@ export async function executeDocument(
       const content = await executeControlFlow(tree, doc.rawContent, state);
       printSummary(state);
       recordExecutionHistory(state, options.currentFile);
-      return { content, hasError: state.hasError, variables: context.dump() };
+      return {
+        content,
+        hasError: state.hasError,
+        variables: context.dump(),
+        blocks: {
+          total: state.totalBlocks,
+          success: state.totalBlocks - state.failedBlocks.length,
+          failed: state.failedBlocks.length,
+        },
+      };
     } catch (error) {
       if (error instanceof ControlTreeError || error instanceof ConditionSyntaxError) {
         console.error(chalk.red(t('error.control.tree', { error: error.message })));
@@ -759,7 +768,16 @@ export async function executeDocument(
 
   recordExecutionHistory(state, options.currentFile);
 
-  return { content, hasError: state.hasError, variables: context.dump() };
+  return {
+    content,
+    hasError: state.hasError,
+    variables: context.dump(),
+    blocks: {
+      total: state.totalBlocks,
+      success: state.totalBlocks - state.failedBlocks.length,
+      failed: state.failedBlocks.length,
+    },
+  };
 }
 
 /**

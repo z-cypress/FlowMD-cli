@@ -287,7 +287,8 @@ SELECT product, revenue FROM sales ORDER BY revenue DESC
 flowmd serve --port 5199
 ```
 
-浏览器打开 `http://127.0.0.1:5199/` 即得内置 **Web IDE**（编辑 + 执行预览 + 模板选择）。
+浏览器打开 `http://127.0.0.1:5199/` 即得内置 **Web IDE**
+（编辑 + 执行预览 + 模板选择 + 变量注入 + release/debug 模式 + 示例加载 + 块执行统计）。
 
 | 端点 | 方法 | 说明 |
 |------|------|------|
@@ -319,9 +320,9 @@ flowmd schedule                    # 前台守护，按 cron 触发
 
  ## 项目状态
 
- **MVP 阶段**。已实现：run/watch/init/new/config/doctor/history/serve/schedule 命令、AI 块（OpenAI + Anthropic + 模型预设）、数据块（SQLite/MySQL/PostgreSQL）、模板块（Handlebars + json helper）、run 块（js/python 沙箱）、控制流（if/elif/else/for + collect）、agent 块（文档即智能体，ReAct 多步任务）、doc 块（跨文档协作）、变量上下文、--var/--var-file（含 .env）、试运行/逐步/失败即停/debug/release 模式、HTTP API、定时任务。
+ **MVP 阶段**。已实现：run/watch/init/new/config/doctor/history/serve/schedule 命令、AI 块（OpenAI + Anthropic + 模型预设）、数据块（SQLite/MySQL/PostgreSQL）、模板块（Handlebars + json helper）、run 块（js/python 沙箱）、控制流（if/elif/else/for + collect）、agent 块（文档即智能体，多 provider 适配器 + ReAct 多步任务 + 6 工具）、doc 块（跨文档协作）、自然语言生成文档、pipeline 多文档串联、变量上下文、--var/--var-file（含 .env）、试运行/逐步/失败即停/debug/release 模式、HTTP API、定时任务、Web IDE、VS Code 扩展。
 
- **规划中**：VS Code 扩展、模板市场、Web IDE。
+ **规划中**：模板市场。
 
  ## 许可证
 

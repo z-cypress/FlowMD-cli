@@ -1,11 +1,12 @@
 /**
  * Web IDE 单页（ADR-011/012/013/014）
  * 随 serve 内置：GET / 返回此 HTML。零前端依赖、无构建步骤。
+ * v2：debug 复选框（agent/doc 步骤轨迹）、示例加载、执行块统计
  */
 
 /**
  * Web IDE HTML 单页
- * textarea + 分栏预览；模板下拉、变量 key-value 表格、release 复选框、执行按钮
+ * textarea + 分栏预览；模板下拉、变量 key-value 表格、release/debug 复选框、示例按钮、执行按钮
  */
 export const WEB_IDE_HTML = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -22,6 +23,9 @@ export const WEB_IDE_HTML = `<!DOCTYPE html>
   header select, header input[type="text"] { padding: 4px 6px; border-radius: 4px; border: 1px solid #d0d7de; font-size: 13px; }
   #run-btn { padding: 5px 14px; background: #1f883d; color: #fff; border: none; border-radius: 5px; font-size: 13px; cursor: pointer; }
   #run-btn:hover { background: #1a7f37; }
+  #run-btn:disabled { opacity: 0.6; cursor: default; }
+  #example-btn { padding: 4px 10px; background: #0969da; color: #fff; border: none; border-radius: 5px; font-size: 12px; cursor: pointer; }
+  #example-btn:hover { background: #0968da; }
   #vars-panel { padding: 8px 16px; background: #f6f8fa; border-bottom: 1px solid #d0d7de; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   #vars-panel span { font-size: 12px; color: #57606a; }
   .var-row { display: flex; gap: 6px; align-items: center; }
@@ -34,7 +38,9 @@ export const WEB_IDE_HTML = `<!DOCTYPE html>
   #editor { flex: 1; border: none; padding: 12px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.6; resize: none; outline: none; }
   #preview { flex: 1; padding: 12px; overflow: auto; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
   #preview.error { color: #cf222e; }
-  .status { padding: 4px 12px; font-size: 12px; color: #57606a; background: #fff8c5; border-top: 1px solid #d4a72c; display: none; }
+  .status { padding: 4px 12px; font-size: 12px; color: #1f2328; background: #dafbe1; border-top: 1px solid #1a7f37; display: none; }
+  .status.warn { background: #fff8c5; border-top-color: #d4a72c; color: #7d4e00; }
+  .status.error { background: #ffebe9; border-top-color: #cf222e; color: #cf222e; }
   .status.visible { display: block; }
 </style>
 </head>
@@ -44,7 +50,9 @@ export const WEB_IDE_HTML = `<!DOCTYPE html>
   <label>模板:
     <select id="template-select"><option value="">— 选择模板 —</option></select>
   </label>
-  <label><input type="checkbox" id="release-check"> release（剥离指令块）</label>
+  <label><input type="checkbox" id="release-check"> release</label>
+  <label><input type="checkbox" id="debug-check"> debug（显示 agent 步骤轨迹）</label>
+  <button id="example-btn">示例</button>
   <button id="run-btn">▶ 执行</button>
 </header>
 
@@ -72,19 +80,21 @@ export const WEB_IDE_HTML = `<!DOCTYPE html>
   var editor = document.getElementById('editor');
   var preview = document.getElementById('preview');
   var releaseCheck = document.getElementById('release-check');
+  var debugCheck = document.getElementById('debug-check');
   var templateSelect = document.getElementById('template-select');
   var status = document.getElementById('status');
   var varRows = document.getElementById('var-rows');
   var addVarBtn = document.getElementById('add-var');
   var runBtn = document.getElementById('run-btn');
+  var exampleBtn = document.getElementById('example-btn');
 
-  function showStatus(msg) {
+  function showStatus(msg, kind) {
     status.textContent = msg;
-    status.classList.add('visible');
+    status.className = 'status visible' + (kind ? ' ' + kind : '');
   }
   function clearStatus() {
     status.textContent = '';
-    status.classList.remove('visible');
+    status.className = 'status';
   }
 
   function addVarRow(key, value) {
@@ -93,7 +103,7 @@ export const WEB_IDE_HTML = `<!DOCTYPE html>
     var k = document.createElement('input');
     k.type = 'text'; k.placeholder = '键'; k.value = key || '';
     var v = document.createElement('input');
-    v.type = 'text'; v.placeholder = '值'; v.value = value || '';
+    v.type = 'text'; v.placeholder = '值（数组/对象可粘贴 JSON 字符串）'; v.value = value || '';
     var del = document.createElement('button');
     del.className = 'del'; del.textContent = '✕';
     del.addEventListener('click', function () { row.remove(); });
@@ -110,6 +120,29 @@ export const WEB_IDE_HTML = `<!DOCTYPE html>
     });
     return vars;
   }
+
+  // 示例文档：展示 agent 块（direct 适配器）+ 模板块
+  var EXAMPLE = [
+    '# 示例：agent 块',
+    '',
+    '\`\`\`agent {goal: "总结 FlowMD 的核心能力", adapter: "direct", output: "summary"}',
+    'FlowMD 是执行 Markdown 中特殊代码块的 CLI：ai/data/template/run/agent/doc 块按序执行，变量用 {{var}} 引用。请用 3 句话总结它的价值。',
+    '\`\`\`',
+    '',
+    '## 核心能力',
+    '',
+    '{{summary}}',
+    '',
+    '## 模板块示例',
+    '',
+    '\`\`\`template {output: "report"}',
+    '# 报告 ({{date}})',
+    '',
+    '{{summary}}',
+    '\`\`\`',
+    '',
+    '{{report}}'
+  ].join('\n');
 
   // 加载模板列表
   var templatesContent = {};
@@ -132,8 +165,13 @@ export const WEB_IDE_HTML = `<!DOCTYPE html>
       editor.value = content;
       clearStatus();
     } else {
-      showStatus('模板内容不可用: ' + name);
+      showStatus('模板内容不可用: ' + name, 'warn');
     }
+  });
+
+  exampleBtn.addEventListener('click', function () {
+    editor.value = EXAMPLE;
+    clearStatus();
   });
 
   addVarBtn.addEventListener('click', function () { addVarRow(); });
@@ -142,7 +180,7 @@ export const WEB_IDE_HTML = `<!DOCTYPE html>
   runBtn.addEventListener('click', function () {
     var markdown = editor.value;
     if (!markdown.trim()) {
-      showStatus('编辑区为空');
+      showStatus('编辑区为空', 'warn');
       return;
     }
     clearStatus();
@@ -157,6 +195,7 @@ export const WEB_IDE_HTML = `<!DOCTYPE html>
         markdown: markdown,
         vars: collectVars(),
         release: releaseCheck.checked,
+        debug: debugCheck.checked,
         quiet: true
       })
     }).then(function (res) { return res.json(); }).then(function (json) {
@@ -169,9 +208,14 @@ export const WEB_IDE_HTML = `<!DOCTYPE html>
       preview.textContent = data.content;
       if (data.hasError) {
         preview.classList.add('error');
-        showStatus('部分块执行失败');
+        showStatus('部分块执行失败', 'error');
       } else {
         preview.classList.remove('error');
+      }
+      if (data.blocks) {
+        var b = data.blocks;
+        showStatus('共 ' + b.total + ' 个块：' + b.success + ' 成功 / ' + b.failed + ' 失败' +
+          (debugCheck.checked ? '（debug 模式）' : ''), data.hasError ? 'warn' : '');
       }
     }).catch(function (err) {
       preview.textContent = '请求失败: ' + String(err);

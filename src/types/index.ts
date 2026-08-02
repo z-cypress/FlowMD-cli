@@ -254,4 +254,6 @@ export interface ExecutionResult {
   hasError: boolean;
   /** 执行后产出的全部变量（供 pipeline 串联 / 调用方取用） */
   variables?: Record<string, unknown>;
+  /** 块统计（供 serve/Web IDE 展示） */
+  blocks?: { total: number; success: number; failed: number };
 }

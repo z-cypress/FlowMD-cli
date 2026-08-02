@@ -109,6 +109,14 @@ describe('flowmd serve', () => {
       expect(data.content).not.toContain('```template');
     });
 
+    it('should return block statistics', async () => {
+      const { body } = await request('POST', '/execute', {
+        markdown: '# Doc\n\n```template\nContent\n```\n\n```template\nMore\n```',
+      });
+      const data = body.data as { blocks: { total: number; success: number; failed: number } };
+      expect(data.blocks).toEqual({ total: 2, success: 2, failed: 0 });
+    });
+
     it('should return error for missing markdown', async () => {
       const { status, body } = await request('POST', '/execute', {});
       expect(status).toBe(500);
@@ -138,6 +146,8 @@ describe('flowmd serve', () => {
       expect(html).toContain('<textarea');
       expect(html).toContain('/execute');
       expect(html).toContain('release');
+      expect(html).toContain('debug-check');
+      expect(html).toContain('example-btn');
     });
 
     it('should return 404 for unknown path', async () => {

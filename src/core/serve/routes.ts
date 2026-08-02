@@ -51,8 +51,8 @@ export async function handleExecute(req: IncomingMessage, body: string): Promise
   };
 
   try {
-    const { content, hasError } = await executeDocument(doc, options, config);
-    return { ok: true, data: { content, hasError } };
+    const { content, hasError, blocks } = await executeDocument(doc, options, config);
+    return { ok: true, data: { content, hasError, blocks } };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return { ok: false, error: `Execution failed: ${message}` };
