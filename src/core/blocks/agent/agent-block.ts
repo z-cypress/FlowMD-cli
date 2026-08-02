@@ -23,6 +23,8 @@ export interface AgentExecuteOptions {
   allowedDomains?: string[];
   /** 成本预估上限（token），0 = 不限制 */
   maxEstimatedTokens?: number;
+  /** web_search 搜索 endpoint */
+  searchEndpoint?: string;
   /** 每步回调（进度 UI） */
   onStep?: (step: AgentStep) => void;
   /** debug 模式：结果附带步骤轨迹 */
@@ -137,6 +139,7 @@ export async function executeAgentBlock(
     projectRoot: options?.projectRoot ?? process.cwd(),
     signal,
     allowedDomains: options?.allowedDomains,
+    searchEndpoint: options?.searchEndpoint,
   });
 
   // 4.5 成本预估确认（超阈值弹确认，拒绝则失败）

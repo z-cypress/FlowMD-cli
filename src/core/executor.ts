@@ -230,6 +230,7 @@ export async function executeOneBlock(
               projectRoot: options.currentFile ? path.dirname(options.currentFile) : process.cwd(),
               allowedDomains: config.agent?.allowedDomains,
               maxEstimatedTokens: config.agent?.maxEstimatedTokens,
+              searchEndpoint: config.agent?.searchEndpoint,
               onStep: (step) => {
                 if (spinner) spinner.text = `${t('block.running', { emoji, num: blockNum, type: block.type })} ${formatAgentStep(step)}`;
               },

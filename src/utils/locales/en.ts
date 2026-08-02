@@ -130,7 +130,7 @@ export const en = {
   'error.agent.goalRequired': 'agent block is missing the goal parameter',
   'error.agent.outputRequired': 'agent block is missing the output parameter',
   'error.agent.badProvider': 'Unsupported agent provider: {provider} (supported: openai / anthropic)',
-  'error.agent.unknownTool': 'Unknown tool: {tool} (supported: code_execution / file_read / file_write / api_call)',
+  'error.agent.unknownTool': 'Unknown tool: {tool} (supported: code_execution / file_read / file_write / api_call / browser / web_search)',
   'error.agent.badMaxSteps': 'max_steps must be a positive integer',
   'error.agent.badTimeout': 'timeout must be a positive number (seconds)',
   'error.agent.badTemperature': 'temperature must be between 0 and 2',

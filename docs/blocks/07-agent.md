@@ -60,8 +60,8 @@ agent 块内部按"思考 → 行动 → 观察"循环执行：
 | `file_read` | 读取项目目录内的文本文件（上限 64KB） | 禁止 `..` 逃逸 / 符号链接逃逸 / 绝对路径越界 |
 | `file_write` | 写入文本文件到 `.flow/output/`（上限 1MB） | 仅限 `.flow/output/`，自动建目录，同样禁止路径逃逸 |
 | `api_call` | 调用外部 HTTP API（只读 GET） | Host 必须在 `agent.allowedDomains` 白名单内，响应上限 64KB |
-
-> `web_search` / `browser` 工具仍在规划中；列表中的未知工具会解析期报错。
+| `browser` | 抓取网页并转为可读文本（只读 GET） | 仅 http/https，内网地址（SSRF-lite）拦截，响应上限 128KB |
+| `web_search` | 搜索互联网 | 需配置 `agent.searchEndpoint`，未配置时明确报错 |
 
 ### 域名白名单配置
 
@@ -75,6 +75,17 @@ agent:
     - "*.openai.com"
 ```
 
+### 搜索端点配置
+
+`web_search` 不捆绑第三方搜索密钥，需要配置一个接受 `?q=` 的搜索 endpoint
+（返回 HTML 或 JSON，如自建网关或任意搜索 API）：
+
+```yaml
+# .flow/config.yml
+agent:
+  searchEndpoint: https://search.example.com/api
+```
+
 ## 安全
 
 - **授权确认**：首次执行 agent 块（按 goal + 工具集记忆）会弹确认，
@@ -85,6 +96,8 @@ agent:
 - **工具白名单**：`tools` 中显式列出的工具才可用，未注册工具解析期报错。
 - **写入隔离**：`file_write` 只能写 `.flow/output/`；`api_call` 只能访问
   白名单内的域名，且仅 GET。
+- **网络隔离**：`browser` 仅 http/https 且拦截内网地址（SSRF-lite）；
+  `web_search` 只访问配置的搜索端点。
 - **护栏**：`max_steps` 限制轮数、`timeout` 限制整体耗时、Ctrl+C 可中断。
 - **步骤轨迹**：每一步的思考 / 行动 / 观察被记录，`--debug` 模式下插入输出，
   `flowmd history` 记录轨迹摘要，便于审计。

@@ -9,8 +9,8 @@ import type { AgentBlockConfig } from './types.js';
 /** 支持的 provider（v2.0-alpha 内置 openai / anthropic，pi-agent 等为扩展点） */
 export const SUPPORTED_AGENT_PROVIDERS = ['openai', 'anthropic'] as const;
 
-/** v2.0 已注册工具（完整实现见 ADR-016） */
-export const REGISTERED_TOOLS = ['code_execution', 'file_read', 'file_write', 'api_call'] as const;
+/** v2.0 已注册工具（完整实现见 ADR-016/018） */
+export const REGISTERED_TOOLS = ['code_execution', 'file_read', 'file_write', 'api_call', 'browser', 'web_search'] as const;
 
 /**
  * 从 meta 中取字符串值（数组值取首个，非字符串返回 undefined）

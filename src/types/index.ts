@@ -221,6 +221,8 @@ export interface FlowConfig {
     allowedDomains?: string[];
     /** 成本预估上限（token），0 或未设 = 不限制 */
     maxEstimatedTokens?: number;
+    /** web_search 搜索 endpoint（接受 ?q=，返回 HTML 或 JSON） */
+    searchEndpoint?: string;
     /** 已确认的 agent 键（首次授权记忆） */
     confirmedAgents?: string[];
   };

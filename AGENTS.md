@@ -4,7 +4,7 @@
 
 FlowMD is a CLI tool that executes special code blocks in Markdown files. It parses `.md` files containing `ai`, `data`, and `template` blocks, executes them in sequence, and outputs the rendered result.
 
-**Status**: v0.3.1 — 498 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE) + schedule (cron). agent block (v2.0: ReAct 多步任务 + code_execution/file_read/file_write/api_call 工具 + 成本预算确认). Full documentation in `docs/` (bilingual zh/en).
+**Status**: v0.3.1 — 510 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE) + schedule (cron). agent block (v2.0: ReAct 多步任务 + code_execution/file_read/file_write/api_call/browser/web_search 工具 + 成本预算确认). Full documentation in `docs/` (bilingual zh/en).
 
 ## Tech Stack
 
@@ -25,7 +25,7 @@ FlowMD is a CLI tool that executes special code blocks in Markdown files. It par
 pnpm install          # Install dependencies
 pnpm dev -- run <f>   # Dev mode (tsx)
 pnpm lint             # ESLint (flat config, TS6 API)
-pnpm test:run         # Run all tests (498)
+pnpm test:run         # Run all tests (510)
 pnpm build            # Build to dist/
 npm install -g .      # Global install
 flowmd run <file>     # Execute document
@@ -167,10 +167,13 @@ src/
 │   │   └── tools/
 │   │       ├── registry.ts       # tool registry
 │   │       ├── path-guard.ts     # write-path containment guard
+│   │       ├── http.ts           # shared fetch + htmlToText + SSRF-lite guard
 │   │       ├── code-execution.ts # reuses run sandbox
 │   │       ├── file-read.ts      # project-root read-only (path escape guard)
 │   │       ├── file-write.ts     # .flow/output/ write-only (path guard)
-│   │       └── api-call.ts       # GET http/https with domain allowlist
+│   │       ├── api-call.ts       # GET http/https with domain allowlist
+│   │       ├── browser.ts        # webpage fetch → readable text (SSRF-lite)
+│   │       └── web-search.ts     # GET {searchEndpoint}?q= (opt-in config)
 ├── types/index.ts          # All type defs
 ├── utils/
 │   ├── config.ts           # Multi-layer config loader
@@ -180,7 +183,7 @@ src/
 │   ├── logger.ts           # Terminal output
 │   ├── prompt.ts           # User input
 │   └── error-formatter.ts  # Error formatting
-└── __tests__/              # 36 test files, 498 tests
+└── __tests__/              # 37 test files, 510 tests
 ```
 
 ## Configuration Priority

@@ -46,12 +46,13 @@ describe('validateAgentConfig', () => {
   });
 
   it('should reject an unknown tool', () => {
-    const errors = validateAgentConfig({ goal: 'g', output: 'o', tools: ['web_search'] });
-    expect(errors.some((e) => e.includes('web_search'))).toBe(true);
+    const errors = validateAgentConfig({ goal: 'g', output: 'o', tools: ['unknown_tool'] });
+    expect(errors.some((e) => e.includes('unknown_tool'))).toBe(true);
   });
 
   it('should accept tools present in the registered set', () => {
     expect(validateAgentConfig({ goal: 'g', output: 'o', tools: ['file_read'] })).toEqual([]);
+    expect(validateAgentConfig({ goal: 'g', output: 'o', tools: ['browser', 'web_search'] })).toEqual([]);
   });
 
   it('should accept a single tool given as string', () => {

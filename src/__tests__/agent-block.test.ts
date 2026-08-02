@@ -67,13 +67,13 @@ describe('executeAgentBlock', () => {
   it('should reject an unknown tool at parse time', async () => {
     const result = await executeAgentBlock(
       '任务',
-      { goal: 'g', output: 'o', tools: ['web_search'] },
+      { goal: 'g', output: 'o', tools: ['unknown_tool'] },
       context,
       llmConfig
     );
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain('web_search');
+    expect(result.error).toContain('unknown_tool');
   });
 
   it('should reject missing API key', async () => {
@@ -166,6 +166,19 @@ describe('executeAgentBlock', () => {
 
     expect(createToolRegistry).toHaveBeenCalledWith(
       expect.objectContaining({ allowedDomains: ['api.example.com'] })
+    );
+  });
+
+  it('should pass searchEndpoint to the tool registry', async () => {
+    mockRunAgentLoop.mockResolvedValue(agentResult);
+    const { createToolRegistry } = await import('../core/blocks/agent/tools/registry.js');
+
+    await executeAgentBlock('任务', { goal: 'g', output: 'o' }, context, llmConfig, undefined, undefined, {
+      searchEndpoint: 'https://search.example.com/api',
+    });
+
+    expect(createToolRegistry).toHaveBeenCalledWith(
+      expect.objectContaining({ searchEndpoint: 'https://search.example.com/api' })
     );
   });
 

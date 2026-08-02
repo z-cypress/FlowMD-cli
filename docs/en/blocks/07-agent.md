@@ -62,8 +62,8 @@ The agent block runs a "think → act → observe" loop:
 | `file_read` | Read text files inside the project root (64KB cap) | `..` traversal / symlink escape / absolute-path escape are rejected |
 | `file_write` | Write text files into `.flow/output/` (1MB cap) | Restricted to `.flow/output/`, auto-creates directories, same path-escape guards |
 | `api_call` | Call external HTTP APIs (read-only GET) | Host must be in the `agent.allowedDomains` allowlist; response capped at 64KB |
-
-> `web_search` / `browser` are still on the roadmap; any unknown tool in the list is rejected at parse time.
+| `browser` | Fetch a webpage and convert it to readable text (read-only GET) | http/https only, private hosts blocked (SSRF-lite), response capped at 128KB |
+| `web_search` | Search the internet | Requires `agent.searchEndpoint`; errors clearly when unconfigured |
 
 ### Domain allowlist configuration
 
@@ -75,6 +75,17 @@ agent:
   allowedDomains:
     - api.example.com
     - "*.openai.com"
+```
+
+### Search endpoint configuration
+
+`web_search` does not bundle a third-party search key; configure an endpoint that
+accepts `?q=` (returning HTML or JSON, e.g. a self-hosted gateway or any search API):
+
+```yaml
+# .flow/config.yml
+agent:
+  searchEndpoint: https://search.example.com/api
 ```
 
 ## Security
@@ -90,6 +101,8 @@ agent:
   unregistered tools are rejected at parse time.
 - **Write isolation**: `file_write` can only write under `.flow/output/`;
   `api_call` can only reach allowlisted hosts, via GET only.
+- **Network isolation**: `browser` is http/https only and blocks private hosts
+  (SSRF-lite); `web_search` only reaches the configured search endpoint.
 - **Guardrails**: `max_steps` limits rounds, `timeout` limits overall duration,
   Ctrl+C interrupts.
 - **Step trace**: every step's thought / action / observation is recorded;

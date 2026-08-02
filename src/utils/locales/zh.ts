@@ -130,7 +130,7 @@ export const zh = {
   'error.agent.goalRequired': 'agent 块缺少 goal 参数',
   'error.agent.outputRequired': 'agent 块缺少 output 参数',
   'error.agent.badProvider': '不支持的 agent provider: {provider}（支持 openai / anthropic）',
-  'error.agent.unknownTool': '未知工具: {tool}（支持 code_execution / file_read / file_write / api_call）',
+  'error.agent.unknownTool': '未知工具: {tool}（支持 code_execution / file_read / file_write / api_call / browser / web_search）',
   'error.agent.badMaxSteps': 'max_steps 必须是正整数',
   'error.agent.badTimeout': 'timeout 必须是正数（秒）',
   'error.agent.badTemperature': 'temperature 必须在 0-2 之间',
