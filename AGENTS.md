@@ -4,7 +4,7 @@
 
 FlowMD is a CLI tool that executes special code blocks in Markdown files. It parses `.md` files containing `ai`, `data`, and `template` blocks, executes them in sequence, and outputs the rendered result.
 
-**Status**: v0.3.1 — 510 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE) + schedule (cron). agent block (v2.0: ReAct 多步任务 + code_execution/file_read/file_write/api_call/browser/web_search 工具 + 成本预算确认). Full documentation in `docs/` (bilingual zh/en).
+**Status**: v0.3.1 — 518 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE) + schedule (cron). agent block (v2.0: ReAct 多步任务 + 6 工具 + 成本预算确认) + 自然语言生成文档 (new --ai). Full documentation in `docs/` (bilingual zh/en).
 
 ## Tech Stack
 
@@ -25,7 +25,7 @@ FlowMD is a CLI tool that executes special code blocks in Markdown files. It par
 pnpm install          # Install dependencies
 pnpm dev -- run <f>   # Dev mode (tsx)
 pnpm lint             # ESLint (flat config, TS6 API)
-pnpm test:run         # Run all tests (510)
+pnpm test:run         # Run all tests (518)
 pnpm build            # Build to dist/
 npm install -g .      # Global install
 flowmd run <file>     # Execute document
@@ -45,7 +45,7 @@ flowmd schedule       # Scheduled tasks + cron daemon
 | `run <file>` | `-o` (inline/new/stdout), `-d`, `-s`, `-f`, `--debug`, `--release`, `--var`, `--var-file`, `--yes`, `--strict` | ✅ |
 | `watch <file>` | `-o`, `-d`, `-s`, `-f`, `--debug`, `--release`, `--yes`, `--strict` | ✅ |
 | `init` | — | ✅ |
-| `new <name>` | basic/data/report/meeting/api/changelog templates | ✅ |
+| `new <name>` | `-t` (template), `-l` (list), `-f`, `--ai <desc>` (NL generation) | ✅ |
 | `config [key]` | `--set <value>` | ✅ |
 | `doctor` | — | ✅ |
 | `history` | `--detail <id>`, `--clear` | ✅ |
@@ -130,6 +130,7 @@ src/
 │   ├── parser.ts           # Markdown parser
 │   ├── executor.ts         # Block execution + modes + validation
 │   ├── context.ts          # Variable context
+│   ├── generate.ts         # NL → FlowMD document (flowmd new --ai)
 │   └── blocks/
 │       ├── ai-block.ts     # AI executor + model presets
 │       ├── data-block.ts   # SQLite executor + security
@@ -183,7 +184,7 @@ src/
 │   ├── logger.ts           # Terminal output
 │   ├── prompt.ts           # User input
 │   └── error-formatter.ts  # Error formatting
-└── __tests__/              # 37 test files, 510 tests
+└── __tests__/              # 38 test files, 518 tests
 ```
 
 ## Configuration Priority

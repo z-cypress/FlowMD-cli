@@ -243,6 +243,7 @@ Output modes are specified with `-o`:
 | `flowmd watch <file> -o stdout` | Watch for file changes; supports `-o` to specify the output mode |
 | `flowmd init` | Create the `.flow/` config directory |
 | `flowmd new <name>` | Create a document from a template (basic / data / report / meeting / api / changelog) |
+| `flowmd new <name> --ai "description"` | Generate a document from a natural language description |
 | `flowmd config` | View the current configuration |
 | `flowmd config llm.model --set deepseek-chat` | Set a configuration option |
 | `flowmd doctor` | Environment diagnosis |

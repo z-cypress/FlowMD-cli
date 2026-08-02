@@ -186,6 +186,8 @@ export const zh = {
   'new.desc.meeting': '会议纪要模板',
   'new.desc.api': 'API 文档模板',
   'new.desc.changelog': '更新日志模板',
+  'new.aiRunning': '🤖 正在根据描述生成文档...',
+  'new.aiFailed': '❌ AI 生成失败: {error}',
 
   // config 命令
   'config.notSet': '配置项 "{key}" 未设置',

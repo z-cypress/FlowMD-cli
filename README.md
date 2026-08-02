@@ -239,6 +239,7 @@ SELECT product, revenue FROM sales ORDER BY revenue DESC
  | `flowmd watch <file> -o stdout` | 监听文件变化，支持 -o 指定输出模式 |
  | `flowmd init` | 创建 `.flow/` 配置目录 |
  | `flowmd new <name>` | 从模板创建文档（basic / data / report / meeting / api / changelog） |
+ | `flowmd new <name> --ai "描述"` | 用 LLM 根据描述生成文档（自然语言生成） |
  | `flowmd config` | 查看当前配置 |
  | `flowmd config llm.model --set deepseek-chat` | 设置配置项 |
  | `flowmd doctor` | 环境诊断 |

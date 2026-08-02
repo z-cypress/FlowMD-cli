@@ -186,6 +186,8 @@ export const en = {
   'new.desc.meeting': 'Meeting notes template',
   'new.desc.api': 'API documentation template',
   'new.desc.changelog': 'Changelog template',
+  'new.aiRunning': '🤖 Generating document from description...',
+  'new.aiFailed': '❌ AI generation failed: {error}',
 
   // config command
   'config.notSet': 'Config key "{key}" is not set',

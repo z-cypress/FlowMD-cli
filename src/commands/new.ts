@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import chalk from 'chalk';
 import { askQuestion, confirm } from '../utils/prompt.js';
 import { t } from '../utils/i18n.js';
+import { generateDocument } from '../core/generate.js';
 
 const BASIC_TEMPLATE = `# {{title}}
 
@@ -201,9 +202,12 @@ export const TEMPLATES_CONTENT: Record<string, string> = TEMPLATES;
 /**
  * 执行 new 命令
  * @param name - 文档名称
- * @param opts - 选项：template, list, force
+ * @param opts - 选项：template, list, force, ai
  */
-export async function newCommand(name: string, opts: { template?: string; list?: boolean; force?: boolean } = {}): Promise<void> {
+export async function newCommand(
+  name: string,
+  opts: { template?: string; list?: boolean; force?: boolean; ai?: string } = {}
+): Promise<void> {
   // --list 模式：列出可用模板
   if (opts.list) {
     console.log(chalk.blue(t('new.templatesTitle')));
@@ -233,21 +237,34 @@ export async function newCommand(name: string, opts: { template?: string; list?:
     }
   }
 
-  // 选择模板类型
-  let templateType = opts.template;
-  if (!templateType) {
-    templateType = await askQuestion(t('new.chooseTemplate'));
-  }
-  const template = TEMPLATES[templateType] || TEMPLATES.basic;
+  let content: string;
 
-  // 替换占位符
-  const date = new Date().toISOString().split('T')[0];
-  const content = template
-    .replace(/\{\{title\}\}/g, name.replace(/\.md$/, ''))
-    .replace(/\{\{date\}\}/g, date)
-    .replace(/\{\{content\}\}/g, t('new.contentPlaceholder'))
-    .replace(/\{\{week_start\}\}/g, getWeekStart())
-    .replace(/\{\{week_range\}\}/g, getWeekRange());
+  // --ai 模式：根据自然语言描述生成文档
+  if (opts.ai) {
+    console.log(chalk.cyan(t('new.aiRunning')));
+    try {
+      content = await generateDocument(opts.ai);
+    } catch (error) {
+      console.error(chalk.red(t('new.aiFailed', { error: error instanceof Error ? error.message : String(error) })));
+      return;
+    }
+  } else {
+    // 选择模板类型
+    let templateType = opts.template;
+    if (!templateType) {
+      templateType = await askQuestion(t('new.chooseTemplate'));
+    }
+    const template = TEMPLATES[templateType] || TEMPLATES.basic;
+
+    // 替换占位符
+    const date = new Date().toISOString().split('T')[0];
+    content = template
+      .replace(/\{\{title\}\}/g, name.replace(/\.md$/, ''))
+      .replace(/\{\{date\}\}/g, date)
+      .replace(/\{\{content\}\}/g, t('new.contentPlaceholder'))
+      .replace(/\{\{week_start\}\}/g, getWeekStart())
+      .replace(/\{\{week_range\}\}/g, getWeekRange());
+  }
 
   try {
     writeFileSync(filepath, content, 'utf-8');

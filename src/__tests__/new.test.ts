@@ -16,6 +16,11 @@ vi.mock('../utils/prompt.js', () => ({
   confirm: mockConfirm,
 }));
 
+const mockGenerateDocument = vi.hoisted(() => vi.fn());
+vi.mock('../core/generate.js', () => ({
+  generateDocument: mockGenerateDocument,
+}));
+
 vi.mock('node:fs', async () => {
   const actual = await vi.importActual<typeof import('node:fs')>('node:fs');
   return {
@@ -126,5 +131,35 @@ describe('newCommand', () => {
 
     await expect(newCommand('test-doc')).resolves.not.toThrow();
     errorSpy.mockRestore();
+  });
+
+  describe('--ai generation', () => {
+    it('should write the AI-generated document', async () => {
+      mockGenerateDocument.mockResolvedValue('# AI 生成文档\n```ai {output: "x"}\n内容\n```');
+
+      await newCommand('ai-doc', { ai: '生成一份周报' });
+
+      const content = readFileSync(join(process.cwd(), 'ai-doc.md'), 'utf-8');
+      expect(content).toContain('# AI 生成文档');
+      expect(mockGenerateDocument).toHaveBeenCalledWith('生成一份周报');
+    });
+
+    it('should skip template selection when --ai is given', async () => {
+      mockGenerateDocument.mockResolvedValue('# x');
+
+      await newCommand('ai-doc2', { ai: '描述' });
+
+      expect(mockAskQuestion).not.toHaveBeenCalled();
+    });
+
+    it('should not write a file when generation fails', async () => {
+      mockGenerateDocument.mockRejectedValue(new Error('boom'));
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      await newCommand('ai-doc3', { ai: '描述' });
+
+      expect(existsSync(join(process.cwd(), 'ai-doc3.md'))).toBe(false);
+      errorSpy.mockRestore();
+    });
   });
 });

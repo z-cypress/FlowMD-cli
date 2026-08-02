@@ -267,12 +267,13 @@ program
 
 program
   .command('new')
-  .description('Create new document from template')
+  .description('Create new document from template or AI description')
   .argument('<name>', 'Document name')
   .option('-l, --list', 'List available templates')
   .option('-t, --template <name>', 'Template name (basic/data/report/meeting/api/changelog)')
   .option('-f, --force', 'Overwrite existing file without confirmation')
-  .action(async (name: string, options: { list?: boolean; template?: string; force?: boolean }) => {
+  .option('--ai <description>', 'Generate document from a natural language description')
+  .action(async (name: string, options: { list?: boolean; template?: string; force?: boolean; ai?: string }) => {
     try {
       await newCommand(name, options);
     } catch (error) {
