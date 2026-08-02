@@ -1,0 +1,86 @@
+{
+  "name": "flowmd",
+  "displayName": "FlowMD",
+  "description": "Execute FlowMD executable documents from VS Code: syntax highlighting + run commands",
+  "version": "0.0.1",
+  "publisher": "z-cypress",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "markdown",
+    "flowmd",
+    "llm",
+    "workflow"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onLanguage:markdown"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "flowmd.runDocument",
+        "title": "FlowMD: Run Document"
+      },
+      {
+        "command": "flowmd.runPipeline",
+        "title": "FlowMD: Run Pipeline (pick documents)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "flowmd.runDocument",
+          "when": "editorLangId == markdown",
+          "group": "navigation@0"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "flowmd.runDocument",
+          "when": "editorLangId == markdown"
+        },
+        {
+          "command": "flowmd.runPipeline",
+          "when": "editorLangId == markdown"
+        }
+      ]
+    },
+    "grammars": [
+      {
+        "language": "markdown",
+        "scopeName": "source.flowmd",
+        "path": "./syntaxes/flowmd.tmLanguage.json",
+        "injectTo": [
+          "text.html.markdown"
+        ]
+      }
+    ],
+    "configuration": {
+      "title": "FlowMD",
+      "properties": {
+        "flowmd.commandPath": {
+          "type": "string",
+          "default": "flowmd",
+          "description": "Path to the flowmd CLI executable (default: flowmd on PATH)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  }
+}

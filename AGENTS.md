@@ -4,7 +4,7 @@
 
 FlowMD is a CLI tool that executes special code blocks in Markdown files. It parses `.md` files containing `ai`, `data`, and `template` blocks, executes them in sequence, and outputs the rendered result.
 
-**Status**: v0.3.1 — 534 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE) + schedule (cron). agent block (v2.0: ReAct 多步任务 + 6 工具 + 成本预算确认) + 自然语言生成文档 (new --ai) + doc 块 (v2.1 跨文档协作) + pipeline 多文档串联. Full documentation in `docs/` (bilingual zh/en).
+**Status**: v0.3.1 — 534 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE) + schedule (cron). agent block (v2.0: ReAct 多步任务 + 6 工具 + 成本预算确认) + 自然语言生成文档 (new --ai) + doc 块 (v2.1 跨文档协作) + pipeline 多文档串联. VS Code extension (`extension/`: 语法高亮 + ▶ Run CodeLens + run/pipeline 命令). Full documentation in `docs/` (bilingual zh/en).
 
 ## Tech Stack
 
@@ -189,6 +189,13 @@ src/
 │   └── error-formatter.ts  # Error formatting
 └── __tests__/              # 40 test files, 534 tests
 ```
+extension/                # VS Code extension (separate package)
+├── package.json           # extension manifest (commands/grammar/config)
+├── syntaxes/flowmd.tmLanguage.json  # TextMate grammar (markdown injection)
+└── src/
+    ├── extension.ts       # activate: runDocument/runPipeline commands
+    ├── runner.ts          # flowmd CLI terminal runner
+    └── codelens.ts        # ▶ Run CodeLens on flowmd blocks
 
 ## Configuration Priority
 
@@ -205,7 +212,8 @@ CLI args > Env vars / `.env` > Project `.flow/config.yml` > Global `~/.flow/conf
 ## Known Gaps
 
 - No template gallery beyond basic/data/report/meeting/api/changelog
-- VS Code extension / template marketplace not yet built
+- Template marketplace not yet built
+- VS Code extension: `extension/` provides syntax highlighting + ▶ Run CodeLens + run/pipeline commands (v0.0.1, not yet published)
 
 ## Reference
 

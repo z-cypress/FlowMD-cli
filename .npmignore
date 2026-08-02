@@ -9,6 +9,9 @@ test-data/
 docs/
 note/
 
+# VS Code extension (separate package)
+extension/
+
 # Dev config
 AGENTS.md
 .gitignore

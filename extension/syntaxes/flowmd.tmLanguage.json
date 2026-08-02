@@ -1,0 +1,50 @@
+{
+  "scopeName": "source.flowmd",
+  "comment": "FlowMD executable code block highlighting (injected into Markdown)",
+  "injectionSelector": "L:text.html.markdown",
+  "patterns": [
+    {
+      "include": "#flowmdBlocks"
+    }
+  ],
+  "repository": {
+    "flowmdBlocks": {
+      "patterns": [
+        {
+          "begin": "^(```+)\\s*(ai|data|template|include|run|agent|doc)\\b\\s*\\{?",
+          "beginCaptures": {
+            "1": {
+              "name": "punctuation.definition.markdown.codeblock.flowmd"
+            },
+            "2": {
+              "name": "keyword.control.flowmd"
+            }
+          },
+          "end": "^\\s*\\1\\s*$",
+          "name": "meta.embedded.block.flowmd",
+          "patterns": [
+            {
+              "include": "#flowmdParams"
+            }
+          ]
+        }
+      ]
+    },
+    "flowmdParams": {
+      "patterns": [
+        {
+          "match": "\\b(goal|output|model|provider|tools|path|input|runtime|vars|from|temperature|max_steps|max_tokens|timeout|memory|permissions|collect)\\b\\s*:",
+          "name": "entity.other.attribute-name.flowmd"
+        },
+        {
+          "match": "(\"[^\"]*\"|'[^']*')",
+          "name": "string.quoted.flowmd"
+        },
+        {
+          "match": "\\[[^\\]]*\\]",
+          "name": "string.quoted.flowmd"
+        }
+      ]
+    }
+  }
+}
