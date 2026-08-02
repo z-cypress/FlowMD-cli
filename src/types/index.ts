@@ -252,4 +252,6 @@ export interface ExecutionResult {
   content: string;
   /** 是否有块执行失败 */
   hasError: boolean;
+  /** 执行后产出的全部变量（供 pipeline 串联 / 调用方取用） */
+  variables?: Record<string, unknown>;
 }

@@ -266,6 +266,7 @@ Output modes are specified with `-o`:
 | `flowmd init` | Create the `.flow/` config directory |
 | `flowmd new <name>` | Create a document from a template (basic / data / report / meeting / api / changelog) |
 | `flowmd new <name> --ai "description"` | Generate a document from a natural language description |
+| `flowmd pipeline a.md b.md` | Run documents in sequence, threading variables between them |
 | `flowmd config` | View the current configuration |
 | `flowmd config llm.model --set deepseek-chat` | Set a configuration option |
 | `flowmd doctor` | Environment diagnosis |

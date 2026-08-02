@@ -17,6 +17,7 @@ import { t, setLang, type Lang } from './utils/i18n.js';
 import { watchCommand } from './commands/watch.js';
 import { initCommand } from './commands/init.js';
 import { newCommand } from './commands/new.js';
+import { pipelineCommand } from './commands/pipeline.js';
 import { configGet, configSet } from './commands/config.js';
 import { doctorCommand } from './commands/doctor.js';
 import { historyCommand } from './commands/history.js';
@@ -210,6 +211,44 @@ program
       if (hasError) {
         process.exitCode = 1;
       }
+    } catch (error) {
+      console.error(chalk.red(t('cli.runFailed', { error: error instanceof Error ? error.message : String(error) })));
+      process.exit(2);
+    }
+  });
+
+program
+  .command('pipeline')
+  .description('Run multiple documents in sequence, threading variables between them')
+  .argument('<files...>', 'Markdown files to execute in order')
+  .option('-o, --output <mode>', 'Output mode: inline | new | stdout', 'new')
+  .option('-d, --dry-run', 'Dry run mode, skip execution', false)
+  .option('-s, --step', 'Step mode, wait for user input between blocks', false)
+  .option('-f, --fail-fast', 'Stop on first error', false)
+  .option('--debug', 'Debug mode, show execution results', false)
+  .option('--release', 'Release mode, remove all code blocks from output', false)
+  .option('-q, --quiet', 'Quiet mode, suppress progress output', false)
+  .option('--var <key=value>', 'Inject variable (can be used multiple times)', collectVarArgs, [])
+  .option('--var-file <path>', 'Variable file in YAML, JSON, or .env format')
+  .option('--yes', 'Skip run block execution confirmation', false)
+  .option('--strict', 'Force run block execution confirmation every time', false)
+  .action(async (files: string[], options: { output: string; dryRun: boolean; step: boolean; stepMode: boolean; failFast: boolean; debug: boolean; release: boolean; quiet: boolean; var: string[]; varFile: string; yes: boolean; strict: boolean }) => {
+    try {
+      const config: FlowConfig = loadConfig();
+      const runOptions: RunOptions = {
+        output: options.output as 'inline' | 'new' | 'stdout',
+        dryRun: options.dryRun,
+        stepMode: options.step || options.stepMode,
+        failFast: options.failFast,
+        debug: options.debug,
+        release: options.release,
+        quiet: options.quiet,
+        varArgs: parseVarArgs(options.var || []),
+        varFile: options.varFile,
+        runYes: options.yes,
+        runStrict: options.strict,
+      };
+      await pipelineCommand(files, runOptions, config);
     } catch (error) {
       console.error(chalk.red(t('cli.runFailed', { error: error instanceof Error ? error.message : String(error) })));
       process.exit(2);

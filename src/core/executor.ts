@@ -502,7 +502,8 @@ export function hasControlFlow(doc: ParsedDocument): boolean {
 export async function executeDocument(
   doc: ParsedDocument,
   options: RunOptions,
-  config: FlowConfig
+  config: FlowConfig,
+  seedContext?: Record<string, unknown>
 ): Promise<ExecutionResult> {
   const context = new ExecutionContext();
 
@@ -512,6 +513,15 @@ export async function executeDocument(
   context.set('date', now.toISOString().split('T')[0]);
   context.set('datetime', now.toISOString().replace('T', ' ').split('.')[0]);
   context.set('timestamp', Math.floor(now.getTime() / 1000));
+
+  // pipeline 串联：注入上一份文档的产出变量（优先级低于 --var/var-file 与块 output）
+  // 系统变量每份文档各自刷新，不从上游继承
+  if (seedContext) {
+    for (const [k, v] of Object.entries(seedContext)) {
+      if (SYSTEM_VARS.has(k)) continue;
+      context.set(k, v);
+    }
+  }
 
   // 注入配置文件中的自定义变量
   if (config.variables) {
@@ -686,19 +696,19 @@ export async function executeDocument(
       const content = await executeControlFlow(tree, doc.rawContent, state);
       printSummary(state);
       recordExecutionHistory(state, options.currentFile);
-      return { content, hasError: state.hasError };
+      return { content, hasError: state.hasError, variables: context.dump() };
     } catch (error) {
       if (error instanceof ControlTreeError || error instanceof ConditionSyntaxError) {
         console.error(chalk.red(t('error.control.tree', { error: error.message })));
         state.hasError = true;
         recordExecutionHistory(state, options.currentFile);
-        return { content: doc.rawContent, hasError: true };
+        return { content: doc.rawContent, hasError: true, variables: context.dump() };
       }
       // fail-fast 停止：返回已构建的部分输出
       if (error instanceof ControlFlowStop) {
         printSummary(state);
         recordExecutionHistory(state, options.currentFile);
-        return { content: doc.rawContent, hasError: state.hasError };
+        return { content: doc.rawContent, hasError: state.hasError, variables: context.dump() };
       }
       throw error;
     }
@@ -749,7 +759,7 @@ export async function executeDocument(
 
   recordExecutionHistory(state, options.currentFile);
 
-  return { content, hasError: state.hasError };
+  return { content, hasError: state.hasError, variables: context.dump() };
 }
 
 /**

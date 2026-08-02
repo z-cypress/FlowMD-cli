@@ -30,6 +30,11 @@ export const en = {
   'error.uncaught': '❌ Uncaught exception: {error}',
   'error.unhandledRejection': '❌ Unhandled promise rejection: {error}',
 
+  // pipeline command (commands/pipeline.ts)
+  'pipeline.step': '▶ [{num}/{total}] {file}',
+  'pipeline.done': '✅ Pipeline complete: all {total} documents succeeded',
+  'pipeline.doneFailed': '⚠️  Pipeline complete: {ok}/{total} succeeded, {failed} failed',
+
   // Executor (executor.ts)
   'error.timeout': 'Execution timed out ({seconds}s)',
   'warning.varFileLoad': '⚠ Could not load variable file {file}: {error}',

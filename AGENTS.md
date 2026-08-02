@@ -4,7 +4,7 @@
 
 FlowMD is a CLI tool that executes special code blocks in Markdown files. It parses `.md` files containing `ai`, `data`, and `template` blocks, executes them in sequence, and outputs the rendered result.
 
-**Status**: v0.3.1 — 528 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE) + schedule (cron). agent block (v2.0: ReAct 多步任务 + 6 工具 + 成本预算确认) + 自然语言生成文档 (new --ai) + doc 块 (v2.1 跨文档协作). Full documentation in `docs/` (bilingual zh/en).
+**Status**: v0.3.1 — 534 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE) + schedule (cron). agent block (v2.0: ReAct 多步任务 + 6 工具 + 成本预算确认) + 自然语言生成文档 (new --ai) + doc 块 (v2.1 跨文档协作) + pipeline 多文档串联. Full documentation in `docs/` (bilingual zh/en).
 
 ## Tech Stack
 
@@ -25,7 +25,7 @@ FlowMD is a CLI tool that executes special code blocks in Markdown files. It par
 pnpm install          # Install dependencies
 pnpm dev -- run <f>   # Dev mode (tsx)
 pnpm lint             # ESLint (flat config, TS6 API)
-pnpm test:run         # Run all tests (528)
+pnpm test:run         # Run all tests (534)
 pnpm build            # Build to dist/
 npm install -g .      # Global install
 flowmd run <file>     # Execute document
@@ -38,11 +38,12 @@ flowmd serve          # Local HTTP API + Web IDE (/ /execute /templates /health)
 flowmd schedule       # Scheduled tasks + cron daemon
 ```
 
-## Commands (9 total)
+## Commands (10 total)
 
 | Command | Options | Status |
 |---------|---------|--------|
 | `run <file>` | `-o` (inline/new/stdout), `-d`, `-s`, `-f`, `--debug`, `--release`, `--var`, `--var-file`, `--yes`, `--strict` | ✅ |
+| `pipeline <files...>` | `-o`, `-d`, `-s`, `-f`, `--debug`, `--release`, `--var`, `--var-file`, `--yes`, `--strict` | ✅ |
 | `watch <file>` | `-o`, `-d`, `-s`, `-f`, `--debug`, `--release`, `--yes`, `--strict` | ✅ |
 | `init` | — | ✅ |
 | `new <name>` | `-t` (template), `-l` (list), `-f`, `--ai <desc>` (NL generation) | ✅ |
@@ -122,6 +123,7 @@ src/
 │   ├── watch.ts            # File watcher
 │   ├── init.ts             # .flow/ creator
 │   ├── new.ts              # Template generator
+│   ├── pipeline.ts         # Multi-document sequential execution (variable threading)
 │   ├── config.ts           # Config get/set
 │   ├── doctor.ts           # Env diagnosis
 │   ├── history.ts          # Execution history (list/detail/clear)
@@ -185,7 +187,7 @@ src/
 │   ├── logger.ts           # Terminal output
 │   ├── prompt.ts           # User input
 │   └── error-formatter.ts  # Error formatting
-└── __tests__/              # 39 test files, 528 tests
+└── __tests__/              # 40 test files, 534 tests
 ```
 
 ## Configuration Priority

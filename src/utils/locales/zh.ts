@@ -30,6 +30,11 @@ export const zh = {
   'error.uncaught': '❌ 未捕获异常: {error}',
   'error.unhandledRejection': '❌ 未处理的 Promise 拒绝: {error}',
 
+  // pipeline 命令 (commands/pipeline.ts)
+  'pipeline.step': '▶ [{num}/{total}] {file}',
+  'pipeline.done': '✅ 流水线完成: {total} 个文档全部成功',
+  'pipeline.doneFailed': '⚠️  流水线完成: {ok}/{total} 成功, {failed} 个失败',
+
   // 执行器 (executor.ts)
   'error.timeout': '执行超时 ({seconds}s)',
   'warning.varFileLoad': '⚠ 无法加载变量文件 {file}: {error}',
