@@ -215,6 +215,15 @@ export interface FlowConfig {
     /** 输出语言（zh | en），默认自动检测 */
     lang?: 'zh' | 'en';
   };
+  /** agent 块配置（v2.0-beta） */
+  agent?: {
+    /** api_call 允许的域名白名单（支持 *.suffix 通配） */
+    allowedDomains?: string[];
+    /** 成本预估上限（token），0 或未设 = 不限制 */
+    maxEstimatedTokens?: number;
+    /** 已确认的 agent 键（首次授权记忆） */
+    confirmedAgents?: string[];
+  };
 }
 
 /**

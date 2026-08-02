@@ -6,9 +6,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ExecutionContext } from '../core/context.js';
 
-// 系统边界 mock：循环、注册表、确认
+// 系统边界 mock：循环、注册表、确认、成本
 const mockRunAgentLoop = vi.hoisted(() => vi.fn());
 const mockEnsureAgentConfirmed = vi.hoisted(() => vi.fn());
+const mockCheckCostBudget = vi.hoisted(() => vi.fn());
 
 vi.mock('../core/blocks/agent/loop.js', () => ({
   runAgentLoop: mockRunAgentLoop,
@@ -21,6 +22,10 @@ vi.mock('../core/blocks/agent/tools/registry.js', () => ({
 
 vi.mock('../core/blocks/agent/confirm.js', () => ({
   ensureAgentConfirmed: mockEnsureAgentConfirmed,
+}));
+
+vi.mock('../core/blocks/agent/cost.js', () => ({
+  checkCostBudget: mockCheckCostBudget,
 }));
 
 // Import after mocks
@@ -48,6 +53,7 @@ describe('executeAgentBlock', () => {
     vi.clearAllMocks();
     context = new ExecutionContext();
     mockEnsureAgentConfirmed.mockResolvedValue(true);
+    mockCheckCostBudget.mockResolvedValue(true);
   });
 
   it('should reject invalid config (missing goal)', async () => {
@@ -148,5 +154,45 @@ describe('executeAgentBlock', () => {
     expect(result.output).toBeNull();
     expect(result.error).toBe('agent 执行超时');
     expect(context.get('o')).toBeUndefined();
+  });
+
+  it('should pass allowedDomains to the tool registry', async () => {
+    mockRunAgentLoop.mockResolvedValue(agentResult);
+    const { createToolRegistry } = await import('../core/blocks/agent/tools/registry.js');
+
+    await executeAgentBlock('任务', { goal: 'g', output: 'o' }, context, llmConfig, undefined, undefined, {
+      allowedDomains: ['api.example.com'],
+    });
+
+    expect(createToolRegistry).toHaveBeenCalledWith(
+      expect.objectContaining({ allowedDomains: ['api.example.com'] })
+    );
+  });
+
+  it('should fail when the cost budget check is declined', async () => {
+    mockCheckCostBudget.mockResolvedValue(false);
+
+    const result = await executeAgentBlock('任务', { goal: 'g', output: 'o' }, context, llmConfig, undefined, undefined, {
+      maxEstimatedTokens: 1000,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBeDefined();
+    expect(mockRunAgentLoop).not.toHaveBeenCalled();
+  });
+
+  it('should run the cost check with the estimated parameters', async () => {
+    mockRunAgentLoop.mockResolvedValue(agentResult);
+
+    await executeAgentBlock('任务描述', {
+      goal: 'g', output: 'o', tools: ['file_read'], max_steps: '4',
+    }, context, llmConfig, undefined, undefined, { maxEstimatedTokens: 5000 });
+
+    const costParams = mockCheckCostBudget.mock.calls[0][0];
+    expect(costParams.goal).toBe('g');
+    expect(costParams.maxSteps).toBe(4);
+    expect(costParams.limit).toBe(5000);
+    // 注册表被 mock 为空 Map，工具描述为拼接字符串
+    expect(typeof costParams.toolDescriptions).toBe('string');
   });
 });

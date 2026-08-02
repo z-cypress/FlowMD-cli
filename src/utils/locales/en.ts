@@ -130,15 +130,17 @@ export const en = {
   'error.agent.goalRequired': 'agent block is missing the goal parameter',
   'error.agent.outputRequired': 'agent block is missing the output parameter',
   'error.agent.badProvider': 'Unsupported agent provider: {provider} (supported: openai / anthropic)',
-  'error.agent.unknownTool': 'Unknown tool: {tool} (v2.0-alpha supports code_execution / file_read)',
+  'error.agent.unknownTool': 'Unknown tool: {tool} (supported: code_execution / file_read / file_write / api_call)',
   'error.agent.badMaxSteps': 'max_steps must be a positive integer',
   'error.agent.badTimeout': 'timeout must be a positive number (seconds)',
   'error.agent.badTemperature': 'temperature must be between 0 and 2',
   'error.agent.timeout': 'agent execution timed out',
   'error.agent.maxSteps': 'agent reached max steps ({maxSteps})',
   'error.agent.confirmDeclined': 'Agent execution cancelled',
+  'error.agent.costDeclined': 'Agent execution cancelled (over cost budget)',
   'agent.step': 'Step {num}:',
   'agent.confirmPrompt': 'This document contains an agent block (goal: {goal}) that will autonomously execute multi-step tasks. Continue?',
+  'agent.costPrompt': 'The agent is estimated to consume ~{estimated} tokens (budget limit {limit}). Continue?',
 
   // AI block (ai-block.ts)
   'error.ai.noApiKey': 'API Key is not configured. Set the {envVar} environment variable, or run flow init',

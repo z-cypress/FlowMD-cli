@@ -10,14 +10,19 @@ import { validateAgentConfig } from './validate.js';
 import { runAgentLoop, DEFAULT_MAX_STEPS } from './loop.js';
 import { createToolRegistry } from './tools/registry.js';
 import { ensureAgentConfirmed } from './confirm.js';
+import { checkCostBudget } from './cost.js';
 import type { AgentStep, AgentBlockConfig } from './types.js';
 
 /** agent 块执行选项 */
 export interface AgentExecuteOptions {
-  /** --yes / --strict 确认标志（issue 05 接入） */
+  /** --yes / --strict 确认标志 */
   confirm?: { yes?: boolean; strict?: boolean };
-  /** 项目根目录（file_read 安全边界） */
+  /** 项目根目录（file_read / file_write 安全边界） */
   projectRoot?: string;
+  /** api_call 域名白名单 */
+  allowedDomains?: string[];
+  /** 成本预估上限（token），0 = 不限制 */
+  maxEstimatedTokens?: number;
   /** 每步回调（进度 UI） */
   onStep?: (step: AgentStep) => void;
   /** debug 模式：结果附带步骤轨迹 */
@@ -127,11 +132,31 @@ export async function executeAgentBlock(
   // 3. 渲染任务描述中的变量
   const task = context.render(content);
 
-  // 4. 工具注册表（projectRoot 决定 file_read 安全边界）
+  // 4. 工具注册表（projectRoot 决定 file_read / file_write 安全边界）
   const registry = createToolRegistry({
     projectRoot: options?.projectRoot ?? process.cwd(),
     signal,
+    allowedDomains: options?.allowedDomains,
   });
+
+  // 4.5 成本预估确认（超阈值弹确认，拒绝则失败）
+  const toolDescriptions = [...registry.values()].map((tool) => tool.description).join('\n');
+  const costOk = await checkCostBudget({
+    goal,
+    task,
+    toolDescriptions,
+    maxSteps: config.max_steps ?? DEFAULT_MAX_STEPS,
+    limit: options?.maxEstimatedTokens ?? 0,
+    yes: options?.confirm?.yes,
+  });
+  if (!costOk) {
+    return {
+      success: false,
+      output: null,
+      error: t('error.agent.costDeclined'),
+      duration: Date.now() - startTime,
+    };
+  }
 
   // 5. ReAct 循环执行
   const result = await runAgentLoop({

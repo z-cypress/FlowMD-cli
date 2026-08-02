@@ -56,15 +56,26 @@ The agent block runs a "think → act → observe" loop:
 
 ## Tools
 
-v2.0-alpha ships two read-only tools:
-
 | Tool | Capability | Security boundary |
 |------|------|----------|
 | `code_execution` | Run script in a sandbox (js isolated-vm / python subprocess) | Self-contained script; no filesystem or network access |
 | `file_read` | Read text files inside the project root (64KB cap) | `..` traversal / symlink escape / absolute-path escape are rejected |
+| `file_write` | Write text files into `.flow/output/` (1MB cap) | Restricted to `.flow/output/`, auto-creates directories, same path-escape guards |
+| `api_call` | Call external HTTP APIs (read-only GET) | Host must be in the `agent.allowedDomains` allowlist; response capped at 64KB |
 
-> Network tools (`web_search` / `browser` / `api_call`) and the write tool
-> (`file_write`) arrive in v2.0-beta; any unknown tool in the list is rejected at parse time.
+> `web_search` / `browser` are still on the roadmap; any unknown tool in the list is rejected at parse time.
+
+### Domain allowlist configuration
+
+`api_call` requires declaring allowed hosts in the config first (`*.suffix` wildcards are supported):
+
+```yaml
+# .flow/config.yml
+agent:
+  allowedDomains:
+    - api.example.com
+    - "*.openai.com"
+```
 
 ## Security
 
@@ -72,8 +83,13 @@ v2.0-alpha ships two read-only tools:
   prompts for confirmation, persisted to `agent.confirmedAgents` in
   `.flow/config.yml`; declining fails the block without running any tool.
   `--yes` skips the prompt, `--strict` forces it every time.
+- **Cost budget**: token consumption is estimated before execution from
+  goal + `max_steps`; if it exceeds `agent.maxEstimatedTokens`
+  (tokens, 0 = unlimited) a confirmation is shown, and declining fails the block.
 - **Tool whitelist**: only tools explicitly listed in `tools` are usable;
   unregistered tools are rejected at parse time.
+- **Write isolation**: `file_write` can only write under `.flow/output/`;
+  `api_call` can only reach allowlisted hosts, via GET only.
 - **Guardrails**: `max_steps` limits rounds, `timeout` limits overall duration,
   Ctrl+C interrupts.
 - **Step trace**: every step's thought / action / observation is recorded;

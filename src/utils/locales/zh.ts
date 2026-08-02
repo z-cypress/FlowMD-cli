@@ -130,15 +130,17 @@ export const zh = {
   'error.agent.goalRequired': 'agent 块缺少 goal 参数',
   'error.agent.outputRequired': 'agent 块缺少 output 参数',
   'error.agent.badProvider': '不支持的 agent provider: {provider}（支持 openai / anthropic）',
-  'error.agent.unknownTool': '未知工具: {tool}（v2.0-alpha 支持 code_execution / file_read）',
+  'error.agent.unknownTool': '未知工具: {tool}（支持 code_execution / file_read / file_write / api_call）',
   'error.agent.badMaxSteps': 'max_steps 必须是正整数',
   'error.agent.badTimeout': 'timeout 必须是正数（秒）',
   'error.agent.badTemperature': 'temperature 必须在 0-2 之间',
   'error.agent.timeout': 'agent 执行超时',
   'error.agent.maxSteps': 'agent 达到最大步数上限 {maxSteps}',
   'error.agent.confirmDeclined': '已取消 agent 执行',
+  'error.agent.costDeclined': '已取消 agent 执行（超出成本预算）',
   'agent.step': '步骤 {num}:',
   'agent.confirmPrompt': '此文档包含 agent 块（目标：{goal}），将由 LLM 自主执行多步任务。是否继续？',
+  'agent.costPrompt': 'agent 预估消耗约 {estimated} tokens（预算上限 {limit}），是否继续？',
 
   // AI 块 (ai-block.ts)
   'error.ai.noApiKey': 'API Key 未配置。请设置环境变量 {envVar}，或运行 flow init 配置',

@@ -54,22 +54,37 @@ agent 块内部按"思考 → 行动 → 观察"循环执行：
 
 ## 工具
 
-v2.0-alpha 提供两个只读工具：
-
 | 工具 | 能力 | 安全边界 |
 |------|------|----------|
 | `code_execution` | 在沙箱中执行脚本（js 强隔离 / python 子进程） | 脚本自包含，无法访问文件系统与网络 |
 | `file_read` | 读取项目目录内的文本文件（上限 64KB） | 禁止 `..` 逃逸 / 符号链接逃逸 / 绝对路径越界 |
+| `file_write` | 写入文本文件到 `.flow/output/`（上限 1MB） | 仅限 `.flow/output/`，自动建目录，同样禁止路径逃逸 |
+| `api_call` | 调用外部 HTTP API（只读 GET） | Host 必须在 `agent.allowedDomains` 白名单内，响应上限 64KB |
 
-> 网络类工具（`web_search` / `browser` / `api_call`）与写文件工具
-> （`file_write`）在 v2.0-beta 提供；列表中的未知工具会解析期报错。
+> `web_search` / `browser` 工具仍在规划中；列表中的未知工具会解析期报错。
+
+### 域名白名单配置
+
+`api_call` 需要先在配置中声明允许访问的域名（支持 `*.suffix` 通配）：
+
+```yaml
+# .flow/config.yml
+agent:
+  allowedDomains:
+    - api.example.com
+    - "*.openai.com"
+```
 
 ## 安全
 
 - **授权确认**：首次执行 agent 块（按 goal + 工具集记忆）会弹确认，
   接受后持久化到 `.flow/config.yml` 的 `agent.confirmedAgents`；
   拒绝则块失败、不执行任何工具。`--yes` 跳过确认，`--strict` 每次强制确认。
+- **成本预算**：执行前按 goal + max_steps 粗估 token 消耗，超过
+  `agent.maxEstimatedTokens`（token，0 = 不限）时弹确认，拒绝则块失败。
 - **工具白名单**：`tools` 中显式列出的工具才可用，未注册工具解析期报错。
+- **写入隔离**：`file_write` 只能写 `.flow/output/`；`api_call` 只能访问
+  白名单内的域名，且仅 GET。
 - **护栏**：`max_steps` 限制轮数、`timeout` 限制整体耗时、Ctrl+C 可中断。
 - **步骤轨迹**：每一步的思考 / 行动 / 观察被记录，`--debug` 模式下插入输出，
   `flowmd history` 记录轨迹摘要，便于审计。

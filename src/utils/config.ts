@@ -61,6 +61,9 @@ function mergeConfig(target: FlowConfig, source: Partial<FlowConfig>): void {
   if (source.cli) {
     target.cli = { ...target.cli, ...source.cli };
   }
+  if (source.agent) {
+    target.agent = { ...target.agent, ...source.agent };
+  }
 }
 
 /**
@@ -81,6 +84,7 @@ export function loadConfig(): FlowConfig {
     dataSources: {},
     variables: {},
     execution: { ...DEFAULT_CONFIG.execution },
+    agent: {},
   };
 
   // 2. 全局配置 ~/.flow/config.yml

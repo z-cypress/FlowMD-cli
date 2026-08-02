@@ -4,7 +4,7 @@
 
 FlowMD is a CLI tool that executes special code blocks in Markdown files. It parses `.md` files containing `ai`, `data`, and `template` blocks, executes them in sequence, and outputs the rendered result.
 
-**Status**: v0.3.1 — 474 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE) + schedule (cron). agent block (v2.0-alpha: ReAct 多步任务 + code_execution/file_read 工具). Full documentation in `docs/` (bilingual zh/en).
+**Status**: v0.3.1 — 498 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE) + schedule (cron). agent block (v2.0: ReAct 多步任务 + code_execution/file_read/file_write/api_call 工具 + 成本预算确认). Full documentation in `docs/` (bilingual zh/en).
 
 ## Tech Stack
 
@@ -25,7 +25,7 @@ FlowMD is a CLI tool that executes special code blocks in Markdown files. It par
 pnpm install          # Install dependencies
 pnpm dev -- run <f>   # Dev mode (tsx)
 pnpm lint             # ESLint (flat config, TS6 API)
-pnpm test:run         # Run all tests (474)
+pnpm test:run         # Run all tests (498)
 pnpm build            # Build to dist/
 npm install -g .      # Global install
 flowmd run <file>     # Execute document
@@ -162,11 +162,15 @@ src/
 │   │   ├── validate.ts           # parse-time whitelist validation
 │   │   ├── loop.ts               # ReAct loop (think→tool→observe)
 │   │   ├── confirm.ts            # first-run authorization (persisted to config)
+│   │   ├── cost.ts               # token estimate + budget confirmation
 │   │   ├── adapters/chat.ts      # openai/anthropic tool-use normalization
 │   │   └── tools/
 │   │       ├── registry.ts       # tool registry
+│   │       ├── path-guard.ts     # write-path containment guard
 │   │       ├── code-execution.ts # reuses run sandbox
-│   │       └── file-read.ts      # project-root read-only (path escape guard)
+│   │       ├── file-read.ts      # project-root read-only (path escape guard)
+│   │       ├── file-write.ts     # .flow/output/ write-only (path guard)
+│   │       └── api-call.ts       # GET http/https with domain allowlist
 ├── types/index.ts          # All type defs
 ├── utils/
 │   ├── config.ts           # Multi-layer config loader
@@ -176,7 +180,7 @@ src/
 │   ├── logger.ts           # Terminal output
 │   ├── prompt.ts           # User input
 │   └── error-formatter.ts  # Error formatting
-└── __tests__/              # 34 test files, 474 tests
+└── __tests__/              # 36 test files, 498 tests
 ```
 
 ## Configuration Priority
