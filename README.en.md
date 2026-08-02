@@ -66,6 +66,17 @@ flowmd new hello
 flowmd run hello.md --output stdout
 ```
 
+### Templates
+
+Built-in templates (`flowmd new -l` to list):
+
+- **basic / data / report / meeting / api / changelog** — general-purpose templates
+- **research** — agent-powered research template (`agent` block + `browser` tool)
+- **orchestrate** — cross-document orchestration template (`doc` blocks aggregating sub-documents)
+
+User templates: drop `.md` files into the project's `.flow/templates/` directory;
+use them with `flowmd new <name> -t <name>`; `-l` annotates the source (built-in/user).
+
 `{{variables}}` in the document body are automatically replaced with execution results.
 
 ## Usage Examples
@@ -264,7 +275,7 @@ Output modes are specified with `-o`:
 | `flowmd run <file> --var-file vars.yml` | Inject variables from a YAML/JSON file |
 | `flowmd watch <file> -o stdout` | Watch for file changes; supports `-o` to specify the output mode |
 | `flowmd init` | Create the `.flow/` config directory |
-| `flowmd new <name>` | Create a document from a template (basic / data / report / meeting / api / changelog) |
+| `flowmd new <name>` | Create a document from a template (basic/data/report/meeting/api/changelog/research/orchestrate or a user template) |
 | `flowmd new <name> --ai "description"` | Generate a document from a natural language description |
 | `flowmd pipeline a.md b.md` | Run documents in sequence, threading variables between them |
 | `flowmd config` | View the current configuration |

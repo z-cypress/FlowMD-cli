@@ -4,7 +4,7 @@
 
 FlowMD is a CLI tool that executes special code blocks in Markdown files. It parses `.md` files containing `ai`, `data`, and `template` blocks, executes them in sequence, and outputs the rendered result.
 
-**Status**: v0.3.1 — 534 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE) + schedule (cron). agent block (v2.0: ReAct 多步任务 + 6 工具 + 成本预算确认) + 自然语言生成文档 (new --ai) + doc 块 (v2.1 跨文档协作) + pipeline 多文档串联. VS Code extension (`extension/`: 语法高亮 + ▶ Run CodeLens + run/pipeline 命令). Full documentation in `docs/` (bilingual zh/en).
+**Status**: v0.3.1 — 538 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE) + schedule (cron). agent block (v2.0: ReAct 多步任务 + 6 工具 + 成本预算确认) + 自然语言生成文档 (new --ai) + doc 块 (v2.1 跨文档协作) + pipeline 多文档串联 + 8 个内置模板 + 用户模板目录 (.flow/templates/). VS Code extension (`extension/`: 语法高亮 + ▶ Run CodeLens + run/pipeline 命令). Full documentation in `docs/` (bilingual zh/en).
 
 ## Tech Stack
 
@@ -211,8 +211,8 @@ CLI args > Env vars / `.env` > Project `.flow/config.yml` > Global `~/.flow/conf
 
 ## Known Gaps
 
-- No template gallery beyond basic/data/report/meeting/api/changelog
-- Template marketplace not yet built
+- No template gallery beyond the 8 built-in templates + user `.flow/templates/` dir
+- Template marketplace not yet built (explicitly deferred)
 - VS Code extension: `extension/` provides syntax highlighting + ▶ Run CodeLens + run/pipeline commands (v0.0.1, not yet published)
 
 ## Reference

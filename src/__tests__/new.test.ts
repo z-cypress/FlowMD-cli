@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdtempSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { newCommand } from '../commands/new.js';
@@ -160,6 +160,53 @@ describe('newCommand', () => {
 
       expect(existsSync(join(process.cwd(), 'ai-doc3.md'))).toBe(false);
       errorSpy.mockRestore();
+    });
+  });
+
+  describe('built-in templates', () => {
+    it('should generate a research template with an agent block', async () => {
+      await newCommand('research-doc', { template: 'research' });
+
+      const content = readFileSync(join(process.cwd(), 'research-doc.md'), 'utf-8');
+      expect(content).toContain('agent {goal: "调研 {{topic}}"');
+      expect(content).toContain('tools: ["browser"]');
+      unlinkSync(join(process.cwd(), 'research-doc.md'));
+    });
+
+    it('should generate an orchestrate template with doc blocks', async () => {
+      await newCommand('orch-doc', { template: 'orchestrate' });
+
+      const content = readFileSync(join(process.cwd(), 'orch-doc.md'), 'utf-8');
+      expect(content).toContain('doc {path: "./modules/market.md"');
+      unlinkSync(join(process.cwd(), 'orch-doc.md'));
+    });
+  });
+
+  describe('user templates', () => {
+    it('should list user templates alongside built-in ones with a source marker', async () => {
+      const templatesDir = join(process.cwd(), '.flow', 'templates');
+      mkdirSync(templatesDir, { recursive: true });
+      writeFileSync(join(templatesDir, 'custom.md'), '# 自定义模板');
+
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      await newCommand('any', { list: true });
+      const calls = logSpy.mock.calls.map((c) => c.join(' '));
+      logSpy.mockRestore();
+
+      expect(calls.some((c) => c.includes('research'))).toBe(true);
+      expect(calls.some((c) => c.includes('custom') && c.includes('用户'))).toBe(true);
+    });
+
+    it('should create a document from a user template', async () => {
+      const templatesDir = join(process.cwd(), '.flow', 'templates');
+      mkdirSync(templatesDir, { recursive: true });
+      writeFileSync(join(templatesDir, 'custom.md'), '# 自定义模板内容\n\n```ai\n任务\n```');
+
+      await newCommand('custom-doc', { template: 'custom' });
+
+      const content = readFileSync(join(process.cwd(), 'custom-doc.md'), 'utf-8');
+      expect(content).toContain('# 自定义模板内容');
+      unlinkSync(join(process.cwd(), 'custom-doc.md'));
     });
   });
 });

@@ -185,7 +185,8 @@ export const en = {
 
   // new command
   'new.templatesTitle': '\nAvailable templates:\n',
-  'new.templatesUsage': 'Usage: flowmd new <name> --template <template>',
+  'new.templatesUsage': 'Usage: flowmd new <name> --template <name>',
+  'new.needName': 'Specify a document name, e.g. flowmd new <name> (or flowmd new -l to list templates)',
   'new.confirmOverwrite': 'File {file} already exists. Overwrite?',
   'new.overwrite': '⚠ Overwriting existing file: {file}',
   'new.chooseTemplate': 'Choose a template (basic/data/report/meeting/api/changelog) [basic]: ',
@@ -200,6 +201,10 @@ export const en = {
   'new.desc.meeting': 'Meeting notes template',
   'new.desc.api': 'API documentation template',
   'new.desc.changelog': 'Changelog template',
+  'new.desc.research': 'Agent-powered research template',
+  'new.desc.orchestrate': 'Cross-document orchestration template',
+  'new.sourceBuiltin': '(built-in)',
+  'new.sourceUser': '(user)',
   'new.aiRunning': '🤖 Generating document from description...',
   'new.aiFailed': '❌ AI generation failed: {error}',
 

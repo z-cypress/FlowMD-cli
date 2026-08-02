@@ -73,6 +73,9 @@ export async function initCommand(force?: boolean): Promise<void> {
     // 创建 history 目录
     mkdirSync(join(flowDir, 'history'), { recursive: true });
 
+    // 创建 templates 目录（用户自定义模板）
+    mkdirSync(join(flowDir, 'templates'), { recursive: true });
+
     // 更新 .gitignore
     updateGitignore();
 

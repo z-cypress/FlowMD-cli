@@ -7,7 +7,7 @@ import type { IncomingMessage } from 'node:http';
 import { parseMarkdown } from '../parser.js';
 import { executeDocument } from '../executor.js';
 import { loadConfig } from '../../utils/config.js';
-import { TEMPLATE_NAMES, TEMPLATES_CONTENT } from '../../commands/new.js';
+import { getTemplateNames, getTemplatesContent } from '../../commands/new.js';
 import { WEB_IDE_HTML } from './web-ide.html.js';
 import type { ExecuteRequest, ApiResponse } from './types.js';
 
@@ -64,7 +64,7 @@ export async function handleExecute(req: IncomingMessage, body: string): Promise
  * @returns 模板名与内容映射
  */
 export async function handleTemplates(): Promise<ApiResponse> {
-  return { ok: true, data: { templates: TEMPLATE_NAMES, content: TEMPLATES_CONTENT } };
+  return { ok: true, data: { templates: getTemplateNames(), content: getTemplatesContent() } };
 }
 
 /**

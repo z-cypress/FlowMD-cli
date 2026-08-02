@@ -66,6 +66,17 @@ export OPENAI_API_KEY="sk-xxxxxxxx"
 
  文档正文中的 `{{变量}}` 会被自动替换为执行结果。
 
+ ### 模板
+
+ 内置模板（`flowmd new -l` 查看）：
+
+ - **basic / data / report / meeting / api / changelog** — 通用模板
+ - **research** — agent 自主调研模板（`agent` 块 + `browser` 工具）
+ - **orchestrate** — 跨文档编排模板（`doc` 块汇总多个子文档）
+
+ 用户自定义模板：把 `.md` 文件放入项目的 `.flow/templates/` 目录即可，
+ `flowmd new <name> -t <模板名>` 使用，`-l` 列表会标注来源（内置/用户）。
+
  ## 使用示例
 
  ### 调用 AI
@@ -258,7 +269,7 @@ SELECT product, revenue FROM sales ORDER BY revenue DESC
  | `flowmd run <file> --var-file vars.yml` | 从 YAML/JSON 文件注入变量 |
  | `flowmd watch <file> -o stdout` | 监听文件变化，支持 -o 指定输出模式 |
  | `flowmd init` | 创建 `.flow/` 配置目录 |
- | `flowmd new <name>` | 从模板创建文档（basic / data / report / meeting / api / changelog） |
+ | `flowmd new <name>` | 从模板创建文档（basic/data/report/meeting/api/changelog/research/orchestrate 或用户模板） |
  | `flowmd new <name> --ai "描述"` | 用 LLM 根据描述生成文档（自然语言生成） |
  | `flowmd pipeline a.md b.md` | 按序执行多个文档，变量跨文档串联 |
  | `flowmd config` | 查看当前配置 |

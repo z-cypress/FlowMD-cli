@@ -186,6 +186,7 @@ export const zh = {
   // new 命令
   'new.templatesTitle': '\n可用模板：\n',
   'new.templatesUsage': '使用: flowmd new <name> --template <模板名>',
+  'new.needName': '请指定文档名称，如: flowmd new <name>（或 flowmd new -l 查看模板）',
   'new.confirmOverwrite': '文件 {file} 已存在，是否覆盖？',
   'new.overwrite': '⚠ 覆盖已有文件: {file}',
   'new.chooseTemplate': '选择模板 (basic/data/report/meeting/api/changelog) [basic]: ',
@@ -200,6 +201,10 @@ export const zh = {
   'new.desc.meeting': '会议纪要模板',
   'new.desc.api': 'API 文档模板',
   'new.desc.changelog': '更新日志模板',
+  'new.desc.research': 'agent 自主调研模板',
+  'new.desc.orchestrate': '跨文档编排模板',
+  'new.sourceBuiltin': '(内置)',
+  'new.sourceUser': '(用户)',
   'new.aiRunning': '🤖 正在根据描述生成文档...',
   'new.aiFailed': '❌ AI 生成失败: {error}',
 
