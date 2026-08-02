@@ -22,6 +22,7 @@
 - [Control Flow](blocks/05-control.md) — if / elif / else / for conditionals and loops
 - [Include Directive](blocks/06-include.md) — inline external documents and variable files
 - [Agent Block](blocks/07-agent.md) — document as agent, autonomous multi-step tasks (v2.0)
+- [Doc Block](blocks/08-doc.md) — cross-document collaboration, isolated sub-document orchestration (v2.1)
 
 **Reference & Examples**
 

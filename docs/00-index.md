@@ -22,6 +22,7 @@
  - [控制流](blocks/05-control.md) — if / elif / else / for 条件与循环
  - [include 指令](blocks/06-include.md) — 引入外部文档与变量文件
  - [agent 块](blocks/07-agent.md) — 文档即智能体，自主多步任务（v2.0）
+ - [doc 块](blocks/08-doc.md) — 跨文档协作，隔离子文档执行与编排（v2.1）
 
  **参考与示例**
 

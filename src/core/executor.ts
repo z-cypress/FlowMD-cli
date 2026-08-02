@@ -83,6 +83,21 @@ function metaString(meta: Record<string, string | string[]>, key: string): strin
 }
 
 /**
+ * 从块 meta 中取字符串数组值（数组原样、逗号分隔字符串拆分）
+ * @param meta - 块元数据
+ * @param key - 键名
+ * @returns 字符串数组
+ */
+function metaStringArray(meta: Record<string, string | string[]>, key: string): string[] {
+  const value = meta[key];
+  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string');
+  if (typeof value === 'string' && value.trim()) {
+    return value.split(',').map((s) => s.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+/**
  * 带超时控制的异步执行
  * 超时后会触发 AbortSignal，尽量中止底层请求（如 AI 调用）
  * @param fn - 要执行的异步函数（接收中止信号）
@@ -257,6 +272,64 @@ export async function executeOneBlock(
             }
           }
           return { success: false, output: null, error: t('error.includeBadExt', { ext }), duration: Date.now() - startTime };
+        }
+        case 'doc': {
+          const docPath = metaString(block.meta, 'path');
+          if (!docPath) {
+            return { success: false, output: null, error: t('error.doc.noPath'), duration: Date.now() - startTime };
+          }
+          const ns = metaString(block.meta, 'output');
+          if (!ns) {
+            return { success: false, output: null, error: t('error.doc.noOutput'), duration: Date.now() - startTime };
+          }
+          const startMs = Date.now();
+          try {
+            const resolvedPath = resolveIncludePath(docPath, options.currentFile);
+            const ext = path.extname(resolvedPath).toLowerCase();
+            if (ext !== '.md') {
+              return { success: false, output: null, error: t('error.doc.badExt', { ext }), duration: Date.now() - startMs };
+            }
+            if (state.visitedPaths.has(resolvedPath)) {
+              return { success: false, output: null, error: t('error.doc.cycle', { path: docPath }), duration: Date.now() - startMs };
+            }
+            if (!resolvedPath.startsWith(process.cwd())) {
+              return { success: false, output: null, error: t('error.doc.outOfBounds', { path: docPath }), duration: Date.now() - startMs };
+            }
+            // 加入已访问集合，子文档经共享 visitedPaths 统一做循环引用检测
+            state.visitedPaths.add(resolvedPath);
+
+            // 声明式输入导入（隔离契约）
+            const inputs: Record<string, unknown> = {};
+            for (const name of metaStringArray(block.meta, 'input')) {
+              const value = context.get(name);
+              if (value === undefined) {
+                return { success: false, output: null, error: t('error.doc.undefinedInput', { var: name }), duration: Date.now() - startMs };
+              }
+              inputs[name] = value;
+            }
+
+            const raw = readFileSync(resolvedPath, 'utf-8');
+            const subDoc = parseMarkdown(raw);
+            const sub = await executeSubDocument(subDoc, state, inputs);
+
+            // 命名空间回传：{{output}} = 渲染内容；{{output.<var>}} = 子文档产出变量
+            context.set(ns, sub.content);
+            for (const [k, v] of Object.entries(sub.variables)) {
+              context.set(`${ns}.${k}`, v);
+            }
+
+            const result: BlockResult = {
+              success: !sub.hasError,
+              output: sub.content,
+              duration: Date.now() - startMs,
+            };
+            if (sub.hasError) {
+              result.error = t('error.doc.subFailed', { failed: sub.failedBlocks });
+            }
+            return result;
+          } catch (err) {
+            return { success: false, output: null, error: getErrorMessage(err), duration: Date.now() - startMs };
+          }
         }
         default:
           return {
@@ -677,6 +750,83 @@ export async function executeDocument(
   recordExecutionHistory(state, options.currentFile);
 
   return { content, hasError: state.hasError };
+}
+
+/**
+ * 子文档执行结果
+ */
+interface SubExecutionResult {
+  /** 子文档最终渲染内容 */
+  content: string;
+  /** 子文档产出的全部变量 */
+  variables: Record<string, unknown>;
+  /** 是否有块执行失败 */
+  hasError: boolean;
+  /** 失败块数 */
+  failedBlocks: number;
+}
+
+/**
+ * 隔离子文档执行（ADR-019 doc 块）
+ * 全新 ExecutionContext（仅系统变量 + 声明式 inputs），复用全部块执行器与渲染逻辑
+ * @param subDoc - 解析后的子文档
+ * @param parentState - 父执行状态（继承 options/config，共享 visitedPaths）
+ * @param inputs - 从父上下文导入的输入变量
+ * @returns 子文档执行结果
+ */
+async function executeSubDocument(
+  subDoc: ParsedDocument,
+  parentState: BlockExecState,
+  inputs: Record<string, unknown>
+): Promise<SubExecutionResult> {
+  const subContext = new ExecutionContext();
+  const now = new Date();
+  subContext.set('execution_time', now.toISOString());
+  subContext.set('date', now.toISOString().split('T')[0]);
+  subContext.set('datetime', now.toISOString().replace('T', ' ').split('.')[0]);
+  subContext.set('timestamp', Math.floor(now.getTime() / 1000));
+  for (const [k, v] of Object.entries(inputs)) {
+    subContext.set(k, v);
+  }
+
+  const subState: BlockExecState = {
+    context: subContext,
+    options: parentState.options,
+    config: parentState.config,
+    visitedPaths: parentState.visitedPaths,
+    failedOutputs: new Set<string>(),
+    failedBlocks: [],
+    blockRecords: [],
+    insertResults: [],
+    hasError: false,
+    totalBlocks: subDoc.blocks.length,
+  };
+
+  if (hasControlFlow(subDoc)) {
+    const tree = buildControlTree(subDoc);
+    await executeControlFlow(tree, subDoc.rawContent, subState);
+  } else {
+    for (let i = 0; i < subDoc.blocks.length; i++) {
+      const { action } = await executeOneBlock(subDoc.blocks[i], subState, i);
+      if (action === 'stop') break;
+    }
+  }
+
+  // 渲染子文档输出（复用顶层逻辑：debug 结果插入 + 变量替换 + release 剥离）
+  let outputContent = subDoc.rawContent;
+  subState.insertResults.sort((a, b) => b.sourceEnd - a.sourceEnd);
+  for (const insert of subState.insertResults) {
+    outputContent = insertResult(outputContent, insert.sourceEnd, insert.output);
+  }
+  const rendered = renderDocument(outputContent, subDoc.blocks, subContext);
+  const content = parentState.options.release ? stripCodeBlocks(rendered) : rendered;
+
+  return {
+    content,
+    variables: subContext.dump(),
+    hasError: subState.hasError,
+    failedBlocks: subState.failedBlocks.length,
+  };
 }
 
 /**

@@ -4,7 +4,7 @@
 
 FlowMD is a CLI tool that executes special code blocks in Markdown files. It parses `.md` files containing `ai`, `data`, and `template` blocks, executes them in sequence, and outputs the rendered result.
 
-**Status**: v0.3.1 — 518 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE) + schedule (cron). agent block (v2.0: ReAct 多步任务 + 6 工具 + 成本预算确认) + 自然语言生成文档 (new --ai). Full documentation in `docs/` (bilingual zh/en).
+**Status**: v0.3.1 — 528 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE) + schedule (cron). agent block (v2.0: ReAct 多步任务 + 6 工具 + 成本预算确认) + 自然语言生成文档 (new --ai) + doc 块 (v2.1 跨文档协作). Full documentation in `docs/` (bilingual zh/en).
 
 ## Tech Stack
 
@@ -25,7 +25,7 @@ FlowMD is a CLI tool that executes special code blocks in Markdown files. It par
 pnpm install          # Install dependencies
 pnpm dev -- run <f>   # Dev mode (tsx)
 pnpm lint             # ESLint (flat config, TS6 API)
-pnpm test:run         # Run all tests (518)
+pnpm test:run         # Run all tests (528)
 pnpm build            # Build to dist/
 npm install -g .      # Global install
 flowmd run <file>     # Execute document
@@ -62,6 +62,7 @@ flowmd schedule       # Scheduled tasks + cron daemon
 | `include` | Inline external `.md`/`.yaml` file | `path` |
 | `run` | Execute script in sandbox (js isolated-vm / python subprocess) | `runtime`, `vars`, `output`, `timeout`, `memory`, `permissions` |
 | `agent` | Autonomous multi-step task via ReAct loop (openai/anthropic) | `goal`, `provider`, `tools`, `output`, `max_steps`, `timeout`, `temperature` |
+| `doc` | Isolated sub-document execution + namespaced output return (v2.1) | `path`, `input`, `output` |
 
 ## Control Flow (v1.3)
 
@@ -184,7 +185,7 @@ src/
 │   ├── logger.ts           # Terminal output
 │   ├── prompt.ts           # User input
 │   └── error-formatter.ts  # Error formatting
-└── __tests__/              # 38 test files, 518 tests
+└── __tests__/              # 39 test files, 528 tests
 ```
 
 ## Configuration Priority

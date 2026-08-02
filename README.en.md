@@ -184,6 +184,28 @@ then output a short summary.
 
 See the [agent block docs](docs/en/blocks/07-agent.md).
 
+## doc block: Cross-Document Collaboration
+
+The `doc` block executes another `.flow.md` sub-document in an isolated context and
+passes back its rendered content and output variables, enabling cross-document agent
+collaboration and multi-document orchestration (v2.1):
+
+````markdown
+```doc {path: "./agents/analyze.md", input: ["topic"], output: "analysis"}
+```
+
+## Conclusion
+
+{{analysis.conclusion}}
+````
+
+- Sub-document runs in isolation (sees only system vars + `input`-declared values),
+  with full capability (including agent blocks)
+- Return: `{{output}}` = rendered sub-document, `{{output.<var>}}` = sub-document variables
+- Cycle detection (shared with include); sub-document failures propagate
+
+See the [doc block docs](docs/en/blocks/08-doc.md).
+
 ## Control Flow: Conditionals and Loops
 
 Use HTML comment directives to wrap body text and code blocks for conditional branches and loop execution:
@@ -291,7 +313,7 @@ pnpm build               # Build
 
 ## Project Status
 
-**MVP stage**. Implemented: run/watch/init/new/config/doctor/history/serve/schedule commands, AI blocks (OpenAI + Anthropic + model presets), data blocks (SQLite/MySQL/PostgreSQL), template blocks (Handlebars + json helper), run blocks (js/python sandbox), control flow (if/elif/else/for + collect), agent blocks (document as agent, ReAct multi-step tasks), variable context, `--var`/`--var-file` (including `.env`), dry-run/step/fail-fast/debug/release modes, HTTP API, scheduled tasks.
+**MVP stage**. Implemented: run/watch/init/new/config/doctor/history/serve/schedule commands, AI blocks (OpenAI + Anthropic + model presets), data blocks (SQLite/MySQL/PostgreSQL), template blocks (Handlebars + json helper), run blocks (js/python sandbox), control flow (if/elif/else/for + collect), agent blocks (document as agent, ReAct multi-step tasks), doc blocks (cross-document collaboration), variable context, `--var`/`--var-file` (including `.env`), dry-run/step/fail-fast/debug/release modes, HTTP API, scheduled tasks.
 
 **Planned**: VS Code extension, template marketplace, Web IDE.
 

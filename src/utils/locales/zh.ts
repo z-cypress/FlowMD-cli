@@ -64,6 +64,15 @@ export const zh = {
   'error.includeCycle': '循环引用: {path}',
   'error.unknownBlockType': '未知块类型: {type}',
 
+  // doc 块 (executor.ts)
+  'error.doc.noPath': 'doc 块缺少 path 参数',
+  'error.doc.noOutput': 'doc 块缺少 output 参数',
+  'error.doc.badExt': 'doc 块仅支持 .md 文件: {ext}',
+  'error.doc.cycle': '循环引用: {path}',
+  'error.doc.outOfBounds': 'doc 路径越界: {path}（仅允许项目目录内的文件）',
+  'error.doc.undefinedInput': 'doc 块声明的输入变量 \'{var}\' 未定义',
+  'error.doc.subFailed': '子文档执行有 {failed} 个块失败',
+
   // 控制流 (executor.ts / execute-region.ts)
   'error.control.tree': '控制流指令错误: {error}',
 

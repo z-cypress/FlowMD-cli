@@ -5,7 +5,7 @@
 import type { AgentStep } from '../core/blocks/agent/types.js';
 
 /** 代码块类型标识符 */
-export type BlockType = 'ai' | 'data' | 'template' | 'include' | 'run' | 'agent';
+export type BlockType = 'ai' | 'data' | 'template' | 'include' | 'run' | 'agent' | 'doc';
 
 /**
  * 从 Markdown 中提取的可执行代码块

@@ -10,7 +10,7 @@ import type { ParsedDocument, ExecutableBlock, BlockType, ControlDirective } fro
 import { parseDirective } from './blocks/control/directives.js';
 
 /** 支持的代码块类型列表 */
-const BLOCK_TYPES: BlockType[] = ['ai', 'data', 'template', 'include', 'run', 'agent'];
+const BLOCK_TYPES: BlockType[] = ['ai', 'data', 'template', 'include', 'run', 'agent', 'doc'];
 
 /**
  * 解析 Markdown 内容，提取可执行块

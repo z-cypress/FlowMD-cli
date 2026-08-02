@@ -208,6 +208,26 @@ SELECT product, revenue FROM sales ORDER BY revenue DESC
 
 详见 [agent 块文档](docs/blocks/07-agent.md)。
 
+## doc 块：跨文档协作
+
+`doc` 块在隔离上下文中执行另一份 `.flow.md` 子文档，并把渲染结果与产出变量回传，
+实现跨文档 agent 协作与多文档编排（v2.1）：
+
+````markdown
+```doc {path: "./agents/analyze.md", input: ["topic"], output: "analysis"}
+```
+
+## 结论
+
+{{analysis.conclusion}}
+````
+
+- 子文档隔离执行（只看到系统变量 + `input` 声明的输入），能力完整（含 agent 块）
+- 回传：`{{output}}` = 子文档渲染内容，`{{output.<变量>}}` = 子文档产出变量
+- 循环引用检测（与 include 共享）、子文档失败冒泡
+
+详见 [doc 块文档](docs/blocks/08-doc.md)。
+
 ## 执行模式
 
  默认执行时，每个块按文档顺序依次执行，结果存入变量上下文，文档正文中的 `{{变量}}` 被自动替换。
@@ -287,7 +307,7 @@ flowmd schedule                    # 前台守护，按 cron 触发
 
  ## 项目状态
 
- **MVP 阶段**。已实现：run/watch/init/new/config/doctor/history/serve/schedule 命令、AI 块（OpenAI + Anthropic + 模型预设）、数据块（SQLite/MySQL/PostgreSQL）、模板块（Handlebars + json helper）、run 块（js/python 沙箱）、控制流（if/elif/else/for + collect）、agent 块（文档即智能体，ReAct 多步任务）、变量上下文、--var/--var-file（含 .env）、试运行/逐步/失败即停/debug/release 模式、HTTP API、定时任务。
+ **MVP 阶段**。已实现：run/watch/init/new/config/doctor/history/serve/schedule 命令、AI 块（OpenAI + Anthropic + 模型预设）、数据块（SQLite/MySQL/PostgreSQL）、模板块（Handlebars + json helper）、run 块（js/python 沙箱）、控制流（if/elif/else/for + collect）、agent 块（文档即智能体，ReAct 多步任务）、doc 块（跨文档协作）、变量上下文、--var/--var-file（含 .env）、试运行/逐步/失败即停/debug/release 模式、HTTP API、定时任务。
 
  **规划中**：VS Code 扩展、模板市场、Web IDE。
 

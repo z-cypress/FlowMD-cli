@@ -64,6 +64,15 @@ export const en = {
   'error.includeCycle': 'Circular reference: {path}',
   'error.unknownBlockType': 'Unknown block type: {type}',
 
+  // doc block (executor.ts)
+  'error.doc.noPath': 'doc block is missing the path parameter',
+  'error.doc.noOutput': 'doc block is missing the output parameter',
+  'error.doc.badExt': 'doc block only supports .md files: {ext}',
+  'error.doc.cycle': 'Circular reference: {path}',
+  'error.doc.outOfBounds': 'doc path escapes the project root: {path}',
+  'error.doc.undefinedInput': 'Input variable \'{var}\' declared by the doc block is not defined',
+  'error.doc.subFailed': 'Sub-document had {failed} failed block(s)',
+
   // Control flow (executor.ts / execute-region.ts)
   'error.control.tree': 'Control directive error: {error}',
 
