@@ -4,7 +4,7 @@
 
 FlowMD is a CLI tool that executes special code blocks in Markdown files. It parses `.md` files containing `ai`, `data`, and `template` blocks, executes them in sequence, and outputs the rendered result.
 
-**Status**: v0.3.1 — 538 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE) + schedule (cron). agent block (v2.0: ReAct 多步任务 + 6 工具 + 成本预算确认) + 自然语言生成文档 (new --ai) + doc 块 (v2.1 跨文档协作) + pipeline 多文档串联 + 8 个内置模板 + 用户模板目录 (.flow/templates/). VS Code extension (`extension/`: 语法高亮 + ▶ Run CodeLens + run/pipeline 命令). Full documentation in `docs/` (bilingual zh/en).
+**Status**: v0.3.1 — 541 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE) + schedule (cron). agent block (v2.0: 多 provider 适配器 chat/direct + ReAct 多步任务 + 6 工具 + 成本预算确认) + 自然语言生成文档 (new --ai) + doc 块 (v2.1 跨文档协作) + pipeline 多文档串联 + 8 个内置模板 + 用户模板目录 (.flow/templates/). VS Code extension (`extension/`: 语法高亮 + ▶ Run CodeLens + run/pipeline 命令). Full documentation in `docs/` (bilingual zh/en).
 
 ## Tech Stack
 
@@ -25,7 +25,7 @@ FlowMD is a CLI tool that executes special code blocks in Markdown files. It par
 pnpm install          # Install dependencies
 pnpm dev -- run <f>   # Dev mode (tsx)
 pnpm lint             # ESLint (flat config, TS6 API)
-pnpm test:run         # Run all tests (534)
+pnpm test:run         # Run all tests (541)
 pnpm build            # Build to dist/
 npm install -g .      # Global install
 flowmd run <file>     # Execute document
@@ -162,12 +162,14 @@ src/
 │   │   └── clients.ts            # Shared OpenAI/Anthropic client cache (ai + agent)
 │   ├── blocks/agent/
 │   │   ├── agent-block.ts        # agent block executor + config resolution + trace formatters
-│   │   ├── types.ts              # AgentBlockConfig/AgentStep/AgentResult/ToolHandler
+│   │   ├── types.ts              # AgentBlockConfig/AgentStep/AgentResult/ToolHandler/AgentAdapter
 │   │   ├── validate.ts           # parse-time whitelist validation
 │   │   ├── loop.ts               # ReAct loop (think→tool→observe)
 │   │   ├── confirm.ts            # first-run authorization (persisted to config)
 │   │   ├── cost.ts               # token estimate + budget confirmation
+│   │   ├── adapters/registry.ts  # adapter registry (chat = loop, direct = single call)
 │   │   ├── adapters/chat.ts      # openai/anthropic tool-use normalization
+│   │   ├── adapters/direct.ts    # single-call adapter (no tools)
 │   │   └── tools/
 │   │       ├── registry.ts       # tool registry
 │   │       ├── path-guard.ts     # write-path containment guard
@@ -187,7 +189,7 @@ src/
 │   ├── logger.ts           # Terminal output
 │   ├── prompt.ts           # User input
 │   └── error-formatter.ts  # Error formatting
-└── __tests__/              # 40 test files, 534 tests
+└── __tests__/              # 40 test files, 541 tests
 ```
 extension/                # VS Code extension (separate package)
 ├── package.json           # extension manifest (commands/grammar/config)

@@ -32,11 +32,30 @@
 |------|------|--------|------|
 | `goal` | 是 | — | 任务目标，agent 围绕其自主规划 |
 | `provider` | 否 | 全局默认 | LLM 提供商：`openai` / `anthropic`（切换时自动读取对应环境变量 API Key） |
+| `adapter` | 否 | `chat` | 执行适配器：`chat`（ReAct 多步 + 工具）/ `direct`（单次调用、无工具） |
 | `tools` | 否 | `[]` | 允许的工具白名单，未注册工具会解析期报错 |
 | `output` | 是 | — | 最终答案存入的变量名，后续块可 `{{引用}}` |
 | `max_steps` | 否 | 10 | 最大工具调用轮数 |
 | `timeout` | 否 | 120 | 整体超时（秒） |
 | `temperature` | 否 | 0.5 | 决策随机性（0-2） |
+
+## 适配器（adapter）
+
+`adapter` 决定 agent 的执行策略（ADR-020）：
+
+| adapter | 策略 | 适用场景 |
+|---------|------|----------|
+| `chat`（默认） | ReAct 多步循环：思考 → 工具 → 观察 → 迭代 | 需要工具/多步推理的复杂任务 |
+| `direct` | 单次 LLM 调用，无工具 | 简单生成 / 总结，成本低、确定性高 |
+
+````markdown
+```agent {goal: "总结要点", adapter: "direct", output: "summary"}
+把下面的内容总结为 3 条要点：{{content}}
+```
+````
+
+> 第三方 agent provider 可通过实现 `AgentAdapter` 接口接入（适配器注册表），
+> `adapter` 元数据引用已注册的适配器名。
 
 ## 执行模型（ReAct）
 

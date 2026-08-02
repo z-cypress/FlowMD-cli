@@ -12,6 +12,9 @@ export const SUPPORTED_AGENT_PROVIDERS = ['openai', 'anthropic'] as const;
 /** v2.0 已注册工具（完整实现见 ADR-016/018） */
 export const REGISTERED_TOOLS = ['code_execution', 'file_read', 'file_write', 'api_call', 'browser', 'web_search'] as const;
 
+/** v2.0 已注册适配器（完整实现见 ADR-020） */
+export const REGISTERED_ADAPTERS = ['chat', 'direct'] as const;
+
 /**
  * 从 meta 中取字符串值（数组值取首个，非字符串返回 undefined）
  * @param meta - 块元数据
@@ -41,6 +44,7 @@ function toConfig(meta: Record<string, string | string[]>): AgentBlockConfig {
     goal: metaString(meta, 'goal'),
     output: metaString(meta, 'output'),
     provider: metaString(meta, 'provider'),
+    adapter: metaString(meta, 'adapter'),
     tools,
     max_steps: meta.max_steps !== undefined ? Number(meta.max_steps) : undefined,
     timeout: meta.timeout !== undefined ? Number(meta.timeout) : undefined,
@@ -76,7 +80,8 @@ function isNumberInRange(raw: string | string[] | undefined, integerOnly: boolea
  */
 export function validateAgentConfig(
   meta: Record<string, string | string[]>,
-  registeredTools: string[] = [...REGISTERED_TOOLS]
+  registeredTools: string[] = [...REGISTERED_TOOLS],
+  registeredAdapters: string[] = [...REGISTERED_ADAPTERS]
 ): string[] {
   const errors: string[] = [];
   const config = toConfig(meta);
@@ -91,6 +96,10 @@ export function validateAgentConfig(
 
   if (config.provider && !SUPPORTED_AGENT_PROVIDERS.includes(config.provider as (typeof SUPPORTED_AGENT_PROVIDERS)[number])) {
     errors.push(t('error.agent.badProvider', { provider: config.provider }));
+  }
+
+  if (config.adapter && !registeredAdapters.includes(config.adapter)) {
+    errors.push(t('error.agent.unknownAdapter', { adapter: config.adapter }));
   }
 
   for (const tool of config.tools ?? []) {

@@ -34,11 +34,30 @@ Task requirements:
 |------|------|--------|------|
 | `goal` | yes | — | Task goal the agent plans around |
 | `provider` | no | global | LLM provider: `openai` / `anthropic` (auto-resolves the matching env API key on switch) |
+| `adapter` | no | `chat` | Execution adapter: `chat` (ReAct multi-step + tools) / `direct` (single call, no tools) |
 | `tools` | no | `[]` | Allowed tool whitelist; unknown tools are rejected at parse time |
 | `output` | yes | — | Variable name for the final answer; later blocks can `{{reference}}` it |
 | `max_steps` | no | 10 | Maximum number of tool-call rounds |
 | `timeout` | no | 120 | Overall timeout (seconds) |
 | `temperature` | no | 0.5 | Decision randomness (0-2) |
+
+## Adapters
+
+`adapter` selects the agent execution strategy (ADR-020):
+
+| Adapter | Strategy | Use cases |
+|---------|----------|-----------|
+| `chat` (default) | ReAct loop: think → tool → observe → iterate | Complex tasks needing tools / multi-step reasoning |
+| `direct` | Single LLM call, no tools | Simple generation / summarization, low cost, deterministic |
+
+````markdown
+```agent {goal: "Summarize key points", adapter: "direct", output: "summary"}
+Summarize the following into 3 key points: {{content}}
+```
+````
+
+> Third-party agent providers can integrate by implementing the `AgentAdapter`
+> interface (adapter registry); the `adapter` metadata references a registered adapter name.
 
 ## Execution model (ReAct)
 

@@ -28,6 +28,15 @@ vi.mock('../core/blocks/agent/cost.js', () => ({
   checkCostBudget: mockCheckCostBudget,
 }));
 
+// direct 适配器会走真实 chat 适配层，mock openai SDK
+const mockOpenAICreate = vi.hoisted(() => vi.fn());
+vi.mock('openai', () => ({
+  default: class MockOpenAI {
+    chat = { completions: { create: mockOpenAICreate } };
+    constructor() {}
+  },
+}));
+
 // Import after mocks
 const { executeAgentBlock } = await import('../core/blocks/agent/agent-block.js');
 const { ExecutionContext } = await import('../core/context.js');
@@ -207,5 +216,27 @@ describe('executeAgentBlock', () => {
     expect(costParams.limit).toBe(5000);
     // 注册表被 mock 为空 Map，工具描述为拼接字符串
     expect(typeof costParams.toolDescriptions).toBe('string');
+  });
+
+  it('should reject an unknown adapter at parse time', async () => {
+    const result = await executeAgentBlock('任务', { goal: 'g', output: 'o', adapter: 'pi-agent' }, context, llmConfig);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('pi-agent');
+    expect(mockRunAgentLoop).not.toHaveBeenCalled();
+  });
+
+  it('should use the direct adapter for a single LLM call', async () => {
+    mockOpenAICreate.mockResolvedValueOnce({
+      choices: [{ message: { content: '单次结果', tool_calls: null } }],
+      usage: { prompt_tokens: 1, completion_tokens: 1 },
+    });
+
+    const result = await executeAgentBlock('任务', { goal: 'g', output: 'o', adapter: 'direct' }, context, llmConfig);
+
+    expect(result.success).toBe(true);
+    expect(context.get('o')).toBe('单次结果');
+    expect(mockOpenAICreate).toHaveBeenCalledOnce();
+    expect(mockRunAgentLoop).not.toHaveBeenCalled();
   });
 });

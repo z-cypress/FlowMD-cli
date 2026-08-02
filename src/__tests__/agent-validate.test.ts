@@ -40,6 +40,13 @@ describe('validateAgentConfig', () => {
     expect(errors.some((e) => e.includes('pi-agent'))).toBe(true);
   });
 
+  it('should accept built-in adapters and reject unknown ones', () => {
+    expect(validateAgentConfig({ goal: 'g', output: 'o', adapter: 'chat' })).toEqual([]);
+    expect(validateAgentConfig({ goal: 'g', output: 'o', adapter: 'direct' })).toEqual([]);
+    const errors = validateAgentConfig({ goal: 'g', output: 'o', adapter: 'pi-agent' });
+    expect(errors.some((e) => e.includes('pi-agent'))).toBe(true);
+  });
+
   it('should accept openai and anthropic providers', () => {
     expect(validateAgentConfig({ goal: 'g', output: 'o', provider: 'openai' })).toEqual([]);
     expect(validateAgentConfig({ goal: 'g', output: 'o', provider: 'anthropic' })).toEqual([]);

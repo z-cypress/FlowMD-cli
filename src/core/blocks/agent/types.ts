@@ -2,12 +2,16 @@
  * FlowMD agent 块类型定义
  */
 
+import type { LLMConfig } from '../../../types/index.js';
+
 /** agent 块配置（块元数据解析后，见 ADR-015） */
 export interface AgentBlockConfig {
   /** 任务目标（必填） */
   goal?: string;
   /** LLM 提供商：openai | anthropic（默认取全局配置） */
   provider?: string;
+  /** 执行适配器：chat（默认）| direct（ADR-020） */
+  adapter?: string;
   /** 允许的工具白名单（ADR-016） */
   tools?: string[];
   /** 输出变量名（必填） */
@@ -78,4 +82,39 @@ export interface AgentResult {
   totalDuration: number;
   /** token 用量累计 */
   tokenUsage: { input: number; output: number };
+}
+
+/** agent 适配器执行参数（ADR-020，与 runAgentLoop 参数一致） */
+export interface AgentAdapterParams {
+  /** 任务目标（必填） */
+  goal: string;
+  /** 渲染后的任务描述 */
+  task: string;
+  /** 已解析的 LLM 配置 */
+  config: LLMConfig;
+  /** 工具注册表（chat 适配器使用；direct 忽略） */
+  tools: Map<string, ToolHandler>;
+  /** 决策温度 */
+  temperature?: number;
+  /** 最大执行步数（默认 10） */
+  maxSteps?: number;
+  /** 整体超时毫秒（默认 0 = 不限） */
+  timeoutMs?: number;
+  /** 外部中止信号 */
+  signal?: AbortSignal;
+  /** 每步完成回调（进度 UI） */
+  onStep?: (step: AgentStep) => void;
+}
+
+/**
+ * agent 适配器（ADR-020）
+ * 第三方 provider 实现该接口并在适配器注册表注册即可接入
+ */
+export interface AgentAdapter {
+  /** 适配器名（agent 块元数据 adapter 引用） */
+  name: string;
+  /** 能力描述 */
+  description: string;
+  /** 执行 agent 任务 */
+  execute(params: AgentAdapterParams): Promise<AgentResult>;
 }

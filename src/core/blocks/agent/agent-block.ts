@@ -7,7 +7,8 @@ import type { ExecutionContext } from '../../context.js';
 import type { LLMConfig, BlockResult } from '../../../types/index.js';
 import { t } from '../../../utils/i18n.js';
 import { validateAgentConfig } from './validate.js';
-import { runAgentLoop, DEFAULT_MAX_STEPS } from './loop.js';
+import { createAdapterRegistry } from './adapters/registry.js';
+import { DEFAULT_MAX_STEPS } from './loop.js';
 import { createToolRegistry } from './tools/registry.js';
 import { ensureAgentConfirmed } from './confirm.js';
 import { checkCostBudget } from './cost.js';
@@ -71,6 +72,7 @@ function toAgentConfig(meta: Record<string, string | string[]>): AgentBlockConfi
     goal: str(meta.goal),
     output: str(meta.output),
     provider: str(meta.provider),
+    adapter: str(meta.adapter),
     tools: Array.isArray(meta.tools) ? meta.tools : typeof meta.tools === 'string' && meta.tools.trim() ? [meta.tools] : [],
     max_steps: num(meta.max_steps),
     timeout: num(meta.timeout),
@@ -161,8 +163,9 @@ export async function executeAgentBlock(
     };
   }
 
-  // 5. ReAct 循环执行
-  const result = await runAgentLoop({
+  // 5. 按 adapter 委托执行（默认 chat = ReAct 循环，ADR-020）
+  const adapter = createAdapterRegistry().get(config.adapter ?? 'chat')!;
+  const result = await adapter.execute({
     goal,
     task,
     config: resolved,

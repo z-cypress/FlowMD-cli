@@ -5,32 +5,12 @@
 
 import { getErrorMessage } from '../../../utils/error-formatter.js';
 import { t } from '../../../utils/i18n.js';
-import type { LLMConfig } from '../../../types/index.js';
 import { runAgentTurn } from './adapters/chat.js';
 import type { TurnMessage, ToolSpec } from './adapters/chat.js';
-import type { AgentResult, AgentStep, ToolHandler } from './types.js';
+import type { AgentAdapterParams, AgentResult, AgentStep, ToolHandler } from './types.js';
 
-/** 循环执行参数 */
-export interface AgentLoopParams {
-  /** 任务目标（必填，校验通过） */
-  goal: string;
-  /** 任务描述（渲染后的块内容） */
-  task: string;
-  /** 已解析的 LLM 配置 */
-  config: LLMConfig;
-  /** 决策温度 */
-  temperature?: number;
-  /** 工具注册表 */
-  tools: Map<string, ToolHandler>;
-  /** 最大执行步数（默认 10） */
-  maxSteps?: number;
-  /** 整体超时毫秒（默认 0 = 不限） */
-  timeoutMs?: number;
-  /** 外部中止信号 */
-  signal?: AbortSignal;
-  /** 每步完成回调（进度 UI） */
-  onStep?: (step: AgentStep) => void;
-}
+/** 循环执行参数（对齐 AgentAdapterParams，ADR-020） */
+export type AgentLoopParams = AgentAdapterParams;
 
 /** 默认最大步数 */
 export const DEFAULT_MAX_STEPS = 10;
