@@ -38,6 +38,17 @@ vi.mock('../core/blocks/template-block.js', () => ({
   ),
 }));
 
+vi.mock('../core/blocks/agent/agent-block.js', () => ({
+  executeAgentBlock: vi.fn().mockResolvedValue({
+    success: true,
+    output: 'agent result',
+    duration: 10,
+  }),
+  formatAgentStep: (step: { stepNumber: number; action: string }) => `步骤 ${step.stepNumber}: ${step.action}`,
+  formatAgentTrace: () => '',
+  formatAgentTraceSummary: () => '',
+}));
+
 // Mock ora to avoid spinner side effects in tests
 vi.mock('ora', () => ({
   default: vi.fn(() => ({
@@ -558,7 +569,86 @@ describe('executeDocument', () => {
 
       expect(result.content).not.toContain('```run');
       expect(result.content).toContain('# Doc');
-      expect(result.content).toContain('Body');
+     expect(result.content).toContain('Body');
+   });
+ 
+    it('should strip agent blocks from output in release mode', async () => {
+      const rawContent = [
+        '# Report',
+        '',
+        '```agent {goal: "g", output: "r"}',
+        'task',
+        '```',
+        '',
+        'Tail',
+      ].join('\n');
+
+      const doc: ParsedDocument = {
+        blocks: [
+          {
+            type: 'agent',
+            content: 'task',
+            lang: 'agent {goal: "g", output: "r"}',
+            meta: { goal: 'g', output: 'r' },
+            position: 0,
+            sourceStart: 0,
+            sourceEnd: 0,
+          },
+        ],
+        rawContent,
+        variables: [],
+      };
+
+      const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const result = await executeDocument(
+        doc,
+        { ...defaultOptions, quiet: true, release: true, runYes: true },
+        defaultConfig
+      );
+      spy.mockRestore();
+
+      expect(result.content).not.toContain('```agent');
+      expect(result.content).toContain('# Report');
+      expect(result.content).toContain('Tail');
+    });
+ 
+    it('should strip doc blocks from output in release mode', async () => {
+      const rawContent = [
+        '# Doc',
+        '',
+        '```doc {path: "./sub.md", output: "sub"}',
+        '```',
+        '',
+        'Tail',
+      ].join('\n');
+
+      const doc: ParsedDocument = {
+        blocks: [
+          {
+            type: 'doc',
+            content: '',
+            lang: 'doc {path: "./sub.md", output: "sub"}',
+            meta: { path: './sub.md', output: 'sub' },
+            position: 0,
+            sourceStart: 0,
+            sourceEnd: 0,
+          },
+        ],
+        rawContent,
+        variables: [],
+      };
+
+      const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const result = await executeDocument(
+        doc,
+        { ...defaultOptions, quiet: true, release: true },
+        defaultConfig
+      );
+      spy.mockRestore();
+
+      expect(result.content).not.toContain('```doc');
+      expect(result.content).toContain('# Doc');
+      expect(result.content).toContain('Tail');
     });
   });
 
