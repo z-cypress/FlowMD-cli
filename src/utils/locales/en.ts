@@ -50,6 +50,7 @@ export const en = {
   'block.running': '{emoji} {num} {type} block running...',
   'block.runningWait': '{emoji} {num} {type} block running... (waited {seconds}s)',
   'block.done': '{emoji} {num} {type} block - done ({seconds}s)',
+  'block.cached': '{emoji} {num} {type} block - cache hit ({seconds}s)',
   'block.stepOutput': '  Output:',
   'block.failed': '{emoji} {num} {type} block - failed',
   'block.failedQuiet': '{emoji} {num} {type} block failed: {error}',

@@ -143,7 +143,8 @@ describe('flowmd serve', () => {
       expect(res.headers.get('content-type')).toContain('text/html');
       const html = await res.text();
       expect(html).toContain('FlowMD Web IDE');
-      expect(html).toContain('<textarea');
+      expect(html).toContain('editor-host');
+      expect(html).toContain('codemirror');
       expect(html).toContain('/execute');
       expect(html).toContain('release');
       expect(html).toContain('debug-check');

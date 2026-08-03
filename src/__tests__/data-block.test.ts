@@ -117,6 +117,20 @@ describe('executeDataBlock', () => {
       expect(Array.isArray(users)).toBe(true);
       expect(users).toHaveLength(2);
     });
+
+    it('should always store a single-row result as an array', async () => {
+      await executeDataBlock(
+        "SELECT * FROM users WHERE id = 1",
+        { output: 'user' },
+        context,
+        dataSources
+      );
+
+      const user = context.get('user');
+      expect(Array.isArray(user)).toBe(true);
+      expect(user).toHaveLength(1);
+      expect((user as Array<{ name: string }>)[0].name).toBe('Alice');
+    });
   });
 
   describe('security', () => {

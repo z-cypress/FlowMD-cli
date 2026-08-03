@@ -4,7 +4,7 @@
 
 FlowMD is a CLI tool that executes special code blocks in Markdown files. It parses `.md` files containing `ai`, `data`, and `template` blocks, executes them in sequence, and outputs the rendered result.
 
-**Status**: v0.3.1 — 546 tests passing. SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE: debug/示例/块统计) + schedule (cron). agent block (v2.0: 多 provider 适配器 chat/direct + ReAct 多步任务 + 6 工具 + 成本预算确认) + 自然语言生成文档 (new --ai) + doc 块 (v2.1 跨文档协作) + pipeline 多文档串联 + 8 个内置模板 + 用户模板目录 (.flow/templates/). VS Code extension (`extension/`: 语法高亮 + ▶ Run CodeLens + run/pipeline 命令). Full documentation in `docs/` (bilingual zh/en).
+**Status**: v0.3.1 — 559 tests passing（2 skipped）。SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE v3: CodeMirror 6 编辑器/高亮/行号 + debug/示例/块统计) + schedule (cron). agent block (v2.0: 多 provider 适配器 chat/direct + ReAct 多步任务 + 6 工具 + 成本预算确认) + 自然语言生成文档 (new --ai) + doc 块 (v2.1 跨文档协作) + pipeline 多文档串联 + 结果缓存 (--cache) + AI 块流式输出 (stream: true) + 8 个内置模板 + 用户模板目录 (.flow/templates/). VS Code extension (`extension/`: 语法高亮 + ▶ Run CodeLens + run/pipeline 命令). Full documentation in `docs/` (bilingual zh/en).
 
 ## Tech Stack
 
@@ -42,9 +42,9 @@ flowmd schedule       # Scheduled tasks + cron daemon
 
 | Command | Options | Status |
 |---------|---------|--------|
-| `run <file>` | `-o` (inline/new/stdout), `-d`, `-s`, `-f`, `--debug`, `--release`, `--var`, `--var-file`, `--yes`, `--strict` | ✅ |
-| `pipeline <files...>` | `-o`, `-d`, `-s`, `-f`, `--debug`, `--release`, `--var`, `--var-file`, `--yes`, `--strict` | ✅ |
-| `watch <file>` | `-o`, `-d`, `-s`, `-f`, `--debug`, `--release`, `--yes`, `--strict` | ✅ |
+| `run <file>` | `-o` (inline/new/stdout), `-d`, `-s`, `-f`, `--debug`, `--release`, `--var`, `--var-file`, `--yes`, `--strict`, `--cache` | ✅ |
+| `pipeline <files...>` | `-o`, `-d`, `-s`, `-f`, `--debug`, `--release`, `--var`, `--var-file`, `--yes`, `--strict`, `--cache` | ✅ |
+| `watch <file>` | `-o`, `-d`, `-s`, `-f`, `--debug`, `--release`, `--yes`, `--strict`, `--cache` | ✅ |
 | `init` | — | ✅ |
 | `new <name>` | `-t` (template), `-l` (list), `-f`, `--ai <desc>` (NL generation) | ✅ |
 | `config [key]` | `--set <value>` | ✅ |
@@ -131,7 +131,12 @@ src/
 │   └── schedule.ts         # Scheduled tasks (add/list/remove/pause/resume/run/daemon)
 ├── core/
 │   ├── parser.ts           # Markdown parser
-│   ├── executor.ts         # Block execution + modes + validation
+│   ├── executor.ts         # 顶层协调 + 预执行校验 + flat/control 路径 + 子文档执行
+│   ├── block-dispatcher.ts # 块类型 → 执行器 switch 路由（executor 拆分）
+│   ├── execution-state.ts  # BlockExecState 及其生命周期（executor 拆分）
+│   ├── include-expander.ts # .md include 预展开 + 路径解析/安全校验（executor 拆分）
+│   ├── output-builder.ts   # debug 插入 / render / release 剥离（executor 拆分）
+│   ├── cache.ts            # 块结果缓存（--cache，.flow/cache/）
 │   ├── context.ts          # Variable context
 │   ├── generate.ts         # NL → FlowMD document (flowmd new --ai)
 │   └── blocks/

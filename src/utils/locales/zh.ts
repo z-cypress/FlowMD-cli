@@ -50,6 +50,7 @@ export const zh = {
   'block.running': '{emoji} {num} {type} 块执行中...',
   'block.runningWait': '{emoji} {num} {type} 块执行中... (已等待 {seconds}s)',
   'block.done': '{emoji} {num} {type} 块 - 完成 ({seconds}s)',
+  'block.cached': '{emoji} {num} {type} 块 - 命中缓存 ({seconds}s)',
   'block.stepOutput': ' 输出:',
   'block.failed': '{emoji} {num} {type} 块 - 失败',
   'block.failedQuiet': '{emoji} {num} {type} 块失败: {error}',

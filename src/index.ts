@@ -131,7 +131,8 @@ program
   .option('--var-file <path>', 'Variable file in YAML, JSON, or .env format')
   .option('--yes', 'Skip run block execution confirmation', false)
   .option('--strict', 'Force run block execution confirmation every time', false)
-  .action(async (file: string, options: { output: string; dryRun: boolean; step: boolean; stepMode: boolean; failFast: boolean; debug: boolean; release: boolean; quiet: boolean; var: string[]; varFile: string; yes: boolean; strict: boolean }) => {
+  .option('--cache', 'Cache ai/data block results in .flow/cache/', false)
+  .action(async (file: string, options: { output: string; dryRun: boolean; step: boolean; stepMode: boolean; failFast: boolean; debug: boolean; release: boolean; quiet: boolean; var: string[]; varFile: string; yes: boolean; strict: boolean; cache: boolean }) => {
     try {
       // Read content: 从文件或 stdin
       let content: string;
@@ -166,6 +167,7 @@ program
         currentFile: file || undefined,
         runYes: options.yes,
         runStrict: options.strict,
+        cache: options.cache,
       };
 
       if (!runOptions.quiet) {
@@ -232,7 +234,8 @@ program
   .option('--var-file <path>', 'Variable file in YAML, JSON, or .env format')
   .option('--yes', 'Skip run block execution confirmation', false)
   .option('--strict', 'Force run block execution confirmation every time', false)
-  .action(async (files: string[], options: { output: string; dryRun: boolean; step: boolean; stepMode: boolean; failFast: boolean; debug: boolean; release: boolean; quiet: boolean; var: string[]; varFile: string; yes: boolean; strict: boolean }) => {
+  .option('--cache', 'Cache ai/data block results in .flow/cache/', false)
+  .action(async (files: string[], options: { output: string; dryRun: boolean; step: boolean; stepMode: boolean; failFast: boolean; debug: boolean; release: boolean; quiet: boolean; var: string[]; varFile: string; yes: boolean; strict: boolean; cache: boolean }) => {
     try {
       const config: FlowConfig = loadConfig();
       const runOptions: RunOptions = {
@@ -247,6 +250,7 @@ program
         varFile: options.varFile,
         runYes: options.yes,
         runStrict: options.strict,
+        cache: options.cache,
       };
       await pipelineCommand(files, runOptions, config);
     } catch (error) {
@@ -270,7 +274,8 @@ program
   .option('--var-file <path>', 'Variable file in YAML, JSON, or .env format')
   .option('--yes', 'Skip run block execution confirmation', false)
   .option('--strict', 'Force run block execution confirmation every time', false)
-  .action(async (file: string, options: { output: string; dryRun: boolean; step: boolean; failFast: boolean; debug: boolean; release: boolean; quiet: boolean; var: string[]; varFile: string; yes: boolean; strict: boolean }) => {
+  .option('--cache', 'Cache ai/data block results in .flow/cache/', false)
+  .action(async (file: string, options: { output: string; dryRun: boolean; step: boolean; failFast: boolean; debug: boolean; release: boolean; quiet: boolean; var: string[]; varFile: string; yes: boolean; strict: boolean; cache: boolean }) => {
     try {
       await watchCommand(file, {
         output: options.output as 'inline' | 'new' | 'stdout',
@@ -284,6 +289,7 @@ program
         varFile: options.varFile,
         runYes: options.yes,
         runStrict: options.strict,
+        cache: options.cache,
       });
     } catch (error) {
       console.error(chalk.red(t('cli.watchFailed', { error: error instanceof Error ? error.message : String(error) })));

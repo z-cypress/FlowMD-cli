@@ -137,6 +137,76 @@ describe('executeAIBlock', () => {
     });
   });
 
+  describe('streaming', () => {
+    it('should stream OpenAI output when stream: true', async () => {
+      // 模拟 SDK 流式响应：async iterable of chunks
+      mockOpenAICreate.mockResolvedValueOnce(
+        (async function* () {
+          yield { choices: [{ delta: { content: '流' } }] };
+          yield { choices: [{ delta: { content: '式' } }] };
+          yield { choices: [{ delta: { content: '输' } }] };
+          yield { choices: [{ delta: { content: '出' } }] };
+          yield { choices: [{ delta: {} }] };
+        })()
+      );
+
+      const deltas: string[] = [];
+      const result = await executeAIBlock(
+        'Test',
+        { stream: 'true' },
+        context,
+        openaiConfig,
+        undefined,
+        undefined,
+        (d) => deltas.push(d)
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.output).toBe('流式输出');
+      expect(deltas.join('')).toBe('流式输出');
+      // 流式模式应传 stream: true
+      expect(mockOpenAICreate.mock.calls.at(-1)?.[0]?.stream).toBe(true);
+    });
+
+    it('should stream Anthropic output when stream: true', async () => {
+      mockAnthropicCreate.mockResolvedValueOnce(
+        (async function* () {
+          yield { type: 'content_block_delta', delta: { type: 'text_delta', text: '文' } };
+          yield { type: 'content_block_delta', delta: { type: 'text_delta', text: '本' } };
+          yield { type: 'content_block_stop' };
+        })()
+      );
+
+      const deltas: string[] = [];
+      const result = await executeAIBlock(
+        'Test',
+        { stream: 'true' },
+        context,
+        anthropicConfig,
+        undefined,
+        undefined,
+        (d) => deltas.push(d)
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.output).toBe('文本');
+      expect(deltas.join('')).toBe('文本');
+      expect(mockAnthropicCreate.mock.calls.at(-1)?.[0]?.stream).toBe(true);
+    });
+
+    it('should treat stream: false as non-streaming', async () => {
+      const result = await executeAIBlock(
+        'Hello AI',
+        { stream: 'false' },
+        context,
+        openaiConfig
+      );
+      expect(result.success).toBe(true);
+      expect(result.output).toBe('Mocked AI response');
+      expect(mockOpenAICreate.mock.calls.at(-1)?.[0]?.stream).toBeUndefined();
+    });
+  });
+
   describe('error handling', () => {
     it('should handle unsupported provider', async () => {
       const invalidConfig: LLMConfig = {

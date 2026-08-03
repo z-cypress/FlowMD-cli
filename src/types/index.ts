@@ -153,6 +153,8 @@ export interface RunOptions {
   runYes?: boolean;
   /** run 块：--strict 每次执行强制确认 */
   runStrict?: boolean;
+  /** 结果缓存：ai/data 块按内容哈希复用结果（run 块因副作用不缓存） */
+  cache?: boolean;
 }
 
 /**

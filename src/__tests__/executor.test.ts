@@ -9,11 +9,16 @@ import type { ParsedDocument, RunOptions, FlowConfig, ExecutableBlock } from '..
 
 // Mock all block executors
 vi.mock('../core/blocks/ai-block.js', () => ({
-  executeAIBlock: vi.fn().mockResolvedValue({
-    success: true,
-    output: 'ai result',
-    duration: 100,
-  }),
+  executeAIBlock: vi.fn().mockImplementation(
+    async (_content: string, config: Record<string, string>, context: { set: (k: string, v: unknown) => void }) => {
+      if (config.output) context.set(config.output, 'ai result');
+      return {
+        success: true,
+        output: 'ai result',
+        duration: 100,
+      };
+    }
+  ),
 }));
 
 vi.mock('../core/blocks/data-block.js', () => ({
@@ -65,6 +70,14 @@ const mockReadFileSync = vi.hoisted(() => vi.fn());
 vi.mock('node:fs', () => ({
   readFileSync: mockReadFileSync,
   default: {},
+}));
+
+// Mock cache module（缓存逻辑单测见 cache.test.ts；这里验证 executor 的接线）
+const cacheState = vi.hoisted(() => ({ record: null as unknown }));
+vi.mock('../core/cache.js', () => ({
+  cacheKey: vi.fn(() => 'test-hash'),
+  readCache: vi.fn(() => cacheState.record),
+  writeCache: vi.fn(),
 }));
 
 // Mock history to avoid real SQLite writes in executor tests
@@ -242,6 +255,60 @@ describe('executeDocument', () => {
       await executeDocument(doc, { ...defaultOptions, dryRun: true }, defaultConfig);
       expect(executeAIBlock).not.toHaveBeenCalled();
       expect(executeDataBlock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('result cache', () => {
+    beforeEach(() => {
+      // 复位 ai mock：清掉其它用例泄漏的 mockResolvedValueOnce 队列并重建基实现
+      vi.mocked(executeAIBlock).mockReset();
+      vi.mocked(executeAIBlock).mockImplementation(
+        async (_content: string, config: Record<string, string>, context: { set: (k: string, v: unknown) => void }) => {
+          if (config.output) context.set(config.output, 'ai result');
+          return { success: true, output: 'ai result', duration: 100 };
+        }
+      );
+    });
+
+    it('should reuse cached ai result on identical re-execution', async () => {
+      const doc = makeDoc([
+        makeBlock('ai', 'hello', { output: 'greeting' }),
+        makeBlock('template', 'Hello {{greeting}}'),
+      ]);
+      doc.rawContent = '```ai {output: "greeting"}\nhello\n```\n\nHello {{greeting}}';
+
+      // 第一次执行：缓存未命中 → 真实调用并写入缓存
+      cacheState.record = null;
+      const result1 = await executeDocument(
+        doc,
+        { ...defaultOptions, quiet: true, cache: true },
+        defaultConfig
+      );
+      expect(result1.content).toContain('ai result');
+      expect(executeAIBlock).toHaveBeenCalledTimes(1);
+
+      // 第二次执行：命中缓存 → 不再调用真实执行器，直接复用结果
+      cacheState.record = { output: 'ai result', value: 'ai result', duration: 100 };
+      const result2 = await executeDocument(
+        doc,
+        { ...defaultOptions, quiet: true, cache: true },
+        defaultConfig
+      );
+      expect(result2.content).toContain('ai result');
+      expect(executeAIBlock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not use cache when flag is off', async () => {
+      const doc = makeDoc([makeBlock('ai', 'world', { output: 'greeting' })]);
+      doc.rawContent = '```ai {output: "greeting"}\nworld\n```';
+
+      // 第一次执行：缓存未命中 → 真实调用
+      cacheState.record = null;
+      await executeDocument(doc, { ...defaultOptions, quiet: true, cache: true }, defaultConfig);
+      // 第二次不带 cache flag：即使存在缓存记录也重新执行
+      cacheState.record = { output: 'ai result', value: 'ai result', duration: 100 };
+      await executeDocument(doc, { ...defaultOptions, quiet: true }, defaultConfig);
+      expect(executeAIBlock).toHaveBeenCalledTimes(2);
     });
   });
 

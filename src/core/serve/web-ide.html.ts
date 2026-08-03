@@ -1,12 +1,13 @@
 /**
  * Web IDE 单页（ADR-011/012/013/014）
- * 随 serve 内置：GET / 返回此 HTML。零前端依赖、无构建步骤。
+ * 随 serve 内置：GET / 返回此 HTML。零构建步骤，前端依赖经 esm.sh CDN 按需加载。
  * v2：debug 复选框（agent/doc 步骤轨迹）、示例加载、执行块统计
+ * v3：CodeMirror 6 编辑器（markdown 高亮 + 行号 + FlowMD 块/variable 高亮）
  */
 
 /**
  * Web IDE HTML 单页
- * textarea + 分栏预览；模板下拉、变量 key-value 表格、release/debug 复选框、示例按钮、执行按钮
+ * CodeMirror 编辑器 + 分栏预览；模板下拉、变量 key-value 表格、release/debug 复选框、示例按钮、执行按钮
  */
 export const WEB_IDE_HTML = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -35,7 +36,12 @@ export const WEB_IDE_HTML = `<!DOCTYPE html>
   main { flex: 1; display: flex; min-height: 0; }
   .pane { flex: 1; display: flex; flex-direction: column; min-width: 0; }
   .pane-header { padding: 6px 12px; font-size: 12px; color: #57606a; background: #f6f8fa; border-bottom: 1px solid #d0d7de; }
-  #editor { flex: 1; border: none; padding: 12px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.6; resize: none; outline: none; }
+  #editor-host { flex: 1; overflow: auto; border: none; }
+  #editor-host .cm-editor { height: 100%; font-size: 13px; line-height: 1.6; }
+  #editor-host .cm-scroller { font-family: "SF Mono", Menlo, Consolas, monospace; }
+  /* FlowMD 块头与变量的自定义高亮 */
+  #editor-host .cm-flowmd-fence { color: #0969da; font-weight: 600; }
+  #editor-host .cm-flowmd-var { color: #cf222e; }
   #preview { flex: 1; padding: 12px; overflow: auto; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
   #preview.error { color: #cf222e; }
   .status { padding: 4px 12px; font-size: 12px; color: #1f2328; background: #dafbe1; border-top: 1px solid #1a7f37; display: none; }
@@ -65,7 +71,7 @@ export const WEB_IDE_HTML = `<!DOCTYPE html>
 <main>
   <div class="pane">
     <div class="pane-header">Markdown</div>
-    <textarea id="editor" spellcheck="false" placeholder="# 在这里编写 FlowMD 文档...&#10;&#10;\`\`\`ai {output: &quot;summary&quot;}&#10;分析内容&#10;\`\`\`&#10;&#10;{{summary}}"></textarea>
+    <div id="editor-host"></div>
   </div>
   <div class="pane">
     <div class="pane-header">执行结果</div>
@@ -75,9 +81,14 @@ export const WEB_IDE_HTML = `<!DOCTYPE html>
 
 <div class="status" id="status"></div>
 
-<script>
+<script type="module">
+import { basicSetup, EditorView } from 'https://esm.sh/codemirror@6.0.1';
+import { EditorState, Decoration } from 'https://esm.sh/@codemirror/state@6.4.1';
+import { ViewPlugin } from 'https://esm.sh/@codemirror/view@6.24.0';
+import { markdown } from 'https://esm.sh/@codemirror/lang-markdown@6.2.5';
+
 (function () {
-  var editor = document.getElementById('editor');
+  var host = document.getElementById('editor-host');
   var preview = document.getElementById('preview');
   var releaseCheck = document.getElementById('release-check');
   var debugCheck = document.getElementById('debug-check');
@@ -87,6 +98,58 @@ export const WEB_IDE_HTML = `<!DOCTYPE html>
   var addVarBtn = document.getElementById('add-var');
   var runBtn = document.getElementById('run-btn');
   var exampleBtn = document.getElementById('example-btn');
+
+  // ---- CodeMirror 自定义高亮：FlowMD 块头 + {{变量}} ----
+  var flowmdTheme = EditorView.baseTheme({
+    '.cm-flowmd-fence': { color: '#0969da', fontWeight: '600' },
+    '.cm-flowmd-var': { color: '#cf222e' }
+  });
+
+  var flowmdHighlightPlugin = ViewPlugin.fromClass(
+    class {
+      constructor(view) { this.decorations = this.build(view); }
+      update(update) {
+        if (update.docChanged || update.viewportChanged) {
+          this.decorations = this.build(update.view);
+        }
+      }
+      build(view) {
+        var ranges = [];
+        var text = view.state.doc.toString();
+        var re = /(\`\`\`(?:ai|data|template|include|run|agent|doc)\b[^\n]*)|({{[^{} \n][^{}\n]*}})/g;
+        var m;
+        while ((m = re.exec(text)) !== null) {
+          if (m[1]) {
+            ranges.push(Decoration.mark({ class: 'cm-flowmd-fence' }).range(m.index, m.index + m[1].length));
+          } else if (m[2]) {
+            ranges.push(Decoration.mark({ class: 'cm-flowmd-var' }).range(m.index, m.index + m[2].length));
+          }
+        }
+        return Decoration.set(ranges);
+      }
+    },
+    { decorations: function (v) { return v.decorations; } }
+  );
+
+  function createEditor(doc) {
+    var state = EditorState.create({
+      doc: doc,
+      extensions: [
+        basicSetup,
+        markdown(),
+        EditorView.lineWrapping,
+        flowmdTheme,
+        flowmdHighlightPlugin
+      ]
+    });
+    return new EditorView({ state: state, parent: host });
+  }
+
+  var editor = createEditor('# 在这里编写 FlowMD 文档...\n\n\`\`\`ai {output: "summary"}\n分析内容\n\`\`\`\n\n{{summary}}');
+  function getValue() { return editor.state.doc.toString(); }
+  function setValue(content) {
+    editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: content } });
+  }
 
   function showStatus(msg, kind) {
     status.textContent = msg;
@@ -162,7 +225,7 @@ export const WEB_IDE_HTML = `<!DOCTYPE html>
     if (!name) return;
     var content = templatesContent[name];
     if (content) {
-      editor.value = content;
+      setValue(content);
       clearStatus();
     } else {
       showStatus('模板内容不可用: ' + name, 'warn');
@@ -170,7 +233,7 @@ export const WEB_IDE_HTML = `<!DOCTYPE html>
   });
 
   exampleBtn.addEventListener('click', function () {
-    editor.value = EXAMPLE;
+    setValue(EXAMPLE);
     clearStatus();
   });
 
@@ -178,7 +241,7 @@ export const WEB_IDE_HTML = `<!DOCTYPE html>
   addVarRow();
 
   runBtn.addEventListener('click', function () {
-    var markdown = editor.value;
+    var markdown = getValue();
     if (!markdown.trim()) {
       showStatus('编辑区为空', 'warn');
       return;

@@ -93,7 +93,7 @@ Query results are stored as a JSON array, where each record is an object:
 ]
 ```
 
-**Single-row optimization**: if a query returns only one row, that row is stored directly as an object rather than an array, making fields easy to access in templates.
+**Single-row optimization removed**: query results are **always stored as an array**, even when only one row is returned. The type is predictable and template code does not change based on row count.
 
 ## Variable Assignment Behavior
 
@@ -102,14 +102,16 @@ SELECT * FROM users     -- multiple rows → users is an array
 ```
 
 ```data {output: "user"}
-SELECT * FROM users WHERE id = 1   -- single row → user is an object
+SELECT * FROM users WHERE id = 1   -- single row → user is still an array (length 1)
 ```
 
 Access in templates:
 
 ```
 {{users[0].name}}       -- array: index access
-{{user.name}}           -- object: direct field access
+{{user.0.name}}         -- single-row array: access the first row's field by index
+{{#with user.[0]}}      -- single-row array: unwrap to access fields directly
+{{name}} {{/with}}
 ```
 
 ## Examples

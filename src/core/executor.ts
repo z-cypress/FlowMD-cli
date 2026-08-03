@@ -1,31 +1,31 @@
 /**
  * FlowMD 文档执行器
- * 协调执行解析文档中的所有代码块
- * 支持控制流：有 directives 时走指令区树执行，否则走原有平铺逻辑
+ * 顶层协调：预执行校验、flat/control 路径调度、子文档执行、汇总与历史记录。
+ * 块分发见 block-dispatcher，include 展开见 include-expander，输出构建见 output-builder。
  */
 
 import ora from 'ora';
 import chalk from 'chalk';
-import path from 'node:path';
 import { readFileSync } from 'node:fs';
-import { realpath } from 'node:fs/promises';
 import { parse as parseYaml } from 'yaml';
 import { ExecutionContext } from './context.js';
-import { executeAIBlock } from './blocks/ai-block.js';
-import { executeDataBlock } from './blocks/data-block.js';
-import { executeTemplateBlock } from './blocks/template-block.js';
-import { executeRunBlock } from './blocks/run-block.js';
-import { executeAgentBlock, formatAgentStep, formatAgentTrace, formatAgentTraceSummary } from './blocks/agent/agent-block.js';
-import { parseMarkdown } from './parser.js';
+import { formatAgentTrace, formatAgentTraceSummary } from './blocks/agent/agent-block.js';
 import { buildControlTree, ControlTreeError } from './blocks/control/tree.js';
 import { ConditionSyntaxError } from './blocks/control/condition.js';
 import { executeControlFlow, ControlFlowStop } from './blocks/control/execute-region.js';
+import { dispatchBlock } from './block-dispatcher.js';
+import type { DispatcherDeps } from './block-dispatcher.js';
+import { expandMdIncludes } from './include-expander.js';
+import { insertResult, renderDocument, stripCodeBlocks } from './output-builder.js';
+import { createBlockExecState } from './execution-state.js';
+import type { BlockExecState, SubExecutionResult } from './execution-state.js';
+import { cacheKey, readCache, writeCache } from './cache.js';
 import { getErrorMessage } from '../utils/error-formatter.js';
 import { t } from '../utils/i18n.js';
 import { recordExecution } from '../utils/history.js';
 import type {
-  ParsedDocument, RunOptions, FlowConfig, BlockResult, ExecutionResult,
-  ExecutableBlock, ControlNode,
+  ParsedDocument, RunOptions, FlowConfig, ExecutionResult,
+  ExecutableBlock, ControlNode, BlockResult,
 } from '../types/index.js';
 
 /** 块类型对应的 emoji 图标 */
@@ -38,37 +38,10 @@ const BLOCK_EMOJI: Record<string, string> = {
   agent: '🕵️',
 };
 
-/** 块执行结果（带偏移量信息） */
-interface BlockInsertResult {
-  sourceEnd: number;
-  output: string;
-}
-
 /** 变量引用正则（与 parser/context 保持一致） */
 const VAR_REF_REGEX = /\{\{([\w.-]+)\}\}/g;
 
-/** 单个块执行时共享的状态（flat 与 control 路径共用） */
-export interface BlockExecState {
-  context: ExecutionContext;
-  options: RunOptions;
-  config: FlowConfig;
-  visitedPaths: Set<string>;
-  failedOutputs: Set<string>;
-  failedBlocks: Array<{ position: number; type: string; error: string }>;
-  blockRecords: Array<{
-    position: number;
-    type: string;
-    status: 'success' | 'failed';
-    error?: string;
-    duration_ms: number;
-    trace?: string;
-  }>;
-  insertResults: BlockInsertResult[];
-  hasError: boolean;
-  totalBlocks: number;
-  /** 控制流路径标志：debug 结果由 execute-region 直接拼进 parts，不再写入 insertResults */
-  controlFlow?: boolean;
-}
+export type { BlockExecState, SubExecutionResult };
 
 /**
  * 从块 meta 中取字符串值（数组值取首个，非字符串返回 undefined）
@@ -81,21 +54,6 @@ function metaString(meta: Record<string, string | string[]>, key: string): strin
   if (typeof value === 'string') return value;
   if (Array.isArray(value)) return value[0];
   return undefined;
-}
-
-/**
- * 从块 meta 中取字符串数组值（数组原样、逗号分隔字符串拆分）
- * @param meta - 块元数据
- * @param key - 键名
- * @returns 字符串数组
- */
-function metaStringArray(meta: Record<string, string | string[]>, key: string): string[] {
-  const value = meta[key];
-  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string');
-  if (typeof value === 'string' && value.trim()) {
-    return value.split(',').map((s) => s.trim()).filter(Boolean);
-  }
-  return [];
 }
 
 /**
@@ -154,6 +112,7 @@ const SYSTEM_VARS = new Set(['execution_time', 'date', 'datetime', 'timestamp'])
  * flat 路径与 control 路径共用。返回继续/停止信号与块结果
  * @param block - 要执行的块
  * @param state - 共享执行状态
+ * @param displayPos - 展示用位置（control 路径下可能为 undefined）
  * @returns { action: 'continue' | 'stop'（fail-fast 停止）; result?: BlockResult }
  */
 export async function executeOneBlock(
@@ -214,139 +173,43 @@ export async function executeOneBlock(
   let lastResult: BlockResult | undefined;
 
   try {
+    // 结果缓存：ai/data 块按内容哈希命中则复用结果（run 块因副作用不缓存）
+    const outputName = metaString(block.meta, 'output');
+    const hash = options.cache && (block.type === 'ai' || block.type === 'data')
+      ? cacheKey(block, context)
+      : undefined;
+    const cached = hash ? readCache(hash) : undefined;
+
+    if (cached) {
+      clearInterval(elapsedInterval);
+      if (outputName) context.set(outputName, cached.value);
+      if (spinner) {
+        spinner.succeed(t('block.cached', { emoji, num: blockNum, type: block.type, seconds: (cached.duration / 1000).toFixed(1) }));
+      }
+      state.blockRecords.push({
+        position: pos,
+        type: block.type,
+        status: 'success',
+        duration_ms: cached.duration,
+      });
+      return { action: 'continue' };
+    }
+
     const timeoutMs = config.execution.timeout * 1000;
 
-    // 根据块类型调用对应执行器（带超时控制）
+    // 根据块类型分发到对应执行器（带超时控制）
     const executeBlock = async (signal: AbortSignal): Promise<BlockResult> => {
-      switch (block.type) {
-        case 'ai':
-          return executeAIBlock(block.content, block.meta, context, config.llm, config.models, signal);
-        case 'data':
-          return executeDataBlock(block.content, block.meta, context, config.dataSources);
-        case 'template':
-          return executeTemplateBlock(block.content, block.meta, context);
-        case 'run':
-          return executeRunBlock(
-            block.content,
-            block.meta,
-            context,
-            signal,
-            { yes: options.runYes, strict: options.runStrict }
-          );
-        case 'agent':
-          return executeAgentBlock(
-            block.content,
-            block.meta,
-            context,
-            config.llm,
-            signal,
-            {
-              confirm: { yes: options.runYes, strict: options.runStrict },
-              projectRoot: options.currentFile ? path.dirname(options.currentFile) : process.cwd(),
-              allowedDomains: config.agent?.allowedDomains,
-              maxEstimatedTokens: config.agent?.maxEstimatedTokens,
-              searchEndpoint: config.agent?.searchEndpoint,
-              onStep: (step) => {
-                if (spinner) spinner.text = `${t('block.running', { emoji, num: blockNum, type: block.type })} ${formatAgentStep(step)}`;
-              },
-            }
-          );
-        case 'include': {
-          const includePath = metaString(block.meta, 'path');
-          if (!includePath) {
-            return { success: false, output: null, error: t('error.includeNoPath'), duration: Date.now() - startTime };
-          }
-          const ext = path.extname(includePath).toLowerCase();
-          if (ext === '.yaml' || ext === '.yml') {
-            try {
-              const resolvedPath = resolveIncludePath(includePath, options.currentFile);
-              await validateIncludePath(resolvedPath, state.visitedPaths, ext);
-              const raw = readFileSync(resolvedPath, 'utf-8');
-              const parsed = parseYaml(raw) as Record<string, unknown>;
-              for (const [k, v] of Object.entries(parsed)) {
-                context.set(k, v);
-              }
-              return { success: true, output: null, duration: Date.now() - startTime };
-            } catch (err) {
-              return { success: false, output: null, error: t('error.includeYamlFail', { error: getErrorMessage(err) }), duration: Date.now() - startTime };
-            }
-          }
-          return { success: false, output: null, error: t('error.includeBadExt', { ext }), duration: Date.now() - startTime };
-        }
-        case 'doc': {
-          const docPath = metaString(block.meta, 'path');
-          if (!docPath) {
-            return { success: false, output: null, error: t('error.doc.noPath'), duration: Date.now() - startTime };
-          }
-          const ns = metaString(block.meta, 'output');
-          if (!ns) {
-            return { success: false, output: null, error: t('error.doc.noOutput'), duration: Date.now() - startTime };
-          }
-          const startMs = Date.now();
-          try {
-            const resolvedPath = resolveIncludePath(docPath, options.currentFile);
-            const ext = path.extname(resolvedPath).toLowerCase();
-            if (ext !== '.md') {
-              return { success: false, output: null, error: t('error.doc.badExt', { ext }), duration: Date.now() - startMs };
-            }
-            if (state.visitedPaths.has(resolvedPath)) {
-              return { success: false, output: null, error: t('error.doc.cycle', { path: docPath }), duration: Date.now() - startMs };
-            }
-            // realpath 双侧校验防符号链接逃逸（与 file_read 的防线一致）
-            const rootReal = await realpath(process.cwd());
-            let fileReal: string;
-            try {
-              fileReal = await realpath(resolvedPath);
-            } catch {
-              fileReal = resolvedPath;
-            }
-            if (fileReal !== rootReal && !fileReal.startsWith(rootReal + path.sep)) {
-              return { success: false, output: null, error: t('error.doc.outOfBounds', { path: docPath }), duration: Date.now() - startMs };
-            }
-            // 加入已访问集合，子文档经共享 visitedPaths 统一做循环引用检测
-            state.visitedPaths.add(resolvedPath);
-
-            // 声明式输入导入（隔离契约）
-            const inputs: Record<string, unknown> = {};
-            for (const name of metaStringArray(block.meta, 'input')) {
-              const value = context.get(name);
-              if (value === undefined) {
-                return { success: false, output: null, error: t('error.doc.undefinedInput', { var: name }), duration: Date.now() - startMs };
-              }
-              inputs[name] = value;
-            }
-
-            const raw = readFileSync(resolvedPath, 'utf-8');
-            const subDoc = parseMarkdown(raw);
-            const sub = await executeSubDocument(subDoc, state, inputs, resolvedPath);
-
-            // 命名空间回传：{{output}} = 渲染内容；{{output.<var>}} = 子文档产出变量
-            context.set(ns, sub.content);
-            for (const [k, v] of Object.entries(sub.variables)) {
-              context.set(`${ns}.${k}`, v);
-            }
-
-            const result: BlockResult = {
-              success: !sub.hasError,
-              output: sub.content,
-              duration: Date.now() - startMs,
-            };
-            if (sub.hasError) {
-              result.error = t('error.doc.subFailed', { failed: sub.failedBlocks });
-            }
-            return result;
-          } catch (err) {
-            return { success: false, output: null, error: getErrorMessage(err), duration: Date.now() - startMs };
-          }
-        }
-        default:
-          return {
-            success: false,
-            output: null,
-            error: t('error.unknownBlockType', { type: block.type }),
-            duration: Date.now() - startTime,
-          };
-      }
+      const deps: DispatcherDeps = {
+        executeSubDocument: (subDoc, parentState, inputs, subDocFile) =>
+          executeSubDocument(subDoc, parentState, inputs, subDocFile),
+        onStep: (message) => {
+          if (spinner) spinner.text = `${t('block.running', { emoji, num: blockNum, type: block.type })} ${message}`;
+        },
+        onToken: (delta) => {
+          if (spinner) spinner.text = `${t('block.running', { emoji, num: blockNum, type: block.type })} ${delta.slice(0, 60)}`;
+        },
+      };
+      return dispatchBlock(block, state, signal, deps);
     };
 
     const result = await executeWithTimeout(executeBlock, timeoutMs);
@@ -354,6 +217,15 @@ export async function executeOneBlock(
     lastResult = result;
 
     if (result.success) {
+      // 写入缓存：成功且有输出时缓存（data 块 value 存上下文中的行数组）
+      if (hash && result.output !== null) {
+        writeCache(hash, {
+          output: result.output,
+          value: outputName ? context.get(outputName) ?? result.output : result.output,
+          duration: result.duration,
+          cachedAt: new Date().toISOString(),
+        });
+      }
       if (spinner) {
         spinner.succeed(t('block.done', { emoji, num: blockNum, type: block.type, seconds: (result.duration / 1000).toFixed(1) }));
       }
@@ -505,6 +377,7 @@ export function hasControlFlow(doc: ParsedDocument): boolean {
  * @param doc - 解析后的文档，包含块
  * @param options - 运行选项
  * @param config - FlowMD 配置
+ * @param seedContext - 可选的上游变量注入
  * @returns 渲染后的文档内容及是否有错误
  */
 export async function executeDocument(
@@ -586,18 +459,7 @@ export async function executeDocument(
   const visitedPaths = new Set<string>();
   await expandMdIncludes(doc, options.currentFile, visitedPaths);
 
-  const state: BlockExecState = {
-    context,
-    options,
-    config,
-    visitedPaths,
-    failedOutputs: new Set<string>(),
-    failedBlocks: [],
-    blockRecords: [],
-    insertResults: [],
-    hasError: false,
-    totalBlocks: doc.blocks.length,
-  };
+  const state: BlockExecState = createBlockExecState(context, options, config, visitedPaths, doc.blocks.length);
 
   // 排除 template/run 块内的变量：
   // - template 的 Handlebars 循环变量（{{name}}）不需要顶层定义
@@ -749,20 +611,6 @@ export async function executeDocument(
 }
 
 /**
- * 子文档执行结果
- */
-interface SubExecutionResult {
-  /** 子文档最终渲染内容 */
-  content: string;
-  /** 子文档产出的全部变量 */
-  variables: Record<string, unknown>;
-  /** 是否有块执行失败 */
-  hasError: boolean;
-  /** 失败块数 */
-  failedBlocks: number;
-}
-
-/**
  * 隔离子文档执行（ADR-019 doc 块）
  * 全新 ExecutionContext（仅系统变量 + 声明式 inputs），复用全部块执行器与渲染逻辑
  * @param subDoc - 解析后的子文档
@@ -771,7 +619,7 @@ interface SubExecutionResult {
  * @param subDocFile - 子文档文件路径（include 相对路径基准）
  * @returns 子文档执行结果
  */
-async function executeSubDocument(
+export async function executeSubDocument(
   subDoc: ParsedDocument,
   parentState: BlockExecState,
   inputs: Record<string, unknown>,
@@ -787,18 +635,13 @@ async function executeSubDocument(
     subContext.set(k, v);
   }
 
-  const subState: BlockExecState = {
-    context: subContext,
-    options: parentState.options,
-    config: parentState.config,
-    visitedPaths: parentState.visitedPaths,
-    failedOutputs: new Set<string>(),
-    failedBlocks: [],
-    blockRecords: [],
-    insertResults: [],
-    hasError: false,
-    totalBlocks: subDoc.blocks.length,
-  };
+  const subState: BlockExecState = createBlockExecState(
+    subContext,
+    parentState.options,
+    parentState.config,
+    parentState.visitedPaths,
+    subDoc.blocks.length
+  );
 
   // 预展开子文档内的 .md include（相对子文档自身位置）
   await expandMdIncludes(subDoc, subDocFile, subState.visitedPaths);
@@ -891,175 +734,10 @@ function collectCollectVars(nodes: ControlNode[]): Set<string> {
 }
 
 /**
- * 渲染最终文档，屏蔽 template/run 块源码区域以防朴素变量替换破坏其内容
- * 策略：把内容按受保护块源码区域切成段，只对非保护段落做变量渲染，
- * 受保护段源码原样保留（长度变化不会导致偏移错位）
- * @param content - 待渲染内容
- * @param blocks - 文档中的块（用于定位受保护源码区域）
- * @param context - 变量上下文
- * @returns 渲染后的内容
- */
-function renderDocument(content: string, blocks: Array<{ type: string; sourceStart: number; sourceEnd: number }>, context: ExecutionContext): string {
-  const regions = blocks
-    .filter((b) => (b.type === 'template' || b.type === 'run') && b.sourceEnd > b.sourceStart)
-    .map((b) => ({ start: b.sourceStart, end: b.sourceEnd }))
-    .sort((a, b) => a.start - b.start);
-
-  if (regions.length === 0) return context.render(content);
-
-  let result = '';
-  let cursor = 0;
-  for (const r of regions) {
-    if (r.end <= cursor) continue;
-    const start = Math.max(r.start, cursor);
-    result += context.render(content.slice(cursor, start));
-    result += content.slice(start, r.end);
-    cursor = r.end;
-  }
-  result += context.render(content.slice(cursor));
-  return result;
-}
-
-/**
-* 移除 Markdown 中的所有 FlowMD 指令块（ai / data / template / include / run / agent / doc）
-* @param content - 渲染后的文档内容
-* @returns 移除指令块后的内容
-*/
-function stripCodeBlocks(content: string): string {
- // 匹配 ```ai/data/template/include/run/agent/doc 代码块（含可选元数据），包括前后的空行
- const blockPattern = new RegExp(
-    '```(?:ai|data|template|include|run|agent|doc)\\s*(?:\\{[^}]*\\})?\\s*\\n[\\s\\S]*?```\\s*\\n*',
-   'g'
- );
- return content.replace(blockPattern, '');
-}
-
-/**
  * 在循环外统一输出失败信息（避免重复代码）
  */
 function spinnerFail(blockNum: string, emoji: string, type: string, message: string): void {
   console.log(`${emoji} ${blockNum} ${type} 块 - ${message}`);
-}
-
-/**
- * 将执行结果插入到内容的指定位置
- * @param content - 原始内容
- * @param sourceEnd - 插入位置（字符偏移）
- * @param result - 执行结果
- * @returns 插入结果后的内容
- */
-function insertResult(content: string, sourceEnd: number, result: string): string {
-  const before = content.slice(0, sourceEnd);
-  const after = content.slice(sourceEnd);
-
-  const resultBlock = t('debug.insertResult', { result: result.split('\n').join('\n> ') });
-
-  return before + resultBlock + after;
-}
-
-/**
- * 解析 include 路径
- * @param includePath - include 块中的 path 参数
- * @param currentFile - 当前执行文件路径
- * @returns 解析后的绝对路径
- */
-function resolveIncludePath(includePath: string, currentFile?: string): string {
-  if (path.isAbsolute(includePath)) {
-    return includePath;
-  }
-  const baseDir = currentFile ? path.dirname(currentFile) : process.cwd();
-  return path.resolve(baseDir, includePath);
-}
-
-/**
- * 预展开文档中的 .md include 块：把 include 块替换为被引入文件的块（递归）
- * 被引入文档的相对路径以其自身位置为基准；visitedPaths 做循环引用检测
- * @param doc - 文档（原地修改 rawContent/blocks/directives）
- * @param currentFile - 当前文档文件路径（include 相对路径基准）
- * @param visitedPaths - 已访问路径集合（跨文档共享）
- */
-async function expandMdIncludes(doc: ParsedDocument, currentFile: string | undefined, visitedPaths: Set<string>): Promise<void> {
-  let idx = 0;
-  while (idx < doc.blocks.length) {
-    const block = doc.blocks[idx];
-    if (block.type === 'include') {
-      const includePath = metaString(block.meta, 'path');
-      if (includePath) {
-        const ext = path.extname(includePath).toLowerCase();
-        if (ext === '.md') {
-          const resolvedPath = resolveIncludePath(includePath, currentFile);
-          await validateIncludePath(resolvedPath, visitedPaths, ext);
-          visitedPaths.add(resolvedPath);
-
-          const raw = readFileSync(resolvedPath, 'utf-8');
-          const subDoc = parseMarkdown(raw);
-          // 递归展开被引入文档自身的 include（相对其自身位置）
-          await expandMdIncludes(subDoc, resolvedPath, visitedPaths);
-
-          // 子块的 sourceStart/sourceEnd 是相对子文件内容的偏移，
-          // 需平移 append 位置对应的偏移，否则 debug 模式插入结果会错位
-          const offset = doc.rawContent.length + 1; // +1 对应拼接的 '\n'
-          doc.rawContent += '\n' + subDoc.rawContent;
-          const offsetBlocks = subDoc.blocks.map((b) => ({
-            ...b,
-            sourceStart: b.sourceStart + offset,
-            sourceEnd: b.sourceEnd + offset,
-          }));
-          // 子文档中的控制流指令同样平移偏移
-          const offsetDirectives = (subDoc.directives ?? []).map((d) => ({
-            ...d,
-            sourceStart: d.sourceStart + offset,
-            sourceEnd: d.sourceEnd + offset,
-          }));
-
-          doc.blocks.splice(idx, 1, ...offsetBlocks);
-          if (offsetDirectives.length > 0) {
-            doc.directives = [...(doc.directives ?? []), ...offsetDirectives];
-          }
-          continue;
-        }
-      }
-    }
-    idx++;
-  }
-}
-
-/**
- * 验证 include 路径的安全性
- * 检查：扩展名白名单、循环引用、路径越界
- */
-/**
- * 验证路径是否位于项目根内（realpath 双端校验，防符号链接逃逸；
- * realpath 失败时退回词法校验，兼容目标文件尚不存在等场景）
- * @param resolvedPath - 待校验的绝对路径
- * @returns 是否越界
- */
-async function isOutOfBounds(resolvedPath: string): Promise<boolean> {
-  try {
-    const rootReal = await realpath(process.cwd());
-    const fileReal = await realpath(resolvedPath);
-    return fileReal !== rootReal && !fileReal.startsWith(rootReal + path.sep);
-  } catch {
-    return !resolvedPath.startsWith(process.cwd());
-  }
-}
-
-async function validateIncludePath(
-  resolvedPath: string,
-  visitedPaths: Set<string>,
-  ext: string
-): Promise<void> {
-  if (ext !== '.md' && ext !== '.yaml' && ext !== '.yml') {
-    throw new Error(t('error.includeExtWhitelist', { ext }));
-  }
-
-  if (visitedPaths.has(resolvedPath)) {
-    throw new Error(t('error.includeCycle', { path: resolvedPath }));
-  }
-
-  if (await isOutOfBounds(resolvedPath)) {
-    throw new Error(t('error.includeOutOfBounds', { path: resolvedPath }));
-  }
 }
 
 /**

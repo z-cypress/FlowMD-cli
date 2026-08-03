@@ -70,6 +70,7 @@ export async function watchCommand(file: string, opts?: Partial<RunOptions> | st
       varFile: opts.varFile,
       runYes: opts.runYes,
       runStrict: opts.runStrict,
+      cache: opts.cache,
     };
   }
 

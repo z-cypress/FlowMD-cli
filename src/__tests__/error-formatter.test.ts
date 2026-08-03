@@ -44,11 +44,11 @@ describe('sanitizeMessage', () => {
     expect(result).toContain('sk-ant-***');
   });
 
-  it('should redact generic long tokens (32+ chars)', () => {
-    const msg = 'Token: x7V9mQ2tL8kR4pN6sW1uY3zA5cE7gH9jB2dF4hJ6';
+  it('should preserve long non-secret strings (UUIDs, hashes)', () => {
+    const msg = 'Commit 3f8a2b9c4d5e6f708192a3b4c5d6e7f8091a2b3c failed at path /var/log/deployments/2026-08-02';
     const result = getErrorMessage(new Error(msg));
-    expect(result).not.toContain('x7V9mQ2tL8kR4');
-    expect(result).toContain('***');
+    expect(result).toContain('3f8a2b9c4d5e6f708192a3b4c5d6e7f8091a2b3c');
+    expect(result).toContain('/var/log/deployments/2026-08-02');
   });
 
   it('should redact password= fields', () => {

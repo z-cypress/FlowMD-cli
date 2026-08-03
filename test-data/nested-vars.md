@@ -1,12 +1,12 @@
 # 嵌套变量示例
 
-## 单行数据
+## 单行数据（始终返回数组）
 
 ```data {output: "user"}
 SELECT * FROM users WHERE id = 1
 ```
 
-姓名：{{user.name}}，邮箱：{{user.email}}
+姓名：{{user.0.name}}，邮箱：{{user.0.email}}
 
 ## 多行数据
 

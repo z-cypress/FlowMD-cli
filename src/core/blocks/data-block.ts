@@ -102,15 +102,9 @@ export async function executeDataBlock(
     // 将结果序列化为 JSON
     const resultJson = JSON.stringify(rows, null, 2);
 
-    // 如果指定了输出变量名，将结果存入上下文
+    // 如果指定了输出变量名，将结果存入上下文（恒为数组，单行也返回数组）
     if (config.output) {
-      // 如果查询只返回一行，直接存储该行对象（方便模板访问字段）
-      // 如果返回多行，存储整个数组
-      if (rows.length === 1) {
-        context.set(config.output, rows[0]);
-      } else {
-        context.set(config.output, rows);
-      }
+      context.set(config.output, rows);
     }
 
     return {
