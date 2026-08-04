@@ -54,14 +54,21 @@ export function renderDocument(content: string, blocks: Array<{ type: string; so
 
 /**
 * 移除 Markdown 中的所有 FlowMD 指令块（ai / data / template / include / run / agent / doc）
+* 以及并行区指令注释（parallel / endparallel）
 * @param content - 渲染后的文档内容
 * @returns 移除指令块后的内容
 */
 export function stripCodeBlocks(content: string): string {
- // 匹配 ```ai/data/template/include/run/agent/doc 代码块（含可选元数据），包括前后的空行
- const blockPattern = new RegExp(
+  // 匹配 ```ai/data/template/include/run/agent/doc 代码块（含可选元数据），包括前后的空行
+  const blockPattern = new RegExp(
     '```(?:ai|data|template|include|run|agent|doc)\\s*(?:\\{[^}]*\\})?\\s*\\n[\\s\\S]*?```\\s*\\n*',
    'g'
- );
- return content.replace(blockPattern, '');
+  );
+  let result = content.replace(blockPattern, '');
+
+  // 移除 parallel / endparallel 指令注释
+  const parallelPattern = /<!--\s*(?:parallel|endparallel)\s*-->\s*\n?/g;
+  result = result.replace(parallelPattern, '');
+
+  return result;
 }

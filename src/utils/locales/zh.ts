@@ -178,6 +178,18 @@ export const zh = {
   // AI 块 (ai-block.ts)
   'error.ai.noApiKey': 'API Key 未配置。请设置环境变量 {envVar}，或运行 flow init 配置',
   'error.ai.badProvider': '不支持的 LLM 提供商: {provider}',
+  'error.ai.jsonParseFailed': 'AI 输出 JSON 解析失败: {error}\n原始输出: {raw}',
+  'error.ai.formatNotArray': '期望 JSON 数组但收到非数组（format: {format}）',
+
+  // 块重试与校验 (executor.ts)
+  'block.retrying': '{emoji} {num} {type} 重试中 ({attempt}/{max})...',
+  'error.validate.nullOutput': '输出为空（null）',
+  'error.validate.invalidJson': '输出不是合法 JSON',
+  'error.validate.notArray': '输出不是 JSON 数组',
+  'error.validate.emptyOutput': '输出为空字符串',
+
+  // 输出投递 (deliver.ts)
+  'block.deliverFailed': '⚠ 投递到 {target} 失败: {error}',
 
   // 模板块 (template-block.ts)
   'error.template.handlebars': '模板语法错误: {error}',

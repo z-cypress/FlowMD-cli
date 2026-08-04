@@ -178,6 +178,18 @@ export const en = {
   // AI block (ai-block.ts)
   'error.ai.noApiKey': 'API Key is not configured. Set the {envVar} environment variable, or run flow init',
   'error.ai.badProvider': 'Unsupported LLM provider: {provider}',
+  'error.ai.jsonParseFailed': 'Failed to parse AI output as JSON: {error}\nRaw output: {raw}',
+  'error.ai.formatNotArray': 'Expected JSON array but received non-array (format: {format})',
+
+  // Block retry and validation (executor.ts)
+  'block.retrying': '{emoji} {num} {type} retrying ({attempt}/{max})...',
+  'error.validate.nullOutput': 'Output is null',
+  'error.validate.invalidJson': 'Output is not valid JSON',
+  'error.validate.notArray': 'Output is not a JSON array',
+  'error.validate.emptyOutput': 'Output is an empty string',
+
+  // Output delivery (deliver.ts)
+  'block.deliverFailed': '⚠ Delivery to {target} failed: {error}',
 
   // Template block (template-block.ts)
   'error.template.handlebars': 'Template syntax error: {error}',

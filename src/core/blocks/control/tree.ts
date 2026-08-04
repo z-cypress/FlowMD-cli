@@ -14,6 +14,7 @@ import type {
   ControlNode,
   IfNode,
   ForNode,
+  ParallelNode,
 } from '../../../types/index.js';
 
 /** 指令解析失败错误，携带位置信息 */
@@ -28,8 +29,8 @@ export class ControlTreeError extends Error {
   }
 }
 
-/** 构建中使用的帧：if 区或 for 区 */
-type Frame = IfFrame | ForFrame;
+/** 构建中使用的帧：if 区或 for 区或 parallel 区 */
+type Frame = IfFrame | ForFrame | ParallelFrame;
 
 interface IfFrame {
   kind: 'if';
@@ -46,6 +47,13 @@ interface ForFrame {
   kind: 'for';
   node: ForNode;
   /** 上一个子节点结束偏移（用于回填文本区间，暂未用） */
+  lastEnd: number;
+}
+
+interface ParallelFrame {
+  kind: 'parallel';
+  node: ParallelNode;
+  /** 上一个子节点结束偏移 */
   lastEnd: number;
 }
 
@@ -186,17 +194,40 @@ export function buildControlTree(doc: ParsedDocument): ControlNode[] {
         stack.pop();
         break;
       }
+      case 'parallel': {
+        const node: ParallelNode = {
+          kind: 'parallel',
+          sourceStart: start,
+          sourceEnd: end,
+          bodyStart: end,
+          bodyEnd: end,
+          children: [],
+        };
+        currentContainer().children.push(node);
+        stack.push({ kind: 'parallel', node, lastEnd: end });
+        break;
+      }
+      case 'endparallel': {
+        const frame = topParallelFrame(stack);
+        if (!frame) throw new ControlTreeError('endparallel 前缺少对应的 parallel（或当前未处于 parallel 区内）', start);
+        frame.node.bodyEnd = start;
+        frame.node.sourceEnd = end;
+        stack.pop();
+        break;
+      }
     }
   }
 
   // 检查未闭合的指令
   if (stack.length > 0) {
     const frame = stack[stack.length - 1];
-    const pos = frame.kind === 'if' ? frame.node.sourceStart : frame.node.sourceStart;
-    throw new ControlTreeError(
-      frame.kind === 'if' ? 'if 区缺少 endif' : 'for 区缺少 endfor',
-      pos
-    );
+    const pos = frame.node.sourceStart;
+    const msgs: Record<string, string> = {
+      if: 'if 区缺少 endif',
+      for: 'for 区缺少 endfor',
+      parallel: 'parallel 区缺少 endparallel',
+    };
+    throw new ControlTreeError(msgs[frame.kind] ?? `未闭合的 ${frame.kind} 区`, pos);
   }
 
   // 后置校验：声明 collect 的 for 区内必须恰好一个产出变量（多 output 报错）
@@ -263,4 +294,10 @@ function topIfFrame(stack: Frame[]): IfFrame | null {
 function topForFrame(stack: Frame[]): ForFrame | null {
   const top = stack[stack.length - 1];
   return top && top.kind === 'for' ? top : null;
+}
+
+/** 取栈顶帧，若栈顶不是 parallel 帧则返回 null（严格嵌套：只匹配当前指令区） */
+function topParallelFrame(stack: Frame[]): ParallelFrame | null {
+  const top = stack[stack.length - 1];
+  return top && top.kind === 'parallel' ? top : null;
 }

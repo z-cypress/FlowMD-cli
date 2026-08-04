@@ -21,6 +21,8 @@ interface AIBlockConfig {
   max_tokens?: number;
   /** 流式输出（可选，true 时逐段回调 onToken） */
   stream?: boolean | string;
+  /** 结构化输出格式（可选，"json" | "json-array"） */
+  format?: string;
 }
 
 /**
@@ -95,6 +97,38 @@ export async function executeAIBlock(
         error: t('error.ai.badProvider', { provider: resolvedConfig.provider }),
         duration: Date.now() - startTime,
       };
+    }
+
+    // 结构化输出：自动解析 JSON
+    const formatMode = config.format;
+    if (formatMode === 'json' || formatMode === 'json-array') {
+      try {
+        const parsed = JSON.parse(resultText);
+        if (formatMode === 'json-array' && !Array.isArray(parsed)) {
+          return {
+            success: false,
+            output: null,
+            error: t('error.ai.formatNotArray', { format: formatMode }),
+            duration: Date.now() - startTime,
+          };
+        }
+        // 存入解析后的对象（而非原始文本）
+        if (config.output) {
+          context.set(config.output, parsed);
+        }
+        return {
+          success: true,
+          output: JSON.stringify(parsed, null, 2),
+          duration: Date.now() - startTime,
+        };
+      } catch (parseErr) {
+        return {
+          success: false,
+          output: null,
+          error: t('error.ai.jsonParseFailed', { error: getErrorMessage(parseErr), raw: resultText.slice(0, 200) }),
+          duration: Date.now() - startTime,
+        };
+      }
     }
 
     // 如果指定了输出变量名，将结果存入上下文

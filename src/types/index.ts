@@ -43,9 +43,9 @@ export interface ParsedDocument {
 
 /**
  * 控制流指令类型
- * if/elif 带条件；else/endif/endfor 无参数；for 带循环变量、列表与可选 collect
+ * if/elif 带条件；else/endif/endfor 无参数；for 带循环变量、列表与可选 collect；parallel/endparallel 无参数
  */
-export type ControlDirectiveKind = 'if' | 'elif' | 'else' | 'endif' | 'for' | 'endfor';
+export type ControlDirectiveKind = 'if' | 'elif' | 'else' | 'endif' | 'for' | 'endfor' | 'parallel' | 'endparallel';
 
 /**
  * 控制流指令（源自 Markdown HTML 注释，如 `<!-- if: {{score}} > 80 -->`）
@@ -70,9 +70,9 @@ export interface ControlDirective {
 }
 
 /**
- * 控制流树节点：块 | if 区 | for 区
+ * 控制流树节点：块 | if 区 | for 区 | parallel 区
  */
-export type ControlNode = BlockNode | IfNode | ForNode;
+export type ControlNode = BlockNode | IfNode | ForNode | ParallelNode;
 
 /** 块节点：包装单个可执行块 */
 export interface BlockNode {
@@ -122,6 +122,21 @@ export interface ForNode {
   /** 循环体结束偏移（endfor 指令开始前） */
   bodyEnd: number;
   /** 循环体中的子节点 */
+  children: ControlNode[];
+}
+
+/** parallel 区节点 */
+export interface ParallelNode {
+  kind: 'parallel';
+  /** parallel 指令起始偏移 */
+  sourceStart: number;
+  /** endparallel 指令结束偏移 */
+  sourceEnd: number;
+  /** 区体起始偏移（parallel 指令结束后） */
+  bodyStart: number;
+  /** 区体结束偏移（endparallel 指令开始前） */
+  bodyEnd: number;
+  /** 区体中的子节点 */
   children: ControlNode[];
 }
 

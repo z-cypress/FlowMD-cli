@@ -289,4 +289,151 @@ describe('ExecutionContext', () => {
       expect(ctx.render('{{a}}{{b}}')).toBe('AB');
     });
   });
+
+  describe('pipe filters', () => {
+    describe('len', () => {
+      it('should return array length', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('items', [1, 2, 3]);
+        expect(ctx.render('{{items | len}}')).toBe('3');
+      });
+
+      it('should return string length', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('name', 'hi');
+        expect(ctx.render('{{name | len}}')).toBe('2');
+      });
+
+      it('should return 0 for undefined', () => {
+        const ctx = new ExecutionContext();
+        expect(ctx.render('{{x | len}}')).toBe('0');
+      });
+
+      it('should return 0 for null', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('x', null);
+        expect(ctx.render('{{x | len}}')).toBe('0');
+      });
+    });
+
+    describe('default', () => {
+      it('should return default when undefined', () => {
+        const ctx = new ExecutionContext();
+        expect(ctx.render('{{x | default:N/A}}')).toBe('N/A');
+      });
+
+      it('should return default when null', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('x', null);
+        expect(ctx.render('{{x | default:N/A}}')).toBe('N/A');
+      });
+
+      it('should return default when empty string', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('x', '');
+        expect(ctx.render('{{x | default:N/A}}')).toBe('N/A');
+      });
+
+      it('should return value when defined', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('x', 'hello');
+        expect(ctx.render('{{x | default:N/A}}')).toBe('hello');
+      });
+
+      it('should work with nested paths', () => {
+        const ctx = new ExecutionContext();
+        expect(ctx.render('{{user.name | default:anon}}')).toBe('anon');
+      });
+    });
+
+    describe('join', () => {
+      it('should join array with default separator', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('items', ['a', 'b', 'c']);
+        expect(ctx.render('{{items | join}}')).toBe('a, b, c');
+      });
+
+      it('should join array with custom separator', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('items', ['a', 'b', 'c']);
+        expect(ctx.render('{{items | join:-}}')).toBe('a-b-c');
+      });
+
+      it('should return non-array value as-is', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('x', 'hello');
+        expect(ctx.render('{{x | join:-}}')).toBe('hello');
+      });
+    });
+
+    describe('round', () => {
+      it('should round to integer by default', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('pi', 3.7);
+        expect(ctx.render('{{pi | round}}')).toBe('4');
+      });
+
+      it('should round to specified decimals', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('pi', 3.14159);
+        expect(ctx.render('{{pi | round:2}}')).toBe('3.14');
+      });
+
+      it('should handle string numbers', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('x', '3.7');
+        expect(ctx.render('{{x | round}}')).toBe('4');
+      });
+    });
+
+    describe('upper/lower', () => {
+      it('should convert to uppercase', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('x', 'hello');
+        expect(ctx.render('{{x | upper}}')).toBe('HELLO');
+      });
+
+      it('should convert to lowercase', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('x', 'HELLO');
+        expect(ctx.render('{{x | lower}}')).toBe('hello');
+      });
+    });
+
+    describe('truncate', () => {
+      it('should truncate long strings', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('text', 'hello world');
+        expect(ctx.render('{{text | truncate:5}}')).toBe('hello...');
+      });
+
+      it('should not truncate short strings', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('text', 'hi');
+        expect(ctx.render('{{text | truncate:5}}')).toBe('hi');
+      });
+
+      it('should default to 100 chars', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('text', 'a'.repeat(101));
+        expect(ctx.render('{{text | truncate}}')).toBe('a'.repeat(100) + '...');
+      });
+    });
+
+    describe('unknown filter', () => {
+      it('should keep original placeholder for unknown filter', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('x', 'hello');
+        expect(ctx.render('{{x | unknown}}')).toBe('{{x | unknown}}');
+      });
+    });
+
+    describe('plain variable still works', () => {
+      it('should render variables without filters', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('name', 'Alice');
+        expect(ctx.render('Hello {{name}}!')).toBe('Hello Alice!');
+      });
+    });
+  });
 });

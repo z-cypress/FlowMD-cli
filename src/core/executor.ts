@@ -20,6 +20,7 @@ import { insertResult, renderDocument, stripCodeBlocks } from './output-builder.
 import { createBlockExecState } from './execution-state.js';
 import type { BlockExecState, SubExecutionResult } from './execution-state.js';
 import { cacheKey, readCache, writeCache } from './cache.js';
+import { deliver } from './deliver.js';
 import { getErrorMessage } from '../utils/error-formatter.js';
 import { t } from '../utils/i18n.js';
 import { recordExecution } from '../utils/history.js';
@@ -37,9 +38,6 @@ const BLOCK_EMOJI: Record<string, string> = {
   run: '⚡',
   agent: '🕵️',
 };
-
-/** 变量引用正则（与 parser/context 保持一致） */
-const VAR_REF_REGEX = /\{\{([\w.-]+)\}\}/g;
 
 export type { BlockExecState, SubExecutionResult };
 
@@ -84,15 +82,18 @@ async function executeWithTimeout<T>(fn: (signal: AbortSignal) => Promise<T>, ti
 }
 
 /**
- * 提取文本中所有 {{variable}} 引用的变量名
+ * 提取文本中所有 {{variable}} 或 {{variable | filter}} 引用的变量名
+ * 管道语法中只提取管道前的变量表达式
  * @param text - 包含变量引用的文本
  * @returns 变量名列表
  */
 function extractVariableRefs(text: string): string[] {
   const refs: string[] = [];
-  VAR_REF_REGEX.lastIndex = 0;
+  // 匹配 {{expr}} 或 {{expr | filter:arg}}，只捕获管道前的 expr 部分
+  const refRegex = /\{\{([\w.-]+)(?:\s*\|[^}]*)?\}\}/g;
+  refRegex.lastIndex = 0;
   let match: RegExpExecArray | null;
-  while ((match = VAR_REF_REGEX.exec(text)) !== null) {
+  while ((match = refRegex.exec(text)) !== null) {
     // 取顶层变量名（user.name → user）
     const topName = match[1].split('.')[0].split('[')[0];
     if (!refs.includes(topName)) {
@@ -106,6 +107,39 @@ function extractVariableRefs(text: string): string[] {
  * 系统预定义变量名
  */
 const SYSTEM_VARS = new Set(['execution_time', 'date', 'datetime', 'timestamp']);
+
+/**
+ * 等待指定毫秒数
+ * @param ms - 等待时间（毫秒）
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * 校验块输出是否符合指定格式
+ * @param output - 块输出内容
+ * @param mode - 校验模式（"json" | "json-array" | "non-empty"）
+ * @returns 错误消息，通过返回 null
+ */
+function validateOutput(output: string | null, mode: string): string | null {
+  if (output === null) return t('error.validate.nullOutput');
+  switch (mode) {
+    case 'json':
+      try { JSON.parse(output); return null; }
+      catch { return t('error.validate.invalidJson'); }
+    case 'json-array':
+      try {
+        const parsed = JSON.parse(output);
+        return Array.isArray(parsed) ? null : t('error.validate.notArray');
+      }
+      catch { return t('error.validate.invalidJson'); }
+    case 'non-empty':
+      return output.trim() ? null : t('error.validate.emptyOutput');
+    default:
+      return null; // 未知 validate 模式：不校验
+  }
+}
 
 /**
  * 将字符偏移量换算为文档行号（1-based）
@@ -202,7 +236,19 @@ export async function executeOneBlock(
   // 块在文档中的行号（供错误消息定位）
   const blockLine = offsetToLine(state.rawContent, block.sourceStart);
 
+  // 重试与输出校验参数
+  const maxRetries = parseInt(String(block.meta.retry ?? '0'), 10);
+  const validateMode = block.meta.validate as string | undefined;
+
   let lastResult: BlockResult | undefined;
+
+  // 重试循环（首次执行 + maxRetries 次重试）
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (attempt > 0) {
+      // 重试等待（指数退避：500ms, 1000ms, 1500ms...）
+      if (spinner) spinner.text = t('block.retrying', { emoji, num: blockNum, type: block.type, attempt, max: maxRetries });
+      await sleep(500 * attempt);
+    }
 
   try {
     // 结果缓存：ai/data 块按内容哈希命中则复用结果（run 块因副作用不缓存）
@@ -245,10 +291,19 @@ export async function executeOneBlock(
     };
 
     const result = await executeWithTimeout(executeBlock, timeoutMs);
-    clearInterval(elapsedInterval);
     lastResult = result;
 
+    // 输出校验（仅成功时校验）
+    if (result.success && validateMode) {
+      const valErr = validateOutput(result.output, validateMode);
+      if (valErr) {
+        result.success = false;
+        result.error = valErr;
+      }
+    }
+
     if (result.success) {
+      clearInterval(elapsedInterval);
       // 写入缓存：成功且有输出时缓存（data 块 value 存上下文中的行数组）
       if (hash && result.output !== null) {
         writeCache(hash, {
@@ -259,14 +314,15 @@ export async function executeOneBlock(
         });
       }
       if (spinner) {
-        spinner.succeed(t('block.done', { emoji, num: blockNum, type: block.type, seconds: (result.duration / 1000).toFixed(1) }));
+        const retryInfo = attempt > 0 ? ` (${attempt + 1}/${maxRetries + 1})` : '';
+        spinner.succeed(t('block.done', { emoji, num: blockNum, type: block.type, seconds: (result.duration / 1000).toFixed(1) }) + retryInfo);
       }
       state.blockRecords.push({
         position: pos,
         type: block.type,
         status: 'success',
         duration_ms: result.duration,
-        trace: result.steps ? formatAgentTraceSummary(result.steps) : undefined,
+        trace: result.steps ? formatAgentTraceSummary(result.steps) : attempt > 0 ? `${attempt} retries` : undefined,
       });
 
       // step 模式：打印执行结果
@@ -287,36 +343,56 @@ export async function executeOneBlock(
           output: trace ? result.output + trace : result.output,
         });
       }
+
+      // 输出投递：将结果推送到外部目的地
+      const deliverTarget = metaString(block.meta, 'deliver');
+      if (deliverTarget && result.output !== null) {
+        const deliverResult = await deliver(deliverTarget, result.output, block.type);
+        if (!deliverResult.success) {
+          console.warn(chalk.yellow(t('block.deliverFailed', { target: deliverTarget, error: deliverResult.error })));
+        }
+      }
+
+      // 成功：跳出重试循环
+      return { action: 'continue', result };
+    }
+
+    // 失败：记录错误，继续重试循环
+    lastResult = result;
+    if (attempt < maxRetries) {
+      // 还有重试机会，继续循环
+      if (spinner) spinner.text = t('block.retrying', { emoji, num: blockNum, type: block.type, attempt: attempt + 1, max: maxRetries });
+      continue;
+    }
+
+    // 所有重试用完，报告最终失败
+    clearInterval(elapsedInterval);
+    if (spinner) {
+      spinner.fail(t('block.failed', { emoji, num: blockNum, type: block.type }));
     } else {
-      if (spinner) {
-        spinner.fail(t('block.failed', { emoji, num: blockNum, type: block.type }));
-      } else {
-        // quiet 模式：只用一行输出错误
-        process.stderr.write(`${t('block.failedQuiet', { emoji, num: blockNum, type: block.type, error: withLine(result.error || '', blockLine) })}
+      process.stderr.write(`${t('block.failedQuiet', { emoji, num: blockNum, type: block.type, error: withLine(result.error || '', blockLine) })}
 `);
-      }
-      state.hasError = true;
-      state.failedBlocks.push({ position: pos, type: block.type, error: result.error || t('error.unknown'), line: blockLine });
-      state.blockRecords.push({
-        position: pos,
-        type: block.type,
-        status: 'failed',
-        error: result.error,
-        duration_ms: result.duration,
-        trace: result.steps ? formatAgentTraceSummary(result.steps) : undefined,
-        line: blockLine,
-      });
+    }
+    state.hasError = true;
+    state.failedBlocks.push({ position: pos, type: block.type, error: result.error || t('error.unknown'), line: blockLine });
+    state.blockRecords.push({
+      position: pos,
+      type: block.type,
+      status: 'failed',
+      error: result.error,
+      duration_ms: result.duration,
+      trace: result.steps ? formatAgentTraceSummary(result.steps) : attempt > 0 ? `${attempt} retries` : undefined,
+      line: blockLine,
+    });
 
-      // 记录失败块的输出变量名
-      const outputName = metaString(block.meta, 'output');
-      if (outputName) {
-        state.failedOutputs.add(outputName);
-      }
+    const failedOutput = metaString(block.meta, 'output');
+    if (failedOutput) {
+      state.failedOutputs.add(failedOutput);
+    }
 
-      if (options.failFast) {
-        console.error(chalk.red(t('warning.failFast')));
-        return { action: 'stop', result };
-      }
+    if (options.failFast) {
+      console.error(chalk.red(t('warning.failFast')));
+      return { action: 'stop', result };
     }
   } catch (error) {
     clearInterval(elapsedInterval);
@@ -339,7 +415,9 @@ export async function executeOneBlock(
       return { action: 'stop' };
     }
   }
-  return { action: 'continue', result: lastResult };
+  } // end retry loop
+
+  return { action: 'continue' as const, result: lastResult };
 }
 
 /**
@@ -504,7 +582,7 @@ export async function executeDocument(
   // 控制流路径额外排除循环变量（{{item}} 等）
   const loopVars = hasControlFlow(doc) ? collectLoopVars(buildTreeSafe(doc) ?? []) : new Set<string>();
   const nonTemplateVarSet = new Set<string>();
-  const varRegex = /\{\{([\w.-]+)\}\}/g;
+  const varRegex = /\{\{([\w.-]+)(?:\s*\|[^}]*)?\}\}/g;
   for (const block of doc.blocks) {
     if (block.type === 'template' || block.type === 'run') continue;
     let m: RegExpExecArray | null;

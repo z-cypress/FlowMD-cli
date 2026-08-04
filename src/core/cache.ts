@@ -12,8 +12,8 @@ import type { ExecutionContext } from './context.js';
 /** 系统变量不参与缓存键（避免伪命中/伪失效） */
 const SYSTEM_VARS = new Set(['execution_time', 'date', 'datetime', 'timestamp']);
 
-/** 变量引用正则（与 parser/context 保持一致） */
-const VAR_REF_REGEX = /\{\{([\w.-]+)\}\}/g;
+/** 变量引用正则（支持管道语法，只提取管道前的变量名） */
+const VAR_REF_REGEX = /\{\{([\w.-]+)(?:\s*\|[^}]*)?\}\}/g;
 
 /** 缓存文件中的一条记录 */
 export interface CacheRecord {

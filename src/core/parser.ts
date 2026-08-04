@@ -62,8 +62,8 @@ export function parseMarkdown(content: string): ParsedDocument {
     }
   });
 
-  // 提取文档中所有 {{变量名}} 引用（支持连字符）
-  const variableRegex = /\{\{([\w-]+(?:\.[\w-]+)*)\}\}/g;
+  // 提取文档中所有 {{变量名}} 引用（支持连字符和管道语法，只取管道前的变量名）
+  const variableRegex = /\{\{([\w-]+(?:\.[\w-]+)*)(?:\s*\|[^}]*)?\}\}/g;
   let match;
   while ((match = variableRegex.exec(content)) !== null) {
     variables.add(match[1]);

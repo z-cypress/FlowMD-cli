@@ -1,7 +1,39 @@
 /**
  * FlowMD 变量上下文管理
  * 存储和渲染代码块中使用的变量
+ * 支持管道过滤器：{{expr | filter:arg}}
  */
+
+/** 管道过滤器正则：{{expr | filter:arg}} 或 {{expr | filter}} 或 {{expr}} */
+const FILTER_REGEX = /\{\{([\w.-]+)(?:\s*\|\s*(\w+)(?:\s*:\s*([^}]+))?)?\}\}/g;
+
+/** 过滤器函数类型 */
+type FilterFn = (value: unknown, arg?: string) => unknown;
+
+/** 内置过滤器表 */
+const FILTERS: Record<string, FilterFn> = {
+  len: (v) => {
+    if (Array.isArray(v)) return v.length;
+    if (typeof v === 'string') return v.length;
+    if (v === null || v === undefined) return 0;
+    return String(v).length;
+  },
+  default: (v, arg) => (v === undefined || v === null || v === '') ? arg : v,
+  join: (v, arg) => Array.isArray(v) ? v.join(arg ?? ', ') : v,
+  round: (v, arg) => {
+    const n = typeof v === 'number' ? v : parseFloat(String(v));
+    if (Number.isNaN(n)) return v;
+    const digits = arg ? parseInt(arg, 10) : 0;
+    return Number(n.toFixed(digits));
+  },
+  upper: (v) => typeof v === 'string' ? v.toUpperCase() : v,
+  lower: (v) => typeof v === 'string' ? v.toLowerCase() : v,
+  truncate: (v, arg) => {
+    if (typeof v !== 'string') return v;
+    const max = arg ? parseInt(arg, 10) : 100;
+    return v.length <= max ? v : v.slice(0, max) + '...';
+  },
+};
 
 export class ExecutionContext {
   /** 变量存储 */
@@ -43,18 +75,25 @@ export class ExecutionContext {
   }
 
   /**
-   * 渲染模板字符串，替换 {{variable}} 占位符
-   * @param template - 包含 {{variable}} 占位符的模板字符串
+   * 渲染模板字符串，替换 {{variable}} 占位符（支持管道过滤器）
+   * @param template - 包含 {{variable}} 或 {{variable | filter:arg}} 占位符的模板字符串
    * @returns 替换变量后的字符串
    */
   render(template: string): string {
-    const variableRegex = /\{\{([\w.-]+)\}\}/g;
+    return template.replace(FILTER_REGEX, (match, expr: string, filterName?: string, filterArg?: string) => {
+      let value = this.resolvePath(expr);
 
-    return template.replace(variableRegex, (match, path: string) => {
-      const value = this.resolvePath(path);
-      if (value === undefined) {
-        return match; // 变量不存在时保留原始占位符
+      // 应用管道过滤器
+      if (filterName) {
+        const fn = FILTERS[filterName];
+        if (!fn) {
+          // 未知过滤器：保留原始占位符
+          return match;
+        }
+        value = fn(value, filterArg);
       }
+
+      if (value === undefined) return match;
       return serializeValue(value);
     });
   }

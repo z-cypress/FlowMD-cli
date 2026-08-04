@@ -227,6 +227,105 @@ describe('executeAIBlock', () => {
     });
   });
 
+  describe('structured output (format)', () => {
+    it('should parse JSON when format is "json"', async () => {
+      mockOpenAICreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '{"name":"Alice","age":30}' } }],
+      });
+
+      const result = await executeAIBlock(
+        'Return JSON',
+        { output: 'data', format: 'json' },
+        context,
+        openaiConfig
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.output).toBe('{\n  "name": "Alice",\n  "age": 30\n}');
+      expect(context.get('data')).toEqual({ name: 'Alice', age: 30 });
+    });
+
+    it('should fail when JSON parse fails with format: json', async () => {
+      mockOpenAICreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'not json at all' } }],
+      });
+
+      const result = await executeAIBlock(
+        'Return JSON',
+        { output: 'data', format: 'json' },
+        context,
+        openaiConfig
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('JSON 解析失败');
+    });
+
+    it('should accept array when format is "json-array"', async () => {
+      mockOpenAICreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '[1,2,3]' } }],
+      });
+
+      const result = await executeAIBlock(
+        'Return array',
+        { output: 'data', format: 'json-array' },
+        context,
+        openaiConfig
+      );
+
+      expect(result.success).toBe(true);
+      expect(context.get('data')).toEqual([1, 2, 3]);
+    });
+
+    it('should fail when non-array with format: json-array', async () => {
+      mockOpenAICreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '{"a":1}' } }],
+      });
+
+      const result = await executeAIBlock(
+        'Return array',
+        { output: 'data', format: 'json-array' },
+        context,
+        openaiConfig
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('期望 JSON 数组');
+    });
+
+    it('should work without format (plain text)', async () => {
+      const result = await executeAIBlock(
+        'Hello',
+        { output: 'data' },
+        context,
+        openaiConfig
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.output).toBe('Mocked AI response');
+      expect(context.get('data')).toBe('Mocked AI response');
+    });
+
+    it('should work with stream and format: json', async () => {
+      mockOpenAICreate.mockResolvedValueOnce(
+        (async function* () {
+          yield { choices: [{ delta: { content: '{"a":' } }] };
+          yield { choices: [{ delta: { content: '1}' } }] };
+        })()
+      );
+
+      const result = await executeAIBlock(
+        'Return JSON',
+        { output: 'data', format: 'json', stream: 'true' },
+        context,
+        openaiConfig
+      );
+
+      expect(result.success).toBe(true);
+      expect(context.get('data')).toEqual({ a: 1 });
+    });
+  });
+
   describe('configuration', () => {
     it('should use default temperature if not specified', async () => {
       const configWithoutTemp: LLMConfig = {

@@ -16,6 +16,8 @@ const KIND_MAP: Record<string, ControlDirectiveKind> = {
   endif: 'endif',
   for: 'for',
   endfor: 'endfor',
+  parallel: 'parallel',
+  endparallel: 'endparallel',
 };
 
 /** 指令关键字集合 */

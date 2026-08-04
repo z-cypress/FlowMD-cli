@@ -9,7 +9,7 @@
  */
 
 import type {
-  ControlNode, ExecutableBlock, IfNode, ForNode,
+  ControlNode, ExecutableBlock, IfNode, ForNode, ParallelNode,
 } from '../../../types/index.js';
 import { executeOneBlock } from '../../executor.js';
 import type { BlockExecState } from '../../executor.js';
@@ -70,6 +70,8 @@ async function walkNodes(
       await walkIf(node, rawContent, state, parts, currentFor);
     } else if (node.kind === 'for') {
       await walkFor(node, rawContent, state, parts);
+    } else if (node.kind === 'parallel') {
+      await walkParallel(node, rawContent, state, parts, currentFor);
     }
     cursor.pos = endOf(node);
   }
@@ -276,6 +278,79 @@ function resolveList(value: unknown): unknown {
     }
   }
   return value;
+}
+
+/**
+ * parallel 区执行：并行执行区内所有块
+ * @param node - parallel 节点
+ * @param rawContent - 原始文档
+ * @param state - 执行状态
+ * @param parts - 输出片段
+ * @param currentFor - 所在 for 节点（collect 用）
+ */
+async function walkParallel(
+  node: ParallelNode,
+  rawContent: string,
+  state: BlockExecState,
+  parts: string[],
+  currentFor: ForNode | undefined
+): Promise<void> {
+  const keepDirectives = !state.options.release;
+
+  // parallel 指令注释
+  if (keepDirectives) {
+    appendText(rawContent.slice(node.sourceStart, node.bodyStart), state, parts);
+  }
+
+  // 收集区内所有块节点（递归展开嵌套 parallel）
+  const allBlocks: ExecutableBlock[] = [];
+  const collectBlocks = (nodes: ControlNode[]): void => {
+    for (const n of nodes) {
+      if (n.kind === 'block') {
+        allBlocks.push(n.block);
+      } else if (n.kind === 'parallel') {
+        collectBlocks(n.children);
+      }
+      // if/for 节点内的块不参与并行（它们有条件依赖）
+    }
+  };
+  collectBlocks(node.children);
+
+  // 并行执行所有块
+  const results = await Promise.allSettled(
+    allBlocks.map(b => executeOneBlock(b, state))
+  );
+
+  // 处理结果
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    const block = allBlocks[i];
+
+    if (r.status === 'fulfilled' && r.value.action === 'stop') {
+      throw new ControlFlowStop();
+    }
+
+    // collect 累积
+    if (currentFor?.collect && r.status === 'fulfilled' && r.value.result?.success) {
+      const outputName = block.meta.output as string;
+      if (outputName) collectInto(currentFor, outputName, state);
+    }
+
+    // 输出源码
+    if (!state.options.release && block.sourceEnd > block.sourceStart) {
+      parts.push(rawContent.slice(block.sourceStart, block.sourceEnd));
+    }
+
+    // debug 模式
+    if (state.options.debug && r.status === 'fulfilled' && r.value.result?.success && r.value.result.output !== null) {
+      parts.push(debugInsert(r.value.result.output));
+    }
+  }
+
+  // endparallel 指令注释
+  if (keepDirectives) {
+    appendText(rawContent.slice(node.bodyEnd, node.sourceEnd), state, parts);
+  }
 }
 
 /**
