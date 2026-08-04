@@ -135,6 +135,10 @@ export interface RunOptions {
   dryRun: boolean;
   /** 逐步执行模式，等待用户输入 */
   stepMode: boolean;
+  /** step 模式：只在指定位置（1-based 块序）的块前暂停 */
+  stepBlock?: number;
+  /** step 模式：只在该类型的块前暂停（ai/data/template/run/agent/include/doc） */
+  breakOn?: string;
   /** 遇到第一个错误就停止 */
   failFast: boolean;
   /** 调试模式，显示执行结果 */

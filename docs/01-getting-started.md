@@ -129,7 +129,14 @@
 
  ## 下一步
 
- - 了解 [三种块类型](blocks/01-ai.md) 的详细用法
+ - 了解七种块类型的详细用法：
+   - [AI 块](blocks/01-ai.md) — 调用 LLM 生成内容
+   - [数据块](blocks/02-data.md) — 查询 SQLite/MySQL/PostgreSQL
+   - [模板块](blocks/03-template.md) — Handlebars 模板渲染
+   - [run 块](blocks/04-run.md) — 沙箱执行 JS/Python 脚本
+   - [控制流](blocks/05-control.md) — if/elif/else/for 指令
+   - [include 块](blocks/06-include.md) — 引入外部 .md/.yaml
+   - [agent 块](blocks/07-agent.md) — 多步自主任务
  - 深入学习 [配置项](02-configuration.md)
  - 查看 [完整示例](03-examples.md)
 

@@ -71,6 +71,14 @@ export async function doctorCommand(): Promise<void> {
     results.push({ name: t('doctor.globalConfig'), status: 'warn', message: t('doctor.notFoundOptional') });
   }
 
+  // 2.5 凭据文件
+  const credentialsFile = join(process.cwd(), '.flow', 'credentials.yml');
+  if (existsSync(credentialsFile)) {
+    results.push({ name: t('doctor.credentials'), status: 'pass', message: t('common.found') });
+  } else {
+    results.push({ name: t('doctor.credentials'), status: 'warn', message: t('doctor.credentialsMissing') });
+  }
+
   // 3. API Key
   if (process.env.OPENAI_API_KEY) {
     const masked = process.env.OPENAI_API_KEY.slice(0, 8) + '...';

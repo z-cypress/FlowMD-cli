@@ -111,6 +111,20 @@ export function loadConfig(): FlowConfig {
     }
   }
 
+  // 3.5 项目凭据 ./.flow/credentials.yml（优先于 config.yml 的 apiKey，低于环境变量）
+  const credentialsPath = join(process.cwd(), '.flow', 'credentials.yml');
+  if (existsSync(credentialsPath)) {
+    try {
+      const content = readFileSync(credentialsPath, 'utf-8');
+      const credConfig = parseYaml(content) as Partial<FlowConfig>;
+      if (credConfig.llm?.apiKey) {
+        config.llm.apiKey = credConfig.llm.apiKey;
+      }
+    } catch {
+      // 凭据解析失败，忽略（保留已加载的配置）
+    }
+  }
+
   // 4. 环境变量（优先级更高）
   const provider = process.env.FLOW_LLM_PROVIDER || process.env.FLOW_PROVIDER;
   if (provider === 'openai' || provider === 'anthropic') {

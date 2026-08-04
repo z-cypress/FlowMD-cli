@@ -108,6 +108,31 @@ function extractVariableRefs(text: string): string[] {
 const SYSTEM_VARS = new Set(['execution_time', 'date', 'datetime', 'timestamp']);
 
 /**
+ * 将字符偏移量换算为文档行号（1-based）
+ * @param content - 文档原始内容
+ * @param offset - 字符偏移
+ * @returns 行号（offset 越界时返回 1）
+ */
+export function offsetToLine(content: string, offset: number): number {
+  if (offset <= 0) return 1;
+  let line = 1;
+  for (let i = 0; i < offset && i < content.length; i++) {
+    if (content[i] === '\n') line++;
+  }
+  return line;
+}
+
+/**
+ * 为错误消息附加行号后缀（如"（第 23 行）"）
+ * @param error - 原始错误消息
+ * @param line - 行号
+ * @returns 带行号的错误消息
+ */
+function withLine(error: string, line: number): string {
+  return `${error}${t('error.line', { line })}`;
+}
+
+/**
  * 执行单个块（含 UI 展示、依赖检测、超时、失败记录）
  * flat 路径与 control 路径共用。返回继续/停止信号与块结果
  * @param block - 要执行的块
@@ -145,7 +170,11 @@ export async function executeOneBlock(
   }
 
   // 逐步执行模式：展示块内容并等待确认
-  if (options.stepMode) {
+  // --step-block / --break-on 可缩小暂停范围
+  const shouldPause = options.stepMode
+    && (options.stepBlock === undefined || options.stepBlock === pos)
+    && (options.breakOn === undefined || options.breakOn === block.type);
+  if (shouldPause) {
     console.log('');
     console.log(chalk.cyan(t('block.stepTitle', { emoji, num: blockNum, type: block.type.toUpperCase() })));
     // 展示块内容（截取前 200 字符）
@@ -169,6 +198,9 @@ export async function executeOneBlock(
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
     if (spinner) spinner.text = t('block.runningWait', { emoji, num: blockNum, type: block.type, seconds: elapsed });
   }, 1000);
+
+  // 块在文档中的行号（供错误消息定位）
+  const blockLine = offsetToLine(state.rawContent, block.sourceStart);
 
   let lastResult: BlockResult | undefined;
 
@@ -260,11 +292,11 @@ export async function executeOneBlock(
         spinner.fail(t('block.failed', { emoji, num: blockNum, type: block.type }));
       } else {
         // quiet 模式：只用一行输出错误
-        process.stderr.write(`${t('block.failedQuiet', { emoji, num: blockNum, type: block.type, error: result.error })}
+        process.stderr.write(`${t('block.failedQuiet', { emoji, num: blockNum, type: block.type, error: withLine(result.error || '', blockLine) })}
 `);
       }
       state.hasError = true;
-      state.failedBlocks.push({ position: pos, type: block.type, error: result.error || t('error.unknown') });
+      state.failedBlocks.push({ position: pos, type: block.type, error: result.error || t('error.unknown'), line: blockLine });
       state.blockRecords.push({
         position: pos,
         type: block.type,
@@ -272,6 +304,7 @@ export async function executeOneBlock(
         error: result.error,
         duration_ms: result.duration,
         trace: result.steps ? formatAgentTraceSummary(result.steps) : undefined,
+        line: blockLine,
       });
 
       // 记录失败块的输出变量名
@@ -290,11 +323,11 @@ export async function executeOneBlock(
     if (spinner) {
       spinner.fail(t('block.exception', { emoji, num: blockNum, type: block.type }));
     }
-    process.stderr.write(`${t('block.exceptionQuiet', { emoji, num: blockNum, type: block.type, error: getErrorMessage(error) })}
+    process.stderr.write(`${t('block.exceptionQuiet', { emoji, num: blockNum, type: block.type, error: withLine(getErrorMessage(error), blockLine) })}
 `);
     state.hasError = true;
-    state.failedBlocks.push({ position: pos, type: block.type, error: getErrorMessage(error) });
-    state.blockRecords.push({ position: pos, type: block.type, status: 'failed', error: getErrorMessage(error), duration_ms: Date.now() - startTime });
+    state.failedBlocks.push({ position: pos, type: block.type, error: getErrorMessage(error), line: blockLine });
+    state.blockRecords.push({ position: pos, type: block.type, status: 'failed', error: getErrorMessage(error), duration_ms: Date.now() - startTime, line: blockLine });
 
     const failedOutput = metaString(block.meta, 'output');
     if (failedOutput) {
@@ -324,18 +357,22 @@ export function printSummary(state: BlockExecState): void {
   if (failed > 0) {
     console.log('');
     console.log(chalk.yellow(t('summary.failed', { success, total: totalBlocks, failed })));
-    const byError = new Map<string, { positions: number[]; type: string }>();
+    const byError = new Map<string, { positions: number[]; lines: number[]; type: string }>();
     for (const f of state.failedBlocks) {
       const entry = byError.get(f.error);
       if (entry) {
         entry.positions.push(f.position);
+        if (f.line) entry.lines.push(f.line);
       } else {
-        byError.set(f.error, { positions: [f.position], type: f.type });
+        byError.set(f.error, { positions: [f.position], lines: f.line ? [f.line] : [], type: f.type });
       }
     }
     for (const [error, entry] of byError) {
       const positions = entry.positions.join(',');
-      console.log(chalk.yellow(t('summary.failedGrouped', { positions, type: entry.type, error })));
+      const lines = entry.lines.length > 0
+        ? t('summary.failedLines', { lines: entry.lines.join(',') })
+        : '';
+      console.log(chalk.yellow(t('summary.failedGrouped', { positions, type: entry.type, error, lines })));
     }
   } else {
     console.log('');
@@ -459,7 +496,7 @@ export async function executeDocument(
   const visitedPaths = new Set<string>();
   await expandMdIncludes(doc, options.currentFile, visitedPaths);
 
-  const state: BlockExecState = createBlockExecState(context, options, config, visitedPaths, doc.blocks.length);
+  const state: BlockExecState = createBlockExecState(context, options, config, doc.rawContent, visitedPaths, doc.blocks.length);
 
   // 排除 template/run 块内的变量：
   // - template 的 Handlebars 循环变量（{{name}}）不需要顶层定义
@@ -639,6 +676,7 @@ export async function executeSubDocument(
     subContext,
     parentState.options,
     parentState.config,
+    subDoc.rawContent,
     parentState.visitedPaths,
     subDoc.blocks.length
   );

@@ -10,9 +10,23 @@ export const zh = {
   'common.found': '已找到',
   'common.notSet': '未设置',
   'error.unknown': '未知错误',
+  'error.line': '（第 {line} 行）',
 
   // CLI 入口 (index.ts)
   'cli.description': '执行 Markdown 文件中的特殊代码块',
+  'validate.title': '\n 校验 {file}\n',
+  'validate.noBlocks': '  未发现任何 FlowMD 块',
+  'validate.ok': '  ✅ 校验通过：所有块都有 output，且变量引用均已定义',
+  'validate.controlError': '  ❌ 控制流语法错误: {error}',
+  'help.blocks.title': '\n FlowMD 块类型速查\n',
+  'help.unknown': '未知帮助主题: {subject}',
+  'help.block.ai': 'ai      调用 LLM 生成内容          model / output / temperature / max_tokens / stream',
+  'help.block.data': 'data    查询数据库（只读）         from / output',
+  'help.block.template': 'template  Handlebars 模板渲染         output',
+  'help.block.run': 'run     沙箱执行 JS/Python 脚本    runtime / vars / output / timeout / memory / permissions',
+  'help.block.agent': 'agent   多步自主任务（ReAct）      goal / provider / tools / output / max_steps / timeout / temperature',
+  'help.block.include': 'include 引入外部 .md/.yaml 文件     path',
+  'help.block.doc': 'doc     子文档执行 + 命名空间返回   path / input / output',
   'cli.banner': '🚀 FlowMD 开始执行',
   'cli.file': '📄 文件: {file}',
   'cli.stdin': 'stdin',
@@ -170,6 +184,7 @@ export const zh = {
   // watch 命令
   'watch.started': '🚀 FlowMD 开始监听',
   'watch.reexecuting': '🔄 文件变化，重新执行...',
+  'watch.changed': '👀 检测到文件变化，准备重新执行...',
   'watch.listening': '👀 正在监听... (Ctrl+C 退出)',
   'watch.elapsed': '⏱ {seconds}s',
   'watch.inlineWritten': '✅ 已覆盖: {file} ({seconds}s)',
@@ -193,7 +208,7 @@ export const zh = {
   'new.needName': '请指定文档名称，如: flowmd new <name>（或 flowmd new -l 查看模板）',
   'new.confirmOverwrite': '文件 {file} 已存在，是否覆盖？',
   'new.overwrite': '⚠ 覆盖已有文件: {file}',
-  'new.chooseTemplate': '选择模板 (basic/data/report/meeting/api/changelog) [basic]: ',
+  'new.chooseTemplate': '选择模板（方向键 ↑/↓ 移动，Enter 确认）',
   'new.created': '✅ 已创建: {file}',
   'new.step1': '  1. 编辑 {file} 添加你的内容',
   'new.step2': '  2. 运行 flow run {file} 执行',
@@ -207,6 +222,7 @@ export const zh = {
   'new.desc.changelog': '更新日志模板',
   'new.desc.research': 'agent 自主调研模板',
   'new.desc.orchestrate': '跨文档编排模板',
+  'new.desc.control': '控制流示例（if/elif/else + for/collect）',
   'new.sourceBuiltin': '(内置)',
   'new.sourceUser': '(用户)',
   'new.aiRunning': '🤖 正在根据描述生成文档...',
@@ -221,6 +237,8 @@ export const zh = {
   'doctor.nodeVersion': '需要 Node.js >= 18',
   'doctor.projectConfig': '项目配置 (.flow/config.yml)',
   'doctor.globalConfig': '全局配置 (~/.flow/config.yml)',
+  'doctor.credentials': '凭据文件 (.flow/credentials.yml)',
+  'doctor.credentialsMissing': '未找到（可选；可把 API Key 写入该文件，或用环境变量）',
   'doctor.envFile': '.env 文件',
   'doctor.notFoundInit': '未找到，运行 flowmd init 创建',
   'doctor.notFoundOptional': '未找到（可选）',
@@ -258,7 +276,8 @@ export const zh = {
   'history.invalidId': '❌ 无效的记录 ID: {id}',
 
   // executor 错误分组
-  'summary.failedGrouped': '   - [{positions}] {type} 块: {error}',
+  'summary.failedGrouped': '   - [{positions}] {type} 块: {error}{lines}',
+  'summary.failedLines': '（第 {lines} 行）',
 
   // serve 命令
   'serve.started': '🚀 FlowMD serve 已启动: http://{host}:{port}',

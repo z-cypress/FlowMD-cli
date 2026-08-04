@@ -9,6 +9,7 @@ import chalk from 'chalk';
 import { parseMarkdown } from '../core/parser.js';
 import { executeDocument } from '../core/executor.js';
 import { t } from '../utils/i18n.js';
+import { nextNewFilename } from '../utils/output-name.js';
 import type { FlowConfig, RunOptions } from '../types/index.js';
 
 /**
@@ -84,13 +85,10 @@ function writeOutput(file: string, content: string, mode: 'inline' | 'new' | 'st
     console.log(chalk.green(t('cli.inlineWritten', { file })));
     return;
   }
-  // new 模式：带时间戳的新文件
+  // new 模式：name_YYYY-MM-DD.md，同日重复自动加序号
   const ext = extname(file);
   const name = basename(file, ext);
-  const iso = new Date().toISOString();
-  const date = iso.split('T')[0];
-  const time = iso.split('T')[1].replace(/:/g, '-').slice(0, 8);
-  const newFile = `${name}_${date}_${time}${ext}`;
+  const newFile = nextNewFilename(name, ext);
   writeFileSync(newFile, content, 'utf-8');
   console.log(chalk.green(t('cli.newWritten', { file: newFile })));
 }

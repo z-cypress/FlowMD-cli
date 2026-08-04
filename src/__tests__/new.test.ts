@@ -10,10 +10,12 @@ import { newCommand } from '../commands/new.js';
 
 const mockAskQuestion = vi.hoisted(() => vi.fn());
 const mockConfirm = vi.hoisted(() => vi.fn());
+const mockSelectFromList = vi.hoisted(() => vi.fn());
 
 vi.mock('../utils/prompt.js', () => ({
   askQuestion: mockAskQuestion,
   confirm: mockConfirm,
+  selectFromList: mockSelectFromList,
 }));
 
 const mockGenerateDocument = vi.hoisted(() => vi.fn());
@@ -41,6 +43,7 @@ describe('newCommand', () => {
     filepath = join(process.cwd(), 'test-doc.md');
     mockConfirm.mockResolvedValue(true);
     mockAskQuestion.mockResolvedValue('basic');
+    mockSelectFromList.mockResolvedValue('basic');
   });
 
   afterEach(() => {

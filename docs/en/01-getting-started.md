@@ -129,7 +129,14 @@ Variables are key: a block's output can be passed to later blocks or the documen
 
 ## Next Steps
 
-- Learn the detailed usage of the [three block types](blocks/01-ai.md)
+- Learn the detailed usage of all seven block types:
+  - [AI block](blocks/01-ai.md) — Call an LLM to generate content
+  - [Data block](blocks/02-data.md) — Query SQLite/MySQL/PostgreSQL
+  - [Template block](blocks/03-template.md) — Handlebars template rendering
+  - [run block](blocks/04-run.md) — Run JS/Python scripts in a sandbox
+  - [Control flow](blocks/05-control.md) — if/elif/else/for directives
+  - [include block](blocks/06-include.md) — Pull in external .md/.yaml files
+  - [agent block](blocks/07-agent.md) — Multi-step autonomous tasks
 - Dive into the [configuration options](02-configuration.md)
 - Browse the [complete examples](03-examples.md)
 

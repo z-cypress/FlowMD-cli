@@ -17,9 +17,11 @@ export interface BlockExecState {
   context: ExecutionContext;
   options: RunOptions;
   config: FlowConfig;
+  /** 当前文档原始内容（供错误消息换算行号） */
+  rawContent: string;
   visitedPaths: Set<string>;
   failedOutputs: Set<string>;
-  failedBlocks: Array<{ position: number; type: string; error: string }>;
+  failedBlocks: Array<{ position: number; type: string; error: string; line?: number }>;
   blockRecords: Array<{
     position: number;
     type: string;
@@ -27,6 +29,7 @@ export interface BlockExecState {
     error?: string;
     duration_ms: number;
     trace?: string;
+    line?: number;
   }>;
   insertResults: BlockInsertResult[];
   hasError: boolean;
@@ -40,6 +43,7 @@ export interface BlockExecState {
  * @param context - 变量上下文
  * @param options - 运行选项
  * @param config - FlowMD 配置
+ * @param rawContent - 当前文档原始内容（错误行号换算用）
  * @param visitedPaths - 已访问路径集合（跨文档共享）
  * @param totalBlocks - 块总数
  * @returns 初始化的执行状态
@@ -48,6 +52,7 @@ export function createBlockExecState(
   context: ExecutionContext,
   options: RunOptions,
   config: FlowConfig,
+  rawContent: string,
   visitedPaths: Set<string>,
   totalBlocks: number
 ): BlockExecState {
@@ -55,6 +60,7 @@ export function createBlockExecState(
     context,
     options,
     config,
+    rawContent,
     visitedPaths,
     failedOutputs: new Set<string>(),
     failedBlocks: [],

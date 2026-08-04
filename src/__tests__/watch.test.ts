@@ -110,15 +110,22 @@ describe('watchCommand', () => {
     expect(logCalls.some((c) => c.includes('hello'))).toBe(true);
   });
 
-  it('should re-execute on file change event', async () => {
-    await watchCommand('test.md', { output: 'stdout' });
+  it('should re-execute on file change event (after debounce)', async () => {
+    vi.useFakeTimers();
+    try {
+      await watchCommand('test.md', { output: 'stdout' });
 
-    // Find the 'change' handler registered on the mock watcher
-    const changeHandler = mockOn.mock.calls.find((call) => call[0] === 'change')?.[1];
-    expect(changeHandler).toBeDefined();
+      // Find the 'change' handler registered on the mock watcher
+      const changeHandler = mockOn.mock.calls.find((call) => call[0] === 'change')?.[1];
+      expect(changeHandler).toBeDefined();
 
-    await changeHandler();
-    expect(mockExecuteDocument).toHaveBeenCalledTimes(2);
+      const pending = changeHandler();
+      await vi.advanceTimersByTimeAsync(300);
+      await pending;
+      expect(mockExecuteDocument).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('should support --debug flag in options', async () => {

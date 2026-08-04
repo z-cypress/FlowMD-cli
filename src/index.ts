@@ -14,12 +14,14 @@ import { parseMarkdown } from './core/parser.js';
 import { executeDocument } from './core/executor.js';
 import { loadConfig } from './utils/config.js';
 import { t, setLang, type Lang } from './utils/i18n.js';
+import { nextNewFilename } from './utils/output-name.js';
 import { watchCommand } from './commands/watch.js';
 import { initCommand } from './commands/init.js';
 import { newCommand } from './commands/new.js';
 import { pipelineCommand } from './commands/pipeline.js';
 import { configGet, configSet } from './commands/config.js';
 import { doctorCommand } from './commands/doctor.js';
+import { validateCommand } from './commands/validate.js';
 import { historyCommand } from './commands/history.js';
 import { serveCommand } from './commands/serve.js';
 import { scheduleCommand } from './commands/schedule.js';
@@ -116,6 +118,41 @@ program.hook('preAction', (thisCommand) => {
   resolveLang(lang);
 });
 
+// 自定义 help 命令（禁用内置的 help 子命令，支持 flowmd help blocks）
+program.helpCommand(false);
+
+program
+  .command('help')
+  .description('Show help for a command, or flowmd help blocks for the block reference')
+  .argument('[subject]', 'help subject: blocks or a command name')
+  .action((subject?: string) => {
+    if (subject === 'blocks') {
+      printBlocksHelp();
+    } else if (subject) {
+      const cmd = program.commands.find((c) => c.name() === subject);
+      if (cmd) {
+        cmd.outputHelp();
+      } else {
+        console.log(chalk.red(t('help.unknown', { subject })));
+        program.outputHelp();
+      }
+    } else {
+      program.outputHelp();
+    }
+  });
+
+/** 打印七种块类型的参数速查表 */
+function printBlocksHelp(): void {
+  console.log(chalk.cyan(t('help.blocks.title')));
+  console.log(chalk.gray('  ' + t('help.block.ai')));
+  console.log(chalk.gray('  ' + t('help.block.data')));
+  console.log(chalk.gray('  ' + t('help.block.template')));
+  console.log(chalk.gray('  ' + t('help.block.run')));
+  console.log(chalk.gray('  ' + t('help.block.agent')));
+  console.log(chalk.gray('  ' + t('help.block.include')));
+  console.log(chalk.gray('  ' + t('help.block.doc')));
+}
+
 program
   .command('run')
   .description('Execute a markdown document')
@@ -123,6 +160,8 @@ program
   .option('-o, --output <mode>', 'Output mode: inline | new | stdout', 'new')
   .option('-d, --dry-run', 'Dry run mode, skip execution', false)
   .option('-s, --step', 'Step mode, wait for user input between blocks', false)
+  .option('--step-block <position>', 'In step mode, pause only before the block at this position (1-based)', undefined)
+  .option('--break-on <type>', 'In step mode, pause only before blocks of this type', undefined)
   .option('-f, --fail-fast', 'Stop on first error', false)
   .option('--debug', 'Debug mode, show execution results', false)
   .option('--release', 'Release mode, remove all code blocks from output', false)
@@ -132,7 +171,8 @@ program
   .option('--yes', 'Skip run block execution confirmation', false)
   .option('--strict', 'Force run block execution confirmation every time', false)
   .option('--cache', 'Cache ai/data block results in .flow/cache/', false)
-  .action(async (file: string, options: { output: string; dryRun: boolean; step: boolean; stepMode: boolean; failFast: boolean; debug: boolean; release: boolean; quiet: boolean; var: string[]; varFile: string; yes: boolean; strict: boolean; cache: boolean }) => {
+  .option('--watch', 'After execution, keep watching the file and re-run on changes', false)
+  .action(async (file: string, options: { output: string; dryRun: boolean; step: boolean; stepMode: boolean; stepBlock?: string; breakOn?: string; failFast: boolean; debug: boolean; release: boolean; quiet: boolean; var: string[]; varFile: string; yes: boolean; strict: boolean; cache: boolean; watch: boolean }) => {
     try {
       // Read content: 从文件或 stdin
       let content: string;
@@ -158,6 +198,8 @@ program
         output: options.output as 'inline' | 'new' | 'stdout',
         dryRun: options.dryRun,
         stepMode: options.step || options.stepMode,
+        stepBlock: options.stepBlock !== undefined ? parseInt(options.stepBlock, 10) : undefined,
+        breakOn: options.breakOn,
         failFast: options.failFast,
         debug: options.debug,
         release: options.release,
@@ -195,13 +237,10 @@ program
         console.log('');
         console.log(chalk.green(t('cli.inlineWritten', { file })));
       } else {
-        // new mode - write to new file（带时间戳，避免同日多次运行相互覆盖）
+        // new mode - write to new file（name_YYYY-MM-DD.md，同日多次运行自动加序号）
         const ext = extname(file);
         const name = basename(file, ext);
-        const iso = new Date().toISOString();
-        const date = iso.split('T')[0];
-        const time = iso.split('T')[1].replace(/:/g, '-').slice(0, 8);
-        const newFile = `${name}_${date}_${time}${ext}`;
+        const newFile = nextNewFilename(name, ext);
         writeFileSync(newFile, rendered, 'utf-8');
         console.log('');
         console.log(chalk.green(t('cli.newWritten', { file: newFile })));
@@ -212,6 +251,11 @@ program
       // 块级失败：部分失败退出码 1
       if (hasError) {
         process.exitCode = 1;
+      }
+
+      // run --watch：执行完后进入监听模式（跳过 watch 的首次执行，避免重复跑）
+      if (options.watch && file) {
+        await watchCommand(file, runOptions, true);
       }
     } catch (error) {
       console.error(chalk.red(t('cli.runFailed', { error: error instanceof Error ? error.message : String(error) })));
@@ -349,6 +393,15 @@ program
   .description('Diagnose environment')
   .action(async () => {
     await doctorCommand();
+  });
+
+program
+  .command('validate')
+  .description('Parse and validate a document without executing it')
+  .argument('<file>', 'Markdown file to validate')
+  .option('--var <key=value>', 'Inject variable (can be used multiple times)', collectVarArgs, [])
+  .action(async (file: string, options: { var: string[] }) => {
+    await validateCommand(file, options);
   });
 
 program

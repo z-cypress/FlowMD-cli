@@ -12,6 +12,7 @@ import { parseMarkdown } from '../core/parser.js';
 import { executeDocument } from '../core/executor.js';
 import { loadConfig } from '../utils/config.js';
 import { t } from '../utils/i18n.js';
+import { nextNewFilename } from '../utils/output-name.js';
 import type { RunOptions, FlowConfig } from '../types/index.js';
 
 /** 执行锁：防止并发执行 */
@@ -41,8 +42,10 @@ function registerSigintHandler(): void {
 /**
  * 执行 watch 命令
  * @param file - 要监听的 Markdown 文件
+ * @param opts - 运行选项
+ * @param skipInitialRun - 是否跳过启动时的首次执行（供 run --watch 复用）
  */
-export async function watchCommand(file: string, opts?: Partial<RunOptions> | string): Promise<void> {
+export async function watchCommand(file: string, opts?: Partial<RunOptions> | string, skipInitialRun = false): Promise<void> {
   const config: FlowConfig = loadConfig();
   // 兼容旧的字符串参数
   let runOptions: RunOptions;
@@ -79,45 +82,54 @@ export async function watchCommand(file: string, opts?: Partial<RunOptions> | st
   console.log(chalk.gray(t('cli.file', { file })));
   console.log('');
 
-  await executeFile(file, config, runOptions);
+  if (!skipInitialRun) {
+    await executeFile(file, config, runOptions);
+  }
 
   // 监听文件变化
   const watcher = chokidar.watch(file, {
     ignoreInitial: true,
-    awaitWriteFinish: {
-      stabilityThreshold: 300,
-      pollInterval: 100,
-    },
+    // 手动 debounce：立即反馈"检测到变化"，300ms 静默后执行
+    awaitWriteFinish: false,
   });
   activeWatcher = watcher;
   registerSigintHandler();
 
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
   watcher.on('change', async () => {
+    // 立即反馈：检测到变化
+    console.log(chalk.gray(t('watch.changed')));
+
     // 如果正在执行，标记有待处理的变更
     if (isExecuting) {
       pendingExecution = true;
       return;
     }
 
-    isExecuting = true;
-    console.clear();
-    console.log(chalk.blue(t('watch.reexecuting')));
-    console.log('');
-
-    await executeFile(file, config, runOptions);
-
-    // 检查是否有待处理的变更
-    while (pendingExecution) {
-      pendingExecution = false;
-      console.clear();
+    // 防抖：连续保存只触发一次执行
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(async () => {
+      debounceTimer = null;
       console.log(chalk.blue(t('watch.reexecuting')));
       console.log('');
-      await executeFile(file, config, runOptions);
-    }
 
-    isExecuting = false;
-    console.log('');
-    console.log(chalk.cyan(t('watch.listening')));
+      isExecuting = true;
+      await executeFile(file, config, runOptions);
+
+      // 检查是否有待处理的变更
+      while (pendingExecution) {
+        pendingExecution = false;
+        console.clear();
+        console.log(chalk.blue(t('watch.reexecuting')));
+        console.log('');
+        await executeFile(file, config, runOptions);
+      }
+
+      isExecuting = false;
+      console.log('');
+      console.log(chalk.cyan(t('watch.listening')));
+    }, 300);
   });
 
   console.log('');
@@ -159,9 +171,7 @@ async function executeFile(
     } else {
       const ext = extname(file);
       const name = basename(file, ext);
-      const date = new Date().toISOString().split('T')[0];
-      const time = new Date().toISOString().split('T')[1].replace(/:/g, '-').slice(0, 8);
-      const newFile = `${name}_${date}_${time}${ext}`;
+      const newFile = nextNewFilename(name, ext);
       writeFileSync(newFile, rendered, 'utf-8');
       console.log('');
       console.log(chalk.green(t('watch.newWritten', { file: newFile, seconds: elapsed })));

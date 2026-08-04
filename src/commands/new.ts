@@ -6,11 +6,12 @@
 import { writeFileSync, existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import chalk from 'chalk';
-import { askQuestion, confirm } from '../utils/prompt.js';
+import { confirm, selectFromList } from '../utils/prompt.js';
+import type { SelectOption } from '../utils/prompt.js';
 import { t } from '../utils/i18n.js';
 import { generateDocument } from '../core/generate.js';
 
-const BASIC_TEMPLATE = `# {{title}}
+const BASIC_TEMPLATE = `# <<title>>
 
 ## 概述
 
@@ -20,7 +21,7 @@ const BASIC_TEMPLATE = `# {{title}}
 
 \`\`\`ai {model: "gpt-4o", output: "summary"}
 分析以下内容并提供见解：
-{{content}}
+<<content>>
 \`\`\`
 
 ## 总结
@@ -69,7 +70,7 @@ const REPORT_TEMPLATE = `# 周报
 ## 数据源
 
 \`\`\`data {from: "default", output: "metrics"}
-SELECT metric_name, metric_value FROM metrics WHERE date >= '{{week_start}}'
+SELECT metric_name, metric_value FROM metrics WHERE date >= '<<week_start>>'
 \`\`\`
 
 ## AI 摘要
@@ -82,7 +83,7 @@ SELECT metric_name, metric_value FROM metrics WHERE date >= '{{week_start}}'
 ## 报告
 
 \`\`\`template
-# 周报 ({{week_range}})
+# 周报 (<<week_range>>)
 
 ## 关键指标
 {{metrics}}
@@ -106,7 +107,7 @@ const MEETING_TEMPLATE = `# 会议纪要 - {{date}}
 
 \`\`\`ai {output: "summary"}
 提取以下会议内容的关键要点：
-{{content}}
+<<content>>
 \`\`\`
 
 ## 待办事项
@@ -204,8 +205,50 @@ const RESEARCH_TEMPLATE = `# {{topic}} 调研报告
 *由 FlowMD 于 {{date}} 生成*
 `;
 
-const ORCHESTRATE_TEMPLATE = `# 综合报告
+const CONTROL_TEMPLATE = `# 控制流示例
 
+> 本模板演示 if/elif/else 分支与 for 循环（含 collect 累积）。
+> 指令是 HTML 注释；条件用 \`{{变量}}\` 引用，运算符见 docs/blocks/05-control.md。
+
+## 条件分支
+
+<!-- if: {{score}} >= 90 -->
+表现优秀 🏆
+<!-- elif: {{score}} >= 60 -->
+表现及格 ✅
+<!-- else -->
+需要努力 💪
+<!-- endif -->
+
+## 列表循环
+
+<!-- for: item in items -->
+| {{item.name}} | {{item.value}} |
+<!-- endfor -->
+
+## 汇总（collect 累积）
+
+<!-- for: item in items {collect: "rows"} -->
+\`\`\`template {output: "row"}
+{{item.name}} = {{item.value}}
+\`\`\`
+<!-- endfor -->
+
+\`\`\`template {output: "summary"}
+共 {{rows.length}} 项：
+
+{{#each rows}}
+- {{this}}
+{{/each}}
+\`\`\`
+
+{{summary}}
+
+---
+*由 FlowMD 于 {{date}} 生成。用 --var score=95 --var 'items=[{"name":"a","value":1},{"name":"b","value":2}]' 运行体验分支与循环。*
+`;
+
+const ORCHESTRATE_TEMPLATE = `# 综合报告
 > 跨文档编排模板：在 ./modules/ 下创建子文档（可含 agent 块），
 > 运行 flowmd run 后由 doc 块隔离子文档执行并汇总。
 
@@ -246,6 +289,7 @@ const TEMPLATE_DESC_KEYS: Record<string, string> = {
   changelog: 'new.desc.changelog',
   research: 'new.desc.research',
   orchestrate: 'new.desc.orchestrate',
+  control: 'new.desc.control',
 };
 
 const TEMPLATES: Record<string, string> = {
@@ -257,6 +301,7 @@ const TEMPLATES: Record<string, string> = {
   changelog: CHANGELOG_TEMPLATE,
   research: RESEARCH_TEMPLATE,
   orchestrate: ORCHESTRATE_TEMPLATE,
+  control: CONTROL_TEMPLATE,
 };
 
 /** 用户模板目录（相对项目根） */
@@ -361,18 +406,24 @@ export async function newCommand(
     // 选择模板类型（内置 + 用户目录）
     let templateType = opts.template;
     if (!templateType) {
-      templateType = await askQuestion(t('new.chooseTemplate'));
+      const catalog = getTemplateCatalog();
+      const options: SelectOption[] = Object.keys(catalog).map((key) => ({
+        label: key,
+        value: key,
+        description: TEMPLATE_DESC_KEYS[key] ? t(TEMPLATE_DESC_KEYS[key]) : undefined,
+      }));
+      templateType = await selectFromList(t('new.chooseTemplate'), options);
     }
     const template = getTemplateCatalog()[templateType] || getTemplateCatalog().basic;
 
-    // 替换占位符
+    // 替换创建期占位符（<<name>> 与运行时 {{变量}} 严格区分）
     const date = new Date().toISOString().split('T')[0];
     content = template
-      .replace(/\{\{title\}\}/g, name.replace(/\.md$/, ''))
+      .replace(/<<title>>/g, name.replace(/\.md$/, ''))
       .replace(/\{\{date\}\}/g, date)
-      .replace(/\{\{content\}\}/g, t('new.contentPlaceholder'))
-      .replace(/\{\{week_start\}\}/g, getWeekStart())
-      .replace(/\{\{week_range\}\}/g, getWeekRange());
+      .replace(/<<content>>/g, t('new.contentPlaceholder'))
+      .replace(/<<week_start>>/g, getWeekStart())
+      .replace(/<<week_range>>/g, getWeekRange());
   }
 
   try {

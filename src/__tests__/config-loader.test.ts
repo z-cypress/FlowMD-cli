@@ -73,6 +73,39 @@ describe('loadConfig', () => {
     expect(config.llm.temperature).toBe(0.9);
   });
 
+  it('should load llm.apiKey from project credentials.yml', () => {
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('credentials.yml')) return true;
+      return false;
+    });
+    mockReadFileSync.mockImplementation((p: string) => {
+      if (p.includes('credentials.yml')) {
+        return 'llm:\n  apiKey: "sk-credential-from-file"\n';
+      }
+      return 'llm:\n  provider: openai\n  model: gpt-4o\n';
+    });
+
+    const config = loadConfig();
+    expect(config.llm.apiKey).toBe('sk-credential-from-file');
+  });
+
+  it('should let env var override credentials.yml apiKey', () => {
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('credentials.yml')) return true;
+      return false;
+    });
+    mockReadFileSync.mockImplementation((p: string) => {
+      if (p.includes('credentials.yml')) {
+        return 'llm:\n  apiKey: "sk-credential-from-file"\n';
+      }
+      return 'llm:\n  provider: openai\n  model: gpt-4o\n';
+    });
+    process.env.OPENAI_API_KEY = 'sk-env-wins';
+
+    const config = loadConfig();
+    expect(config.llm.apiKey).toBe('sk-env-wins');
+  });
+
   it('should apply env vars over file config', () => {
     mockExistsSync.mockImplementation((p: string) => {
       if (p.includes('.flow/config.yml')) return true;

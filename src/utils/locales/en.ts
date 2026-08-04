@@ -10,9 +10,23 @@ export const en = {
   'common.found': 'Found',
   'common.notSet': 'Not set',
   'error.unknown': 'Unknown error',
+  'error.line': ' (line {line})',
 
   // CLI entry (index.ts)
   'cli.description': 'Execute special code blocks in Markdown files',
+  'validate.title': '\n Validating {file}\n',
+  'validate.noBlocks': '  No FlowMD blocks found',
+  'validate.ok': '  ✅ Validation passed: every block has output and all variables are defined',
+  'validate.controlError': '  ❌ Control flow syntax error: {error}',
+  'help.blocks.title': '\n FlowMD Block Reference\n',
+  'help.unknown': 'Unknown help topic: {subject}',
+  'help.block.ai': 'ai      Call an LLM to generate content     model / output / temperature / max_tokens / stream',
+  'help.block.data': 'data    Query a database (read-only)       from / output',
+  'help.block.template': 'template  Render Handlebars templates         output',
+  'help.block.run': 'run     Run JS/Python in a sandbox          runtime / vars / output / timeout / memory / permissions',
+  'help.block.agent': 'agent   Multi-step autonomous task (ReAct) goal / provider / tools / output / max_steps / timeout / temperature',
+  'help.block.include': 'include Pull in external .md/.yaml files     path',
+  'help.block.doc': 'doc     Execute a sub-document + namespace return  path / input / output',
   'cli.banner': '🚀 FlowMD is executing',
   'cli.file': '📄 File: {file}',
   'cli.stdin': 'stdin',
@@ -170,6 +184,7 @@ export const en = {
   // watch command
   'watch.started': '🚀 FlowMD is watching',
   'watch.reexecuting': '🔄 File changed, re-executing...',
+  'watch.changed': '👀 File change detected, preparing to re-execute...',
   'watch.listening': '👀 Watching... (Ctrl+C to quit)',
   'watch.elapsed': '⏱ {seconds}s',
   'watch.inlineWritten': '✅ Overwritten: {file} ({seconds}s)',
@@ -193,7 +208,7 @@ export const en = {
   'new.needName': 'Specify a document name, e.g. flowmd new <name> (or flowmd new -l to list templates)',
   'new.confirmOverwrite': 'File {file} already exists. Overwrite?',
   'new.overwrite': '⚠ Overwriting existing file: {file}',
-  'new.chooseTemplate': 'Choose a template (basic/data/report/meeting/api/changelog) [basic]: ',
+  'new.chooseTemplate': 'Choose a template (arrows to move, Enter to select)',
   'new.created': '✅ Created: {file}',
   'new.step1': '  1. Edit {file} to add your content',
   'new.step2': '  2. Run flow run {file} to execute',
@@ -207,6 +222,7 @@ export const en = {
   'new.desc.changelog': 'Changelog template',
   'new.desc.research': 'Agent-powered research template',
   'new.desc.orchestrate': 'Cross-document orchestration template',
+  'new.desc.control': 'Control flow example (if/elif/else + for/collect)',
   'new.sourceBuiltin': '(built-in)',
   'new.sourceUser': '(user)',
   'new.aiRunning': '🤖 Generating document from description...',
@@ -221,6 +237,8 @@ export const en = {
   'doctor.nodeVersion': 'Node.js >= 18 is required',
   'doctor.projectConfig': 'Project config (.flow/config.yml)',
   'doctor.globalConfig': 'Global config (~/.flow/config.yml)',
+  'doctor.credentials': 'Credentials file (.flow/credentials.yml)',
+  'doctor.credentialsMissing': 'Not found (optional; put your API key there or use an environment variable)',
   'doctor.envFile': '.env file',
   'doctor.notFoundInit': 'Not found. Run flowmd init to create it',
   'doctor.notFoundOptional': 'Not found (optional)',
@@ -258,7 +276,8 @@ export const en = {
   'history.invalidId': '❌ Invalid record ID: {id}',
 
   // executor error grouping
-  'summary.failedGrouped': '   - [{positions}] {type} blocks: {error}',
+  'summary.failedGrouped': '   - [{positions}] {type} blocks: {error}{lines}',
+  'summary.failedLines': ' (lines {lines})',
 
   // serve command
   'serve.started': '🚀 FlowMD serve started: http://{host}:{port}',

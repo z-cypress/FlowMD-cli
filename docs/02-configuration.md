@@ -168,7 +168,7 @@
 
  3. **`.flow/credentials.yml`**
 
-    参考 `credentials.yml.example` 创建，但**务必确认它已被加入 `.gitignore`**。
+    参考 `credentials.yml.example` 创建，但**务必确认它已被加入 `.gitignore`**。`loadConfig` 会自动读取该文件的 `llm.apiKey`（优先级：环境变量 > credentials.yml > config.yml）。
 
  ## 环境变量参考
 
