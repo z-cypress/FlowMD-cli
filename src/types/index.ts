@@ -262,4 +262,6 @@ export interface ExecutionResult {
   variables?: Record<string, unknown>;
   /** 块统计（供 serve/Web IDE 展示） */
   blocks?: { total: number; success: number; failed: number };
+  /** 失败块明细（位置/类型/错误/行号，供 Web IDE 错误标注） */
+  failedBlocks?: Array<{ position: number; type: string; error: string; line?: number }>;
 }

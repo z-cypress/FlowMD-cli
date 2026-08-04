@@ -4,7 +4,7 @@
 
 FlowMD is a CLI tool that executes special code blocks in Markdown files. It parses `.md` files containing `ai`, `data`, and `template` blocks, executes them in sequence, and outputs the rendered result.
 
-**Status**: v0.3.1 — 566 tests passing（2 skipped）。SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE v3: CodeMirror 6 编辑器/高亮/行号 + debug/示例/块统计) + schedule (cron). agent block (v2.0: 多 provider 适配器 chat/direct + ReAct 多步任务 + 6 工具 + 成本预算确认) + 自然语言生成文档 (new --ai) + doc 块 (v2.1 跨文档协作) + pipeline 多文档串联 + 结果缓存 (--cache) + AI 块流式输出 (stream: true) + credentials.yml 自动加载 + 错误行号定位 + validate/help blocks 命令 + 8 个内置模板 + 用户模板目录 (.flow/templates/). VS Code extension (`extension/`: 语法高亮 + ▶ Run CodeLens + run/pipeline 命令). Full documentation in `docs/` (bilingual zh/en).
+**Status**: v0.3.1 — 575 tests passing（2 skipped）。SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE v3: CodeMirror 6 编辑器/高亮/行号 + debug/示例/块统计 + 失败行标红 + 变量面板 + 自动执行) + schedule (cron + --daemon/--stop 后台守护). agent block (v2.0: 多 provider 适配器 chat/direct + ReAct 多步任务 + 6 工具 + 成本预算确认) + 自然语言生成文档 (new --ai) + doc 块 (v2.1 跨文档协作) + pipeline 多文档串联（--when 条件跳过）+ 结果缓存 (--cache) + AI 块流式输出 (stream: true) + credentials.yml 自动加载 + 错误行号定位 + validate/help blocks 命令 + YAML meta 解析 + 配置 schema 校验 + 8 个内置模板 + 用户模板目录 (.flow/templates/). VS Code extension (`extension/`: 语法高亮 + ▶ Run CodeLens + run/pipeline 命令). Full documentation in `docs/` (bilingual zh/en).
 
 ## Tech Stack
 
@@ -43,7 +43,7 @@ flowmd schedule       # Scheduled tasks + cron daemon
 | Command | Options | Status |
 |---------|---------|--------|
 | `run <file>` | `-o` (inline/new/stdout), `-d`, `-s`, `--step-block <pos>`, `--break-on <type>`, `-f`, `--debug`, `--release`, `--var`, `--var-file`, `--yes`, `--strict`, `--cache`, `--watch` | ✅ |
-| `pipeline <files...>` | `-o`, `-d`, `-s`, `-f`, `--debug`, `--release`, `--var`, `--var-file`, `--yes`, `--strict`, `--cache` | ✅ |
+| `pipeline <files...>` | `-o`, `-d`, `-s`, `-f`, `--debug`, `--release`, `--var`, `--var-file`, `--yes`, `--strict`, `--cache`, `--when <expr>` | ✅ |
 | `watch <file>` | `-o`, `-d`, `-s`, `-f`, `--debug`, `--release`, `--yes`, `--strict`, `--cache` | ✅ |
 | `init` | — | ✅ |
 | `new <name>` | `-t` (template), `-l` (list), `-f`, `--ai <desc>` (NL generation) | ✅ |
@@ -53,7 +53,7 @@ flowmd schedule       # Scheduled tasks + cron daemon
 | `history` | `--detail <id>`, `--clear` | ✅ |
 | `help blocks` | 块类型参数速查 | ✅ |
 | `serve` | `--port`, `--host`; endpoints `/` (Web IDE) `/execute` `/templates` `/health` | ✅ |
-| `schedule` | `add <name> <file> --cron`, `list`, `remove`, `pause`, `resume`, `run`, daemon | ✅ |
+| `schedule` | `add <name> <file> --cron`, `list`, `remove`, `pause`, `resume`, `run`, daemon, `--daemon`, `--stop` | ✅ |
 
 ## Block Types
 

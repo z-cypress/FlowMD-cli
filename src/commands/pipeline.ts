@@ -8,23 +8,26 @@ import { basename, extname } from 'node:path';
 import chalk from 'chalk';
 import { parseMarkdown } from '../core/parser.js';
 import { executeDocument } from '../core/executor.js';
+import { evaluateCondition, extractConditionVars } from '../core/blocks/control/condition.js';
 import { t } from '../utils/i18n.js';
 import { nextNewFilename } from '../utils/output-name.js';
 import type { FlowConfig, RunOptions } from '../types/index.js';
 
 /**
- * 执行文档流水线：变量跨文档串联
+ * 执行文档流水线：变量跨文档串联，可选 --when 条件跳过
  * @param files - 按序执行的文档路径列表
  * @param baseOptions - 运行选项（currentFile 按文档覆盖）
  * @param config - FlowMD 配置
+ * @param when - 可选条件表达式，为假时跳过该文档（引用上一份文档的产出变量）
  */
 export async function pipelineCommand(
   files: string[],
   baseOptions: RunOptions,
-  config: FlowConfig
+  config: FlowConfig,
+  when?: string
 ): Promise<void> {
   let accumulated: Record<string, unknown> = {};
-  const results: Array<{ file: string; ok: boolean }> = [];
+  const results: Array<{ file: string; ok: boolean; skipped?: boolean }> = [];
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
@@ -35,6 +38,21 @@ export async function pipelineCommand(
       continue;
     }
 
+    // --when 条件跳过：引用上一份文档的产出变量（含 hasError）
+    // 引用的变量全部未定义（首份文档无上游状态）时视为通过，避免首份被误跳过
+    if (when) {
+      const refs = extractConditionVars(when);
+      const allUndefined = refs.length === 0 || refs.every((v) => accumulated[v] === undefined);
+      const proceed = allUndefined || evaluateCondition(when, (path) => accumulated[path]);
+      if (!proceed) {
+        if (!baseOptions.quiet) {
+          console.log(chalk.gray(t('pipeline.skipped', { num: i + 1, total: files.length, file })));
+        }
+        results.push({ file, ok: true, skipped: true });
+        continue;
+      }
+    }
+
     if (!baseOptions.quiet) {
       console.log(chalk.blue(t('pipeline.step', { num: i + 1, total: files.length, file })));
     }
@@ -43,8 +61,8 @@ export async function pipelineCommand(
     const options: RunOptions = { ...baseOptions, currentFile: file };
     const result = await executeDocument(doc, options, config, accumulated);
 
-    // 串联：合并上一份的变量与本次产出
-    accumulated = { ...accumulated, ...(result.variables ?? {}) };
+    // 串联：合并上一份的变量与本次产出，并暴露 hasError 供 --when 使用
+    accumulated = { ...accumulated, ...(result.variables ?? {}), hasError: result.hasError };
 
     // 按输出模式写出渲染结果
     if (!options.dryRun) {

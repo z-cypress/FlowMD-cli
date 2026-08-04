@@ -173,7 +173,43 @@ export function loadConfig(): FlowConfig {
     config.models = mergedLlm.models;
   }
 
+  // 6. schema 校验：关键字段类型/取值范围，非法值告警并回退到安全默认
+  validateConfig(config);
+
   return config;
+}
+
+/**
+ * 校验关键配置字段的类型与取值范围（1.4.4）
+ * 非法值打印告警并归一化，不抛错（配置错误不应阻断命令执行）
+ * @param config - 合并后的配置（原地归一化）
+ */
+export function validateConfig(config: FlowConfig): void {
+  if (config.llm.provider !== 'openai' && config.llm.provider !== 'anthropic') {
+    console.warn(`⚠️  config: llm.provider = "${config.llm.provider}" 无效，已回退为 openai`);
+    config.llm.provider = 'openai';
+  }
+  if (typeof config.llm.model !== 'string' || !config.llm.model.trim()) {
+    console.warn('⚠️  config: llm.model 为空，已回退为默认模型');
+    config.llm.model = DEFAULT_CONFIG.llm.model;
+  }
+  const temp = config.llm.temperature;
+  if (temp !== undefined && (typeof temp !== 'number' || Number.isNaN(temp) || temp < 0 || temp > 1)) {
+    console.warn(`⚠️  config: llm.temperature = ${String(temp)} 无效（需 0-1），已回退为默认`);
+    config.llm.temperature = DEFAULT_CONFIG.llm.temperature;
+  }
+  const timeout = config.execution.timeout;
+  if (typeof timeout !== 'number' || Number.isNaN(timeout) || timeout <= 0) {
+    console.warn(`⚠️  config: execution.timeout = ${String(timeout)} 无效（需正数秒），已回退为默认`);
+    config.execution.timeout = DEFAULT_CONFIG.execution.timeout;
+  }
+  const validTypes = new Set(['sqlite', 'mysql', 'postgresql']);
+  for (const [name, ds] of Object.entries(config.dataSources)) {
+    if (!ds || !validTypes.has(ds.type)) {
+      console.warn(`⚠️  config: dataSources.${name}.type = "${ds?.type}" 无效（需 sqlite/mysql/postgresql），该数据源将被忽略`);
+      delete config.dataSources[name];
+    }
+  }
 }
 
 /**

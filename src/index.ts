@@ -279,7 +279,8 @@ program
   .option('--yes', 'Skip run block execution confirmation', false)
   .option('--strict', 'Force run block execution confirmation every time', false)
   .option('--cache', 'Cache ai/data block results in .flow/cache/', false)
-  .action(async (files: string[], options: { output: string; dryRun: boolean; step: boolean; stepMode: boolean; failFast: boolean; debug: boolean; release: boolean; quiet: boolean; var: string[]; varFile: string; yes: boolean; strict: boolean; cache: boolean }) => {
+  .option('--when <expr>', 'Skip a document when the condition is false (e.g. "{{hasError}} == false")', undefined)
+  .action(async (files: string[], options: { output: string; dryRun: boolean; step: boolean; stepMode: boolean; failFast: boolean; debug: boolean; release: boolean; quiet: boolean; var: string[]; varFile: string; yes: boolean; strict: boolean; cache: boolean; when?: string }) => {
     try {
       const config: FlowConfig = loadConfig();
       const runOptions: RunOptions = {
@@ -296,7 +297,7 @@ program
         runStrict: options.strict,
         cache: options.cache,
       };
-      await pipelineCommand(files, runOptions, config);
+      await pipelineCommand(files, runOptions, config, options.when);
     } catch (error) {
       console.error(chalk.red(t('cli.runFailed', { error: error instanceof Error ? error.message : String(error) })));
       process.exit(2);
@@ -432,7 +433,9 @@ program
   .description('Manage scheduled tasks (add/list/remove/pause/resume/run) or run the daemon')
   .argument('[args...]', 'Subcommand and arguments')
   .option('--cron <expr>', 'Cron expression (5 fields) for "add"')
-  .action(async (args: string[], options: { cron?: string }) => {
+  .option('--daemon', 'Start the scheduler as a background daemon (PID file + log)', false)
+  .option('--stop', 'Stop a running daemon (reads .flow/schedule.pid)', false)
+  .action(async (args: string[], options: { cron?: string; daemon?: boolean; stop?: boolean }) => {
     try {
       await scheduleCommand(args || [], options);
     } catch (error) {

@@ -193,6 +193,51 @@ describe('loadConfig', () => {
     expect(config.models?.['fast']).toMatchObject({ model: 'gpt-4o-mini', temperature: 0.3 });
     expect(config.models?.['strong']).toMatchObject({ model: 'gpt-4-turbo' });
   });
+
+  it('should warn and fall back on invalid provider', () => {
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('.flow/config.yml')) return true;
+      return false;
+    });
+    mockReadFileSync.mockReturnValue('llm:\n  provider: ollama\n  model: llama3\n');
+
+    const config = loadConfig();
+
+    expect(config.llm.provider).toBe('openai');
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it('should clamp invalid timeout to default', () => {
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('.flow/config.yml')) return true;
+      return false;
+    });
+    mockReadFileSync.mockReturnValue('llm:\n  provider: openai\n  model: gpt-4o\nexecution:\n  timeout: -5\n');
+
+    const config = loadConfig();
+
+    expect(config.execution.timeout).toBe(30);
+    spy.mockRestore();
+  });
+
+  it('should drop data sources with invalid type', () => {
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('.flow/config.yml')) return true;
+      return false;
+    });
+    mockReadFileSync.mockReturnValue(
+      'llm:\n  provider: openai\n  model: gpt-4o\ndataSources:\n  bad:\n    type: mongodb\n    database: test\n'
+    );
+
+    const config = loadConfig();
+
+    expect(config.dataSources['bad']).toBeUndefined();
+    spy.mockRestore();
+  });
 });
 
 describe('getLLMConfig', () => {

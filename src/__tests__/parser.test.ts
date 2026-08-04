@@ -231,6 +231,39 @@ describe('parseMarkdown', () => {
     });
   });
 
+  describe('YAML-backed metadata (1.3.3)', () => {
+    it('should parse numeric and boolean values as strings', () => {
+      const content = '```ai {temperature: 0.1, max_tokens: 1000, stream: true, retry: 3}\nprompt\n```';
+      const doc = parseMarkdown(content);
+
+      expect(doc.blocks[0].meta.temperature).toBe('0.1');
+      expect(doc.blocks[0].meta.max_tokens).toBe('1000');
+      expect(doc.blocks[0].meta.stream).toBe('true');
+      expect(doc.blocks[0].meta.retry).toBe('3');
+    });
+
+    it('should parse nested objects as JSON strings', () => {
+      const content = '```ai {schema: {type: "object", fields: ["a", "b"]}}\nprompt\n```';
+      const doc = parseMarkdown(content);
+
+      expect(doc.blocks[0].meta.schema).toBe('{"type":"object","fields":["a","b"]}');
+    });
+
+    it('should parse JSON-style quoted keys', () => {
+      const content = '```ai {"output": "x", "model": "gpt-4o"}\nprompt\n```';
+      const doc = parseMarkdown(content);
+
+      expect(doc.blocks[0].meta).toEqual({ output: 'x', model: 'gpt-4o' });
+    });
+
+    it('should keep commas inside quoted values', () => {
+      const content = '```ai {model: "gpt-4o,fast", output: "x"}\nprompt\n```';
+      const doc = parseMarkdown(content);
+
+      expect(doc.blocks[0].meta.model).toBe('gpt-4o,fast');
+    });
+  });
+
   describe('edge cases', () => {
     it('should handle empty content', () => {
       const doc = parseMarkdown('');

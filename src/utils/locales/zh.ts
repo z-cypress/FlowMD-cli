@@ -48,6 +48,7 @@ export const zh = {
   'pipeline.step': '▶ [{num}/{total}] {file}',
   'pipeline.done': '✅ 流水线完成: {total} 个文档全部成功',
   'pipeline.doneFailed': '⚠️  流水线完成: {ok}/{total} 成功, {failed} 个失败',
+  'pipeline.skipped': '⏭ [{num}/{total}] {file} 跳过（--when 条件为假）',
 
   // 执行器 (executor.ts)
   'error.timeout': '执行超时 ({seconds}s)',
@@ -306,6 +307,11 @@ export const zh = {
   'schedule.needName': '❌ 请指定任务名',
   'schedule.unknownSub': '❌ 未知子命令: {sub}',
   'schedule.daemonStarted': '🚀 调度器已启动',
+  'schedule.daemonRunning': '⏳ 后台守护已在运行 (pid {pid})',
+  'schedule.daemonStartedPid': '🚀 后台守护已启动 (pid {pid})',
+  'schedule.daemonLog': '   日志: {log}',
+  'schedule.daemonNotRunning': '后台守护未在运行',
+  'schedule.daemonStopped': '⏹ 已停止后台守护 (pid {pid})',
   'schedule.exitHint': '按 Ctrl+C 退出',
   'schedule.stopped': '⏹ 已停止',
   'schedule.registered': '  ⏱ {name} → {cron} ({file})',

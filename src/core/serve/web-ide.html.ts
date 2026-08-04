@@ -42,6 +42,9 @@ export const WEB_IDE_HTML = `<!DOCTYPE html>
   /* FlowMD 块头与变量的自定义高亮 */
   #editor-host .cm-flowmd-fence { color: #0969da; font-weight: 600; }
   #editor-host .cm-flowmd-var { color: #cf222e; }
+  #editor-host .cm-error-line { background: rgba(207, 34, 46, 0.12); }
+  #vars-btn { margin-left: 8px; padding: 1px 8px; font-size: 11px; border: 1px solid #d0d7de; border-radius: 3px; background: #fff; color: #57606a; cursor: pointer; }
+  #vars-btn.active { background: #0969da; color: #fff; border-color: #0969da; }
   #preview { flex: 1; padding: 12px; overflow: auto; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
   #preview.error { color: #cf222e; }
   .status { padding: 4px 12px; font-size: 12px; color: #1f2328; background: #dafbe1; border-top: 1px solid #1a7f37; display: none; }
@@ -58,6 +61,7 @@ export const WEB_IDE_HTML = `<!DOCTYPE html>
   </label>
   <label><input type="checkbox" id="release-check"> release</label>
   <label><input type="checkbox" id="debug-check"> debug（显示 agent 步骤轨迹）</label>
+  <label><input type="checkbox" id="auto-run-check"> 自动执行（编辑后实时预览）</label>
   <button id="example-btn">示例</button>
   <button id="run-btn">▶ 执行</button>
 </header>
@@ -74,7 +78,7 @@ export const WEB_IDE_HTML = `<!DOCTYPE html>
     <div id="editor-host"></div>
   </div>
   <div class="pane">
-    <div class="pane-header">执行结果</div>
+    <div class="pane-header">执行结果 <button id="vars-btn" title="切换查看变量">变量</button></div>
     <pre id="preview">点击"执行"查看结果</pre>
   </div>
 </main>
@@ -83,7 +87,7 @@ export const WEB_IDE_HTML = `<!DOCTYPE html>
 
 <script type="module">
 import { basicSetup, EditorView } from 'https://esm.sh/codemirror@6.0.1';
-import { EditorState, Decoration } from 'https://esm.sh/@codemirror/state@6.4.1';
+import { EditorState, Decoration, StateEffect, StateField } from 'https://esm.sh/@codemirror/state@6.4.1';
 import { ViewPlugin } from 'https://esm.sh/@codemirror/view@6.24.0';
 import { markdown } from 'https://esm.sh/@codemirror/lang-markdown@6.2.5';
 
@@ -98,18 +102,36 @@ import { markdown } from 'https://esm.sh/@codemirror/lang-markdown@6.2.5';
   var addVarBtn = document.getElementById('add-var');
   var runBtn = document.getElementById('run-btn');
   var exampleBtn = document.getElementById('example-btn');
+  var varsBtn = document.getElementById('vars-btn');
+  var autoRunCheck = document.getElementById('auto-run-check');
+  var lastVariables = null;
+  var showVars = false;
 
-  // ---- CodeMirror 自定义高亮：FlowMD 块头 + {{变量}} ----
+  // ---- 失败块行号状态（供编辑器错误行标红）----
+  var setErrors = StateEffect.define();
+  var errorField = StateField.define({
+    create: function () { return new Set(); },
+    update: function (set, tr) {
+      for (var i = 0; i < tr.effects.length; i++) {
+        if (tr.effects[i].is(setErrors)) return tr.effects[i].value;
+      }
+      return set;
+    }
+  });
+
+  // ---- CodeMirror 自定义高亮：FlowMD 块头 + {{变量}} + 错误行 ----
   var flowmdTheme = EditorView.baseTheme({
     '.cm-flowmd-fence': { color: '#0969da', fontWeight: '600' },
-    '.cm-flowmd-var': { color: '#cf222e' }
+    '.cm-flowmd-var': { color: '#cf222e' },
+    '.cm-error-line': { backgroundColor: 'rgba(207, 34, 46, 0.12)' }
   });
 
   var flowmdHighlightPlugin = ViewPlugin.fromClass(
     class {
       constructor(view) { this.decorations = this.build(view); }
       update(update) {
-        if (update.docChanged || update.viewportChanged) {
+        if (update.docChanged || update.viewportChanged ||
+            update.state.field(errorField) !== update.startState.field(errorField)) {
           this.decorations = this.build(update.view);
         }
       }
@@ -125,6 +147,14 @@ import { markdown } from 'https://esm.sh/@codemirror/lang-markdown@6.2.5';
             ranges.push(Decoration.mark({ class: 'cm-flowmd-var' }).range(m.index, m.index + m[2].length));
           }
         }
+        // 失败块行标红
+        var errors = view.state.field(errorField);
+        if (errors && errors.size > 0) {
+          errors.forEach(function (lineNo) {
+            var line = view.state.doc.line(Math.min(lineNo, view.state.doc.lines));
+            ranges.push(Decoration.line({ class: 'cm-error-line' }).range(line.from, line.from));
+          });
+        }
         return Decoration.set(ranges);
       }
     },
@@ -139,7 +169,9 @@ import { markdown } from 'https://esm.sh/@codemirror/lang-markdown@6.2.5';
         markdown(),
         EditorView.lineWrapping,
         flowmdTheme,
-        flowmdHighlightPlugin
+        flowmdHighlightPlugin,
+        errorField,
+        EditorView.updateListener.of(function () { scheduleAutoRun(); })
       ]
     });
     return new EditorView({ state: state, parent: host });
@@ -149,6 +181,15 @@ import { markdown } from 'https://esm.sh/@codemirror/lang-markdown@6.2.5';
   function getValue() { return editor.state.doc.toString(); }
   function setValue(content) {
     editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: content } });
+  }
+
+  // 自动执行（热重载）：编辑内容后 debounce 800ms 自动运行
+  var autoRunTimer = null;
+  function scheduleAutoRun() {
+    if (autoRunCheck && autoRunCheck.checked) {
+      if (autoRunTimer) clearTimeout(autoRunTimer);
+      autoRunTimer = setTimeout(doRun, 800);
+    }
   }
 
   function showStatus(msg, kind) {
@@ -240,7 +281,7 @@ import { markdown } from 'https://esm.sh/@codemirror/lang-markdown@6.2.5';
   addVarBtn.addEventListener('click', function () { addVarRow(); });
   addVarRow();
 
-  runBtn.addEventListener('click', function () {
+  function doRun() {
     var markdown = getValue();
     if (!markdown.trim()) {
       showStatus('编辑区为空', 'warn');
@@ -268,6 +309,9 @@ import { markdown } from 'https://esm.sh/@codemirror/lang-markdown@6.2.5';
         return;
       }
       var data = json.data;
+      lastVariables = data.variables || null;
+      showVars = false;
+      varsBtn.classList.remove('active');
       preview.textContent = data.content;
       if (data.hasError) {
         preview.classList.add('error');
@@ -275,10 +319,19 @@ import { markdown } from 'https://esm.sh/@codemirror/lang-markdown@6.2.5';
       } else {
         preview.classList.remove('error');
       }
+      // 失败块行号 → 编辑器标红
+      var lines = new Set();
+      (data.failedBlocks || []).forEach(function (fb) {
+        if (fb.line) lines.add(fb.line);
+      });
+      editor.dispatch({ effects: setErrors.of(lines) });
       if (data.blocks) {
         var b = data.blocks;
-        showStatus('共 ' + b.total + ' 个块：' + b.success + ' 成功 / ' + b.failed + ' 失败' +
-          (debugCheck.checked ? '（debug 模式）' : ''), data.hasError ? 'warn' : '');
+        var msg = '共 ' + b.total + ' 个块：' + b.success + ' 成功 / ' + b.failed + ' 失败';
+        if (data.failedBlocks && data.failedBlocks.length > 0) {
+          msg += '（失败行已标红）';
+        }
+        showStatus(msg + (debugCheck.checked ? '（debug 模式）' : ''), data.hasError ? 'warn' : '');
       }
     }).catch(function (err) {
       preview.textContent = '请求失败: ' + String(err);
@@ -286,6 +339,22 @@ import { markdown } from 'https://esm.sh/@codemirror/lang-markdown@6.2.5';
     }).finally(function () {
       runBtn.disabled = false;
     });
+  }
+
+  runBtn.addEventListener('click', doRun);
+
+  // 变量面板切换
+  varsBtn.addEventListener('click', function () {
+    showVars = !showVars;
+    if (showVars) {
+      varsBtn.classList.add('active');
+      preview.textContent = lastVariables === null
+        ? '（尚未执行，或本次执行未产生变量）'
+        : JSON.stringify(lastVariables, null, 2);
+    } else {
+      varsBtn.classList.remove('active');
+      preview.textContent = '点击"执行"查看结果';
+    }
   });
 })();
 </script>

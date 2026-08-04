@@ -572,6 +572,7 @@ export async function executeDocument(
           success: state.totalBlocks - state.failedBlocks.length,
           failed: state.failedBlocks.length,
         },
+        failedBlocks: state.failedBlocks,
       };
     } catch (error) {
       if (error instanceof ControlTreeError || error instanceof ConditionSyntaxError) {
@@ -644,6 +645,7 @@ export async function executeDocument(
       success: state.totalBlocks - state.failedBlocks.length,
       failed: state.failedBlocks.length,
     },
+    failedBlocks: state.failedBlocks,
   };
 }
 

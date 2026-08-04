@@ -133,4 +133,31 @@ describe('pipelineCommand', () => {
     logSpy.mockRestore();
     errorSpy.mockRestore();
   });
+
+  it('should skip documents when --when condition is false', async () => {
+    writeFileSync(join(tempDir, 'a.md'), '```template {output: "ok_flag"}\n真\n```');
+    writeFileSync(join(tempDir, 'b.md'), '# 不应执行 b');
+    writeFileSync(join(tempDir, 'c.md'), '# 应执行 c');
+
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    // a 产出 ok_flag="真"，b 条件 {{ok_flag}} == "假" 为假 → b 被跳过
+    await pipelineCommand(['a.md', 'b.md'], fullOptions({ output: 'stdout' }), config, '{{ok_flag}} == "假"');
+    logSpy.mockRestore();
+
+    expect(process.exitCode).toBe(0);
+  });
+
+  it('should execute a document when --when condition is true', async () => {
+    writeFileSync(join(tempDir, 'a.md'), '```template {output: "ok_flag"}\n真\n```');
+    writeFileSync(join(tempDir, 'b.md'), '# B 内容\n\n{{ok_flag}}');
+
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    // a 产出 ok_flag="真"，b 条件 {{ok_flag}} == "真" 通过 → 执行并生成输出文件
+    await pipelineCommand(['a.md', 'b.md'], fullOptions({ output: 'new' }), config, '{{ok_flag}} == "真"');
+    logSpy.mockRestore();
+
+    const files = readdirSync(tempDir);
+    expect(files.some((f) => f.startsWith('b_') && f.endsWith('.md'))).toBe(true);
+    expect(process.exitCode).toBe(0);
+  });
 });

@@ -6,6 +6,7 @@
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import { visit } from 'unist-util-visit';
+import { parse as parseYaml } from 'yaml';
 import type { ParsedDocument, ExecutableBlock, BlockType, ControlDirective } from '../types/index.js';
 import { parseDirective } from './blocks/control/directives.js';
 
@@ -100,28 +101,80 @@ function detectBlockType(lang: string): BlockType | null {
  * @returns 解析后的元数据对象
  */
 function parseMetadata(metaStr: string): Record<string, string | string[]> {
-  const meta: Record<string, string | string[]> = {};
-
-  // 使用花括号计数提取内容，支持嵌套
+  // 提取花括号内容（支持嵌套）
   const startIndex = metaStr.indexOf('{');
-  if (startIndex === -1) return meta;
+  if (startIndex === -1) return {};
+  const content = extractBraceContent(metaStr, startIndex);
+  if (content === null) return {};
 
+  // 优先使用 YAML flow-mapping 解析（更健壮：支持嵌套对象、布尔/null、数字、引号内逗号）
+  try {
+    const parsed = parseYaml(`{${content}}`) as Record<string, unknown>;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const meta: Record<string, string | string[]> = {};
+      for (const [key, value] of Object.entries(parsed)) {
+        meta[key] = normalizeMetaValue(value);
+      }
+      return meta;
+    }
+  } catch {
+    // YAML 解析失败则回退到手写解析器
+  }
+
+  return parseMetadataLegacy(content);
+}
+
+/**
+ * 提取从 startIndex 起配对的 `{}` 内容（跨嵌套）
+ * @param metaStr - 原始 meta 字符串
+ * @param startIndex - `{` 位置
+ * @returns 花括号内的内容，未闭合返回 null
+ */
+function extractBraceContent(metaStr: string, startIndex: number): string | null {
   let depth = 0;
-  let endIndex = -1;
   for (let i = startIndex; i < metaStr.length; i++) {
     if (metaStr[i] === '{') depth++;
     if (metaStr[i] === '}') {
       depth--;
       if (depth === 0) {
-        endIndex = i;
-        break;
+        return metaStr.slice(startIndex + 1, i);
       }
     }
   }
+  return null;
+}
 
-  if (endIndex === -1) return meta;
+/**
+ * 将 YAML 解析出的值归一化为 string | string[]
+ * 数字/布尔/null 字符串化，数组逐元素字符串化，嵌套对象 JSON 序列化
+ * @param value - YAML 解析出的值
+ * @returns 归一化后的值
+ */
+function normalizeMetaValue(value: unknown): string | string[] {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (value === null) return 'null';
+  if (Array.isArray(value)) {
+    return value.map((item) => {
+      if (typeof item === 'string') return item;
+      if (item !== null && typeof item === 'object') return JSON.stringify(item);
+      return String(item);
+    });
+  }
+  if (typeof value === 'object') {
+    return JSON.stringify(value);
+  }
+  return String(value);
+}
 
-  const content = metaStr.slice(startIndex + 1, endIndex);
+/**
+ * 手写 JSON 子集解析（YAML 失败时的回退）
+ * 输入：'{from: "default", output: "sales"}'
+ * @param content - 花括号内的内容（不含外层 {}）
+ * @returns 解析后的元数据对象
+ */
+function parseMetadataLegacy(content: string): Record<string, string | string[]> {
+  const meta: Record<string, string | string[]> = {};
   if (!content.trim()) return meta;
 
   // 按顶层逗号分割键值对（忽略引号内部的逗号）

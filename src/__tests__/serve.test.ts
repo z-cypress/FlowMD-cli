@@ -113,8 +113,10 @@ describe('flowmd serve', () => {
       const { body } = await request('POST', '/execute', {
         markdown: '# Doc\n\n```template\nContent\n```\n\n```template\nMore\n```',
       });
-      const data = body.data as { blocks: { total: number; success: number; failed: number } };
+      const data = body.data as { blocks: { total: number; success: number; failed: number }; variables?: Record<string, unknown>; failedBlocks?: unknown[] };
       expect(data.blocks).toEqual({ total: 2, success: 2, failed: 0 });
+      expect(data.variables).toBeDefined();
+      expect(Array.isArray(data.failedBlocks)).toBe(true);
     });
 
     it('should return error for missing markdown', async () => {
@@ -149,6 +151,7 @@ describe('flowmd serve', () => {
       expect(html).toContain('release');
       expect(html).toContain('debug-check');
       expect(html).toContain('example-btn');
+      expect(html).toContain('vars-btn');
     });
 
     it('should return 404 for unknown path', async () => {

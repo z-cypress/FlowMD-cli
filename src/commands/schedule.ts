@@ -3,8 +3,9 @@
  * 定时任务管理：add / list / remove / pause / resume / run / 前台守护
  */
 
-import { existsSync } from 'node:fs';
+import { existsSync, writeFileSync, readFileSync, unlinkSync, createWriteStream, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { spawn } from 'node:child_process';
 import chalk from 'chalk';
 import type { ScheduledTask } from 'node-cron';
 import {
@@ -17,15 +18,36 @@ import { t } from '../utils/i18n.js';
 /** 记录已注册任务名（避免重复注册） */
 const running = new Set<string>();
 
+/** PID 文件路径（后台守护） */
+function daemonPidPath(): string {
+  return join(process.cwd(), '.flow', 'schedule.pid');
+}
+
+/** 日志文件路径（后台守护） */
+function daemonLogPath(): string {
+  return join(process.cwd(), '.flow', 'schedule.log');
+}
+
 /**
  * 执行 schedule 命令
  * @param args - 子命令与参数：add <name> <file> / list / remove <name> / pause|resume <name> / run <name>
- * @param opts - 选项（cron 等）
+ * @param opts - 选项（cron / daemon / stop 等）
  */
 export async function scheduleCommand(
   args: string[],
-  opts: { cron?: string } = {}
+  opts: { cron?: string; daemon?: boolean; stop?: boolean } = {}
 ): Promise<void> {
+  // --daemon：后台守护启动（detached 子进程 + PID 文件 + 日志重定向）
+  if (opts.daemon) {
+    startDaemon();
+    return;
+  }
+  // --stop：停止后台守护
+  if (opts.stop) {
+    stopDaemon();
+    return;
+  }
+
   const sub = args[0];
 
   // 无子命令 → 前台守护运行
@@ -97,6 +119,73 @@ async function runDaemon(): Promise<void> {
 
   // 保持进程存活（定时器触发间隔 > 事件循环空转阈值时也需要常驻句柄）
   await new Promise<void>(() => {});
+}
+
+/**
+ * 后台守护启动：以 detached 子进程运行 `flowmd schedule`（前台 daemon）
+ * 写入 .flow/schedule.pid，stdout/stderr 重定向到 .flow/schedule.log
+ */
+function startDaemon(): void {
+  const pidPath = daemonPidPath();
+  if (existsSync(pidPath)) {
+    const existing = parseInt(readFileSync(pidPath, 'utf-8').trim(), 10);
+    if (existing && isProcessAlive(existing)) {
+      console.log(chalk.yellow(t('schedule.daemonRunning', { pid: existing })));
+      return;
+    }
+    unlinkSync(pidPath);
+  }
+
+  // 重新执行当前 CLI 的 schedule 前台 daemon；entry 为构建产物 dist/index.js
+  const entry = process.argv[1];
+  mkdirSync(join(process.cwd(), '.flow'), { recursive: true });
+  const child = spawn(process.execPath, [entry, 'schedule'], {
+    detached: true,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  // 子进程 stdout/stderr → 日志文件
+  const logStream = createWriteStream(daemonLogPath(), { flags: 'a' });
+  logStream.on('error', () => { /* 日志流错误不影响守护启动 */ });
+  if (child.stdout) child.stdout.pipe(logStream);
+  if (child.stderr) child.stderr.pipe(logStream);
+  child.unref();
+
+  writeFileSync(pidPath, String(child.pid), 'utf-8');
+  console.log(chalk.green(t('schedule.daemonStartedPid', { pid: child.pid })));
+  console.log(chalk.gray(t('schedule.daemonLog', { log: daemonLogPath() })));
+}
+
+/**
+ * 停止后台守护（读取 PID 文件发送 SIGTERM）
+ */
+function stopDaemon(): void {
+  const pidPath = daemonPidPath();
+  if (!existsSync(pidPath)) {
+    console.log(chalk.yellow(t('schedule.daemonNotRunning')));
+    return;
+  }
+  const pid = parseInt(readFileSync(pidPath, 'utf-8').trim(), 10);
+  try {
+    process.kill(pid, 'SIGTERM');
+  } catch {
+    // 进程已不存在
+  }
+  unlinkSync(pidPath);
+  console.log(chalk.green(t('schedule.daemonStopped', { pid })));
+}
+
+/**
+ * 检查进程是否存活（信号 0 探测）
+ * @param pid - 进程 ID
+ * @returns 是否存活
+ */
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**

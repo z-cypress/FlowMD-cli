@@ -48,6 +48,7 @@ export const en = {
   'pipeline.step': '▶ [{num}/{total}] {file}',
   'pipeline.done': '✅ Pipeline complete: all {total} documents succeeded',
   'pipeline.doneFailed': '⚠️  Pipeline complete: {ok}/{total} succeeded, {failed} failed',
+  'pipeline.skipped': '⏭ [{num}/{total}] {file} skipped (--when condition is false)',
 
   // Executor (executor.ts)
   'error.timeout': 'Execution timed out ({seconds}s)',
@@ -306,6 +307,11 @@ export const en = {
   'schedule.needName': '❌ Please specify a task name',
   'schedule.unknownSub': '❌ Unknown subcommand: {sub}',
   'schedule.daemonStarted': '🚀 Scheduler started',
+  'schedule.daemonRunning': '⏳ Daemon already running (pid {pid})',
+  'schedule.daemonStartedPid': '🚀 Daemon started in background (pid {pid})',
+  'schedule.daemonLog': '   Log: {log}',
+  'schedule.daemonNotRunning': 'Daemon is not running',
+  'schedule.daemonStopped': '⏹ Daemon stopped (pid {pid})',
   'schedule.exitHint': 'Press Ctrl+C to exit',
   'schedule.stopped': '⏹ Stopped',
   'schedule.registered': '  ⏱ {name} → {cron} ({file})',
