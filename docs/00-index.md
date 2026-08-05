@@ -1,8 +1,8 @@
  # FlowMD 文档
 
- > **版本**: 0.3.1 | **许可证**: MIT
+ > **版本**: 0.6.0 | **许可证**: MIT
  >
- > FlowMD 是一个 CLI 工具，用于执行 Markdown 文件中的特殊代码块。它支持调用 AI（LLM）、查询数据库、渲染模板，并将结果填充回文档。
+ > FlowMD 是一个 CLI 工具，用于执行 Markdown 文件中的特殊代码块。它支持调用 AI（LLM）、查询数据库、渲染模板、执行脚本与自主 agent，并将结果填充回文档。
 
  ---
 
@@ -47,6 +47,14 @@
  - 模板块支持 Handlebars 及 `{{json}}` helper
  - run 块支持 js（isolated-vm 沙箱）与 python（子进程），含首次确认与资源限制
  - 控制流：`<!-- if/elif/else/endif -->` 条件分支与 `<!-- for/endfor -->` 循环（含 collect 累积）
+ - 并行执行：`<!-- parallel/endparallel -->` 区间内块并发执行（v0.5.0）
+ - 管道操作符：`{{x | len}}` / `{{x | join:", "}}` / `{{name | default:"匿名"}}` 等 7 种过滤器（v0.5.0）
+ - AI 块增强：`format: "json"` 结构化输出、`retry`/`validate` 重试校验、`stream: true` 流式、`deliver` 输出投递（v0.5.0）
+ - Prompt 库：`.flow/prompts/` 复用提示词；多轮对话 `conversation:`（v0.6.0）
+ - 成本仪表盘：`flowmd cost --days 7` 按日/文件聚合 token 用量与估算费用（v0.6.0）
+ - 文档快照测试：`flowmd test <file>` 执行并比对 golden snapshot（v0.6.0）
+ - 块插件系统：`.flow/plugins/` 自定义块类型（v0.6.0）
+ - 可观测性：`--trace` 输出 JSON span（时间/块/token/状态）（v0.6.0）
  - 系统变量：`{{date}}`、`{{datetime}}`、`{{timestamp}}`、`{{execution_time}}`
  - 执行模式：试运行、逐步、失败即停、debug、release
  - 错误恢复：依赖跳过、错误分组汇总、退出码 0/1/2

@@ -1,6 +1,6 @@
 # FlowMD Documentation
 
-> **Version**: 0.3.1 | **License**: MIT
+> **Version**: 0.6.0 | **License**: MIT
 >
 > FlowMD is a CLI tool for executing special code blocks in Markdown files. It can call AI (LLMs), query databases, render templates, and fill the results back into the document.
 
@@ -47,6 +47,14 @@ Currently at **MVP stage**, the following is implemented:
 - Template blocks supporting Handlebars and the `{{json}}` helper
 - Run blocks supporting js (isolated-vm sandbox) and python (subprocess), with first-run confirmation and resource limits
 - Control flow: `<!-- if/elif/else/endif -->` conditionals and `<!-- for/endfor -->` loops (with collect accumulation)
+- Parallel execution: `<!-- parallel/endparallel -->` concurrent block region (v0.5.0)
+- Pipe operators: `{{x | len}}` / `{{x | join:", "}}` / `{{name | default:"anonymous"}}` and 6 more filters (v0.5.0)
+- AI block enhancements: `format: "json"` structured output, `retry`/`validate`, `stream: true`, `deliver` output delivery (v0.5.0)
+- Prompt library: reusable prompts in `.flow/prompts/`; multi-turn `conversation:` (v0.6.0)
+- Cost dashboard: `flowmd cost --days 7` aggregates token usage and estimated cost by day/file (v0.6.0)
+- Snapshot testing: `flowmd test <file>` executes and compares against golden snapshots (v0.6.0)
+- Block plugin system: custom block types in `.flow/plugins/` (v0.6.0)
+- Observability: `--trace` outputs JSON spans (time/block/token/status) (v0.6.0)
 - System variables: `{{date}}`, `{{datetime}}`, `{{timestamp}}`, `{{execution_time}}`
 - Execution modes: dry-run, step, fail-fast, debug, release
 - Error recovery: dependency skip, grouped failure summary, exit codes 0/1/2

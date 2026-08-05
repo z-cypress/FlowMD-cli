@@ -20,7 +20,7 @@ export const en = {
   'validate.controlError': '  ❌ Control flow syntax error: {error}',
   'help.blocks.title': '\n FlowMD Block Reference\n',
   'help.unknown': 'Unknown help topic: {subject}',
-  'help.block.ai': 'ai      Call an LLM to generate content     model / output / temperature / max_tokens / stream',
+  'help.block.ai': 'ai      Call an LLM to generate content     model / output / temperature / max_tokens / stream / format / prompt / conversation / retry / validate / deliver',
   'help.block.data': 'data    Query a database (read-only)       from / output',
   'help.block.template': 'template  Render Handlebars templates         output',
   'help.block.run': 'run     Run JS/Python in a sandbox          runtime / vars / output / timeout / memory / permissions',

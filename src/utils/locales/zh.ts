@@ -20,7 +20,7 @@ export const zh = {
   'validate.controlError': '  ❌ 控制流语法错误: {error}',
   'help.blocks.title': '\n FlowMD 块类型速查\n',
   'help.unknown': '未知帮助主题: {subject}',
-  'help.block.ai': 'ai      调用 LLM 生成内容          model / output / temperature / max_tokens / stream',
+  'help.block.ai': 'ai      调用 LLM 生成内容          model / output / temperature / max_tokens / stream / format / prompt / conversation / retry / validate / deliver',
   'help.block.data': 'data    查询数据库（只读）         from / output',
   'help.block.template': 'template  Handlebars 模板渲染         output',
   'help.block.run': 'run     沙箱执行 JS/Python 脚本    runtime / vars / output / timeout / memory / permissions',

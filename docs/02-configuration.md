@@ -44,10 +44,18 @@
  .flow/
  ├── config.yml               # 主配置文件
  ├── credentials.yml.example  # 凭据模板（参考用）
- └── history/                 # 历史记录目录
+ ├── history/                 # 历史记录目录
+ ├── cache/                   # 块结果缓存（--cache，v0.4.0）
+ ├── templates/               # 用户模板目录（flowmd new -t，v0.3.0）
+ ├── prompts/                 # 提示词库（AI 块 prompt: <name>，v0.6.0）
+ ├── plugins/                 # 块插件（自定义块类型，v0.6.0）
+ ├── snapshots/               # 快照测试 golden 文件（flowmd test，v0.6.0）
+ └── schedule.db              # 定时任务数据库（schedule，v0.2.0）
  ```
 
  `init` 命令会自动将 `.flow/credentials.yml` 加入 `.gitignore`，防止凭据被误提交。
+
+ 除 `config.yml` 与 `credentials.yml` 外的目录均为按需创建（`--cache`、`prompt:`、插件加载、`flowmd test`、`schedule` 首次使用时自动生成），不需要手动初始化。
 
  ## 配置文件详解
 

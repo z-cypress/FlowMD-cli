@@ -1,4 +1,4 @@
-# Control Flow (if / elif / else / for)
+# Control Flow (if / elif / else / for / parallel)
 
 ## Purpose
 
@@ -36,6 +36,8 @@ Needs improvement
 | `<!-- for: X in LIST -->` | loop variable + list | Execute the body once per array element |
 | `<!-- for: X in LIST {collect: "NAME"} -->` | optional `collect` | Accumulate each round's single output variable into an array |
 | `<!-- endfor -->` | — | Ends the for region (must pair) |
+| `<!-- parallel -->` | — | Parallel region (v0.5.0): all blocks inside run concurrently, then rejoin |
+| `<!-- endparallel -->` | — | Ends the parallel region (must pair) |
 
 ## Condition Expressions
 
@@ -82,6 +84,28 @@ Summarize: {{insights}}
 - The block's `output` variable (e.g. `{{analysis}}`) binds the current round's result inside the body and keeps the **last** round's value after the loop.
 - `collect` is limited to a single output variable: declaring multiple `output`s inside the body is a parse error.
 - **Failed rounds are not accumulated**: if a round fails, that result is not pushed; the loop continues.
+
+## Parallel Execution (parallel)
+
+Since v0.5.0, `<!-- parallel -->` marks a group of independent blocks to run concurrently; execution rejoins when all finish. Good for "divide and conquer" scenarios (e.g. multi-language translation, multi-angle analysis); wall-clock time drops from the sum of all blocks to the slowest one.
+
+````markdown
+<!-- parallel -->
+```ai {output: "summary_zh"}
+Summarize in Chinese
+```
+```ai {output: "summary_en"}
+Summarize in English
+```
+<!-- endparallel -->
+````
+
+- **All blocks in the region start simultaneously**, and subsequent content waits until all finish (success or failure)
+- Blocks share the same variable context; writing the same `output` means the later finisher wins (race; avoid it)
+- **Failure semantics match serial**: each block fails independently; any failure still waits for the others (under fail-fast, any failure aborts)
+- Nesting is supported (parallel inside parallel; inner blocks join the group)
+- Only blocks are accepted inside (no if/for directives); dependency detection still applies (blocks referencing a failed output are skipped)
+- `--debug` / `--release` behave as in serial (insert results / strip directives)
 
 ## Nesting
 

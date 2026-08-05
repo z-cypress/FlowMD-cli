@@ -44,10 +44,18 @@ Creates the `.flow/` directory in the current directory:
 .flow/
 ├── config.yml               # Main configuration file
 ├── credentials.yml.example  # Credentials template (for reference)
-└── history/                 # History records directory
+├── history/                 # History records directory
+├── cache/                   # Block result cache (--cache, v0.4.0)
+├── templates/               # User templates (flowmd new -t, v0.3.0)
+├── prompts/                 # Prompt library (AI block prompt: <name>, v0.6.0)
+├── plugins/                 # Block plugins (custom block types, v0.6.0)
+├── snapshots/               # Snapshot golden files (flowmd test, v0.6.0)
+└── schedule.db              # Scheduled task database (schedule, v0.2.0)
 ```
 
 The `init` command automatically adds `.flow/credentials.yml` to `.gitignore`, preventing credentials from being accidentally committed.
+
+All directories except `config.yml` and `credentials.yml` are created on demand (by `--cache`, `prompt:`, plugin loading, `flowmd test`, `schedule` on first use) — no manual initialization needed.
 
 ## Configuration File Details
 
