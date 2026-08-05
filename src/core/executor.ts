@@ -16,6 +16,7 @@ import { ConditionSyntaxError } from './blocks/control/condition.js';
 import { executeControlFlow, ControlFlowStop } from './blocks/control/execute-region.js';
 import { dispatchBlock } from './block-dispatcher.js';
 import type { DispatcherDeps } from './block-dispatcher.js';
+import { parseMarkdown } from './parser.js';
 import { expandMdIncludes } from './include-expander.js';
 import { insertResult, renderDocument, stripCodeBlocks } from './output-builder.js';
 import { createBlockExecState } from './execution-state.js';
@@ -949,4 +950,76 @@ function waitForUserInput(): Promise<void> {
     process.stdin.once('data', onData);
     process.stdin.once('end', onEnd);
   });
+}
+
+/**
+ * 单块执行结果（块级单独执行专用）
+ */
+export interface SingleBlockResult {
+  /** 是否成功 */
+  success: boolean;
+  /** 块类型 */
+  type: string;
+  /** 输出内容（失败时为 null） */
+  output: string | null;
+  /** 错误信息（失败时返回） */
+  error?: string;
+  /** 耗时（毫秒） */
+  duration: number;
+  /** token 用量（ai/agent 块） */
+  usage?: { input: number; output: number };
+}
+
+/**
+ * 单独执行文档中的指定块（Web IDE 块级单独执行）
+ * 构造独立 ExecutionContext 与 BlockExecState，直接调用 executeOneBlock，
+ * 复用重试/校验/缓存/投递等逻辑，并拿到块的原始 BlockResult
+ * @param markdown - 完整文档内容
+ * @param index - 目标块在文档中的索引（0-based）
+ * @param options - 运行选项
+ * @param config - FlowMD 配置
+ * @returns 单块执行结果
+ */
+export async function executeSingleBlock(
+  markdown: string,
+  index: number,
+  options: RunOptions,
+  config: FlowConfig
+): Promise<SingleBlockResult> {
+  const doc = parseMarkdown(markdown);
+  const block = doc.blocks[index];
+  if (!block) {
+    return {
+      success: false,
+      type: 'unknown',
+      output: null,
+      error: t('error.blockIndexOutOfRange', { index: index + 1, total: doc.blocks.length }),
+      duration: 0,
+    };
+  }
+
+  // 构造独立上下文（系统变量 + 注入变量），与 executeDocument 行为一致
+  const context = new ExecutionContext();
+  const now = new Date();
+  context.set('execution_time', now.toISOString());
+  context.set('date', now.toISOString().split('T')[0]);
+  context.set('datetime', now.toISOString().replace('T', ' ').split('.')[0]);
+  context.set('timestamp', Math.floor(now.getTime() / 1000));
+  for (const [k, v] of Object.entries(options.varArgs)) {
+    context.set(k, v);
+  }
+
+  const state = createBlockExecState(context, options, config, markdown, new Set(), doc.blocks.length);
+  const { result } = await executeOneBlock(block, state, index);
+  if (!result) {
+    return { success: false, type: block.type, output: null, error: t('error.unknown'), duration: 0 };
+  }
+  return {
+    success: result.success,
+    type: block.type,
+    output: result.output,
+    error: result.error,
+    duration: result.duration,
+    usage: result.usage,
+  };
 }

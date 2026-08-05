@@ -9,7 +9,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createFlowServer } from '../core/serve/server.js';
-import { handleExecute, handleTemplates, handleHealth, handleIde } from '../core/serve/routes.js';
+import { handleExecute, handleExecuteBlock, handleHistory, handleTemplates, handleHealth, handleIde } from '../core/serve/routes.js';
 
 vi.mock('ora', () => ({
   default: vi.fn(() => ({
@@ -23,6 +23,8 @@ vi.mock('ora', () => ({
 
 vi.mock('../utils/history.js', () => ({
   recordExecution: vi.fn(),
+  listHistory: vi.fn(() => []),
+  getHistoryDetail: vi.fn(() => null),
 }));
 
 let server: ReturnType<typeof createFlowServer>;
@@ -50,6 +52,8 @@ describe('flowmd serve', () => {
       [
         { method: 'GET', path: '/', handler: handleIde, rawHtml: true },
         { method: 'POST', path: '/execute', handler: handleExecute },
+        { method: 'POST', path: '/execute-block', handler: handleExecuteBlock },
+        { method: 'GET', path: '/history', handler: handleHistory },
         { method: 'GET', path: '/templates', handler: handleTemplates },
         { method: 'GET', path: '/health', handler: handleHealth },
       ],
@@ -138,6 +142,53 @@ describe('flowmd serve', () => {
     });
   });
 
+  describe('POST /execute-block', () => {
+    it('should execute a single template block', async () => {
+      const { status, body } = await request('POST', '/execute-block', {
+        markdown: '```template {output: "x"}\nHello {{name}}\n```\n\n{{x}}',
+        index: 0,
+        vars: { name: 'FlowMD' },
+      });
+      expect(status).toBe(200);
+      expect(body.ok).toBe(true);
+      const data = body.data as { success: boolean; type: string; output: string | null };
+      expect(data.success).toBe(true);
+      expect(data.type).toBe('template');
+      expect(data.output).toContain('Hello FlowMD');
+    });
+
+    it('should return error for out-of-range index', async () => {
+      const { status, body } = await request('POST', '/execute-block', {
+        markdown: '```template\nHi\n```',
+        index: 5,
+      });
+      expect(status).toBe(200);
+      expect(body.ok).toBe(true);
+      const data = body.data as { success: boolean; error: string };
+      expect(data.success).toBe(false);
+      expect(data.error).toContain('超出范围');
+    });
+
+    it('should return error for invalid index type', async () => {
+      const { status, body } = await request('POST', '/execute-block', {
+        markdown: '```template\nHi\n```',
+        index: 'abc',
+      });
+      expect(status).toBe(500);
+      expect(body.ok).toBe(false);
+    });
+  });
+
+  describe('GET /history', () => {
+    it('should return history records', async () => {
+      const { status, body } = await request('GET', '/history');
+      expect(status).toBe(200);
+      expect(body.ok).toBe(true);
+      const data = body.data as { records: unknown[] };
+      expect(Array.isArray(data.records)).toBe(true);
+    });
+  });
+
   describe('routing', () => {
     it('should return the Web IDE page for GET /', async () => {
       const res = await fetch(`${baseUrl}/`);
@@ -152,6 +203,9 @@ describe('flowmd serve', () => {
       expect(html).toContain('debug-check');
       expect(html).toContain('example-btn');
       expect(html).toContain('vars-btn');
+      expect(html).toContain('history-btn');
+      expect(html).toContain('execute-block');
+      expect(html).toContain('history-panel');
     });
 
     it('should return 404 for unknown path', async () => {

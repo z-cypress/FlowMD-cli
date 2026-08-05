@@ -10,6 +10,7 @@ export const en = {
   'common.found': 'Found',
   'common.notSet': 'Not set',
   'error.unknown': 'Unknown error',
+  'error.blockIndexOutOfRange': 'Block index {index} is out of range (total {total} blocks)',
   'error.line': ' (line {line})',
 
   // CLI entry (index.ts)
@@ -309,6 +310,8 @@ export const en = {
   'serve.endpoints': 'Available endpoints:',
   'serve.endpointIde': 'Web IDE editor',
   'serve.endpointExecute': 'Execute Markdown and return the result',
+  'serve.endpointExecuteBlock': 'Execute a single block (block-level execution)',
+  'serve.endpointHistory': 'Recent execution history (with block details)',
   'serve.endpointTemplates': 'List available templates',
   'serve.endpointHealth': 'Health check',
   'serve.exitHint': 'Press Ctrl+C to exit',

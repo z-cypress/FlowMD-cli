@@ -10,6 +10,7 @@ export const zh = {
   'common.found': '已找到',
   'common.notSet': '未设置',
   'error.unknown': '未知错误',
+  'error.blockIndexOutOfRange': '块索引 {index} 超出范围（共 {total} 个块）',
   'error.line': '（第 {line} 行）',
 
   // CLI 入口 (index.ts)
@@ -309,6 +310,8 @@ export const zh = {
   'serve.endpoints': '可用端点:',
   'serve.endpointIde': 'Web IDE 编辑器',
   'serve.endpointExecute': '执行 Markdown 并返回结果',
+  'serve.endpointExecuteBlock': '单独执行指定块（块级执行）',
+  'serve.endpointHistory': '最近执行历史（含块级明细）',
   'serve.endpointTemplates': '列出可用模板',
   'serve.endpointHealth': '健康检查',
   'serve.exitHint': '按 Ctrl+C 退出',

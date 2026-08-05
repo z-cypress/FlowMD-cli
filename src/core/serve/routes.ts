@@ -5,9 +5,10 @@
 
 import type { IncomingMessage } from 'node:http';
 import { parseMarkdown } from '../parser.js';
-import { executeDocument } from '../executor.js';
+import { executeDocument, executeSingleBlock } from '../executor.js';
 import { loadConfig } from '../../utils/config.js';
 import { getTemplateNames, getTemplatesContent } from '../../commands/new.js';
+import { listHistory, getHistoryDetail } from '../../utils/history.js';
 import { WEB_IDE_HTML } from './web-ide.html.js';
 import type { ExecuteRequest, ApiResponse } from './types.js';
 
@@ -81,4 +82,59 @@ export async function handleIde(): Promise<ApiResponse> {
  */
 export async function handleHealth(): Promise<ApiResponse> {
   return { ok: true, data: { status: 'ok' } };
+}
+
+/**
+ * POST /execute-block — 单独执行指定块（Web IDE 块级执行）
+ * @param req - 请求
+ * @param body - 请求体（JSON 字符串）
+ * @returns 单块执行结果或错误
+ */
+export async function handleExecuteBlock(req: IncomingMessage, body: string): Promise<ApiResponse> {
+  let payload: { markdown?: string; index?: number; vars?: Record<string, string>; debug?: boolean };
+  try {
+    payload = JSON.parse(body) as typeof payload;
+  } catch {
+    return { ok: false, error: 'Invalid JSON body' };
+  }
+  if (!payload || typeof payload !== 'object') {
+    return { ok: false, error: 'Body must be a JSON object' };
+  }
+  if (typeof payload.markdown !== 'string' || !payload.markdown) {
+    return { ok: false, error: 'Missing required field: markdown' };
+  }
+  const index = typeof payload.index === 'number' ? payload.index : Number(payload.index);
+  if (!Number.isInteger(index) || index < 0) {
+    return { ok: false, error: 'Invalid block index (must be a non-negative integer)' };
+  }
+
+  const config = loadConfig();
+  const options = {
+    output: 'stdout' as const,
+    dryRun: false,
+    stepMode: false,
+    failFast: false,
+    debug: !!payload.debug,
+    release: false,
+    quiet: true,
+    varArgs: payload.vars || {},
+    runYes: true,
+  };
+
+  try {
+    const result = await executeSingleBlock(payload.markdown, index, options, config);
+    return { ok: true, data: result };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, error: `Block execution failed: ${message}` };
+  }
+}
+
+/**
+ * GET /history — 最近执行历史（含块级明细）
+ * @returns 历史记录列表
+ */
+export async function handleHistory(): Promise<ApiResponse> {
+  const records = listHistory(20).map((r) => getHistoryDetail(r.id)).filter((r): r is NonNullable<typeof r> => r !== null);
+  return { ok: true, data: { records } };
 }

@@ -45,12 +45,42 @@ export const WEB_IDE_HTML = `<!DOCTYPE html>
   #editor-host .cm-error-line { background: rgba(207, 34, 46, 0.12); }
   #vars-btn { margin-left: 8px; padding: 1px 8px; font-size: 11px; border: 1px solid #d0d7de; border-radius: 3px; background: #fff; color: #57606a; cursor: pointer; }
   #vars-btn.active { background: #0969da; color: #fff; border-color: #0969da; }
+  #history-btn { margin-left: 8px; padding: 1px 8px; font-size: 11px; border: 1px solid #d0d7de; border-radius: 3px; background: #fff; color: #57606a; cursor: pointer; }
+  #history-btn.active { background: #8250df; color: #fff; border-color: #8250df; }
   #preview { flex: 1; padding: 12px; overflow: auto; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
   #preview.error { color: #cf222e; }
   .status { padding: 4px 12px; font-size: 12px; color: #1f2328; background: #dafbe1; border-top: 1px solid #1a7f37; display: none; }
   .status.warn { background: #fff8c5; border-top-color: #d4a72c; color: #7d4e00; }
   .status.error { background: #ffebe9; border-top-color: #cf222e; color: #cf222e; }
   .status.visible { display: block; }
+  /* 块级执行按钮（gutter） */
+  #editor-host .cm-gutters .cm-lineNumbers { min-width: 42px; }
+  .cm-block-run { margin-left: 2px; padding: 0 5px; font-size: 11px; line-height: 16px; border: 1px solid #1f883d; border-radius: 4px; background: #dafbe1; color: #1f883d; cursor: pointer; user-select: none; }
+  .cm-block-run:hover { background: #1f883d; color: #fff; }
+  .cm-block-run.running { opacity: 0.6; cursor: default; }
+  /* 历史面板 */
+  #history-panel { display: none; position: fixed; right: 12px; top: 52px; width: 360px; max-height: calc(100vh - 80px); background: #fff; border: 1px solid #d0d7de; border-radius: 8px; box-shadow: 0 8px 24px rgba(140,149,159,0.2); z-index: 100; overflow: hidden; flex-direction: column; }
+  #history-panel.visible { display: flex; }
+  #history-panel .hp-header { padding: 8px 12px; font-size: 13px; font-weight: 600; background: #f6f8fa; border-bottom: 1px solid #d0d7de; display: flex; justify-content: space-between; align-items: center; }
+  #history-panel .hp-body { overflow: auto; padding: 8px; }
+  .hp-item { border: 1px solid #d0d7de; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; cursor: pointer; font-size: 12px; }
+  .hp-item:hover { border-color: #0969da; }
+  .hp-item .hp-meta { display: flex; justify-content: space-between; color: #57606a; margin-bottom: 4px; }
+  .hp-item .hp-blocks { display: flex; gap: 4px; flex-wrap: wrap; }
+  .hp-block-chip { font-size: 10px; padding: 1px 6px; border-radius: 10px; border: 1px solid #d0d7de; color: #57606a; }
+  .hp-block-chip.ok { color: #1a7f37; border-color: #1a7f37; }
+  .hp-block-chip.fail { color: #cf222e; border-color: #cf222e; }
+  .hp-detail { margin-top: 6px; border-top: 1px dashed #d0d7de; padding-top: 6px; font-size: 11px; color: #57606a; white-space: pre-wrap; word-break: break-word; }
+  .hp-empty { color: #57606a; text-align: center; padding: 24px 0; font-size: 12px; }
+  /* 块级执行结果覆盖层 */
+  #block-result-overlay { display: none; position: fixed; left: 50%; top: 45%; transform: translate(-50%, -50%); width: min(640px, 90vw); max-height: 70vh; background: #fff; border: 1px solid #d0d7de; border-radius: 8px; box-shadow: 0 8px 24px rgba(140,149,159,0.3); z-index: 200; overflow: hidden; flex-direction: column; }
+  #block-result-overlay.visible { display: flex; }
+  #block-result-overlay .bro-header { padding: 8px 12px; font-size: 13px; font-weight: 600; background: #f6f8fa; border-bottom: 1px solid #d0d7de; display: flex; justify-content: space-between; align-items: center; }
+  #block-result-overlay .bro-body { overflow: auto; padding: 12px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  #block-result-overlay .bro-body.error { color: #cf222e; }
+  #block-result-overlay .bro-close { background: none; border: none; font-size: 16px; color: #57606a; cursor: pointer; }
+  .overlay-mask { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.2); z-index: 150; }
+  .overlay-mask.visible { display: block; }
 </style>
 </head>
 <body>
@@ -72,13 +102,27 @@ export const WEB_IDE_HTML = `<!DOCTYPE html>
   <button id="add-var">+ 添加变量</button>
 </div>
 
+<div class="overlay-mask" id="overlay-mask"></div>
+
+<!-- 块级执行结果覆盖层 -->
+<div id="block-result-overlay">
+  <div class="bro-header"><span id="bro-title">块执行结果</span><button class="bro-close" id="bro-close">✕</button></div>
+  <div class="bro-body" id="bro-body"></div>
+</div>
+
+<!-- 历史面板 -->
+<div id="history-panel">
+  <div class="hp-header"><span>执行历史</span><button class="bro-close" id="history-close">✕</button></div>
+  <div class="hp-body" id="history-body"><div class="hp-empty">加载中...</div></div>
+</div>
+
 <main>
   <div class="pane">
     <div class="pane-header">Markdown</div>
     <div id="editor-host"></div>
   </div>
   <div class="pane">
-    <div class="pane-header">执行结果 <button id="vars-btn" title="切换查看变量">变量</button></div>
+    <div class="pane-header">执行结果 <button id="vars-btn" title="切换查看变量">变量</button> <button id="history-btn" title="查看执行历史">历史</button></div>
     <pre id="preview">点击"执行"查看结果</pre>
   </div>
 </main>
@@ -103,9 +147,20 @@ import { markdown } from 'https://esm.sh/@codemirror/lang-markdown@6.2.5';
   var runBtn = document.getElementById('run-btn');
   var exampleBtn = document.getElementById('example-btn');
   var varsBtn = document.getElementById('vars-btn');
+  var historyBtn = document.getElementById('history-btn');
   var autoRunCheck = document.getElementById('auto-run-check');
   var lastVariables = null;
   var showVars = false;
+
+  // 历史面板元素
+  var historyPanel = document.getElementById('history-panel');
+  var historyBody = document.getElementById('history-body');
+  var historyClose = document.getElementById('history-close');
+  var overlayMask = document.getElementById('overlay-mask');
+  var broOverlay = document.getElementById('block-result-overlay');
+  var broTitle = document.getElementById('bro-title');
+  var broBody = document.getElementById('bro-body');
+  var broClose = document.getElementById('bro-close');
 
   // ---- 失败块行号状态（供编辑器错误行标红）----
   var setErrors = StateEffect.define();
@@ -161,6 +216,65 @@ import { markdown } from 'https://esm.sh/@codemirror/lang-markdown@6.2.5';
     { decorations: function (v) { return v.decorations; } }
   );
 
+  // 块级执行按钮：在 FlowMD 块起始行前插入 ▶ 按钮
+  // 需要 DOM widget（含事件），这里用 widgetDecoration 注入
+
+  // 解析当前文档中的 FlowMD 块（块类型 + 起始行号 + 结束行号）
+  function parseBlocksInDoc(text) {
+    var blocks = [];
+    var re = /\`\`\`(ai|data|template|include|run|agent|doc)\b[^\n]*\n([^]*?)(?:\`\`\`)/g;
+    var m;
+    while ((m = re.exec(text)) !== null) {
+      var lineStart = text.slice(0, m.index).split('\n').length;
+      blocks.push({ type: m[1], line: lineStart });
+    }
+    return blocks;
+  }
+
+  // 用 widget 在块起始行行首插入执行按钮
+  var blockRunPlugin = ViewPlugin.fromClass(
+    class {
+      constructor(view) { this.decorations = this.build(view); }
+      update(update) {
+        if (update.docChanged || update.viewportChanged) {
+          this.decorations = this.build(update.view);
+        }
+      }
+      build(view) {
+        var ranges = [];
+        var text = view.state.doc.toString();
+        var blocks = parseBlocksInDoc(text);
+        var lines = view.state.doc;
+        for (var i = 0; i < blocks.length; i++) {
+          var lineNo = blocks[i].line;
+          if (lineNo <= 0 || lineNo > lines.lines) continue;
+          var line = lines.line(lineNo);
+          var idx = i;
+          var btn = document.createElement('button');
+          btn.className = 'cm-block-run';
+          btn.textContent = '▶';
+          btn.title = '单独执行此块 (' + blocks[i].type + ')';
+          btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            runSingleBlock(idx, btn);
+          });
+          var widget = Decoration.widget({
+            widget: {
+              toDOM: function () { return btn; },
+              eq: function () { return false; },
+              destroy: function () { if (btn && btn.parentNode) btn.parentNode.removeChild(btn); },
+              ignoreEvent: function () { return true; }
+            },
+            side: 1
+          });
+          ranges.push(widget.range(line.from));
+        }
+        return Decoration.set(ranges);
+      }
+    },
+    { decorations: function (v) { return v.decorations; } }
+  );
+
   function createEditor(doc) {
     var state = EditorState.create({
       doc: doc,
@@ -170,6 +284,7 @@ import { markdown } from 'https://esm.sh/@codemirror/lang-markdown@6.2.5';
         EditorView.lineWrapping,
         flowmdTheme,
         flowmdHighlightPlugin,
+        blockRunPlugin,
         errorField,
         EditorView.updateListener.of(function () { scheduleAutoRun(); })
       ]
@@ -343,7 +458,143 @@ import { markdown } from 'https://esm.sh/@codemirror/lang-markdown@6.2.5';
 
   runBtn.addEventListener('click', doRun);
 
-  // 变量面板切换
+  // ---- 块级单独执行 ----
+  function runSingleBlock(index, btn) {
+    var markdown = getValue();
+    var blocks = parseBlocksInDoc(markdown);
+    if (!blocks[index]) {
+      showStatus('块索引 ' + index + ' 超出范围', 'warn');
+      return;
+    }
+    var blockLabel = blocks[index].type;
+    btn.classList.add('running');
+    btn.textContent = '…';
+    showStatus('正在执行块 #' + (index + 1) + ' (' + blockLabel + ')...');
+
+    fetch('/execute-block', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        markdown: markdown,
+        index: index,
+        vars: collectVars(),
+        debug: debugCheck.checked
+      })
+    }).then(function (res) { return res.json(); }).then(function (json) {
+      btn.classList.remove('running');
+      btn.textContent = '▶';
+      if (!json.ok) {
+        showBlockResult('块 #' + (index + 1) + ' (' + blockLabel + ')', '错误: ' + (json.error || '未知错误'), true);
+        return;
+      }
+      var data = json.data;
+      var title = '块 #' + (index + 1) + ' (' + data.type + ')' + (data.success ? ' ✓' : ' ✗') + '  ' + (data.duration_ms || data.duration || 0) + 'ms';
+      if (data.success) {
+        showBlockResult(title, data.output || '（空输出）', false);
+      } else {
+        showBlockResult(title, '执行失败: ' + (data.error || '未知错误'), true);
+      }
+    }).catch(function (err) {
+      btn.classList.remove('running');
+      btn.textContent = '▶';
+      showBlockResult('块 #' + (index + 1), '请求失败: ' + String(err), true);
+    });
+  }
+
+  function showBlockResult(title, body, isError) {
+    broTitle.textContent = title;
+    broBody.textContent = body;
+    broBody.className = 'bro-body' + (isError ? ' error' : '');
+    broOverlay.classList.add('visible');
+    overlayMask.classList.add('visible');
+  }
+
+  function hideBlockResult() {
+    broOverlay.classList.remove('visible');
+    overlayMask.classList.remove('visible');
+  }
+  broClose.addEventListener('click', hideBlockResult);
+  overlayMask.addEventListener('click', hideBlockResult);
+
+  // ---- 执行历史面板 ----
+  var historyLoaded = false;
+  historyBtn.addEventListener('click', function () {
+    var visible = historyPanel.classList.toggle('visible');
+    historyBtn.classList.toggle('active', visible);
+    if (visible && !historyLoaded) {
+      loadHistory();
+    }
+  });
+  historyClose.addEventListener('click', function () {
+    historyPanel.classList.remove('visible');
+    historyBtn.classList.remove('active');
+  });
+
+  function loadHistory() {
+    fetch('/history').then(function (res) { return res.json(); }).then(function (json) {
+      if (!json.ok) {
+        historyBody.innerHTML = '<div class="hp-empty">加载失败: ' + (json.error || '未知错误') + '</div>';
+        return;
+      }
+      historyLoaded = true;
+      renderHistory(json.data.records || []);
+    }).catch(function (err) {
+      historyBody.innerHTML = '<div class="hp-empty">请求失败: ' + String(err) + '</div>';
+    });
+  }
+
+  function renderHistory(records) {
+    if (records.length === 0) {
+      historyBody.innerHTML = '<div class="hp-empty">暂无执行历史</div>';
+      return;
+    }
+    historyBody.innerHTML = '';
+    records.forEach(function (r) {
+      var item = document.createElement('div');
+      item.className = 'hp-item';
+
+      var ts = (r.timestamp || '').replace('T', ' ').replace(/\\.\\d+Z$/, '');
+      var meta = document.createElement('div');
+      meta.className = 'hp-meta';
+      var left = document.createElement('span');
+      left.textContent = '#' + r.id + ' ' + (r.file || 'stdin');
+      var right = document.createElement('span');
+      right.textContent = ts + ' · ' + (r.duration_ms / 1000).toFixed(1) + 's';
+      meta.appendChild(left); meta.appendChild(right);
+      item.appendChild(meta);
+
+      var chips = document.createElement('div');
+      chips.className = 'hp-blocks';
+      (r.blocks || []).forEach(function (b) {
+        var chip = document.createElement('span');
+        chip.className = 'hp-block-chip ' + (b.status === 'success' ? 'ok' : 'fail');
+        chip.textContent = '#' + b.position + ' ' + b.type + (b.status === 'success' ? ' ✓' : ' ✗');
+        chip.title = (b.error || '') + (b.trace ? '\n' + b.trace : '');
+        chips.appendChild(chip);
+      });
+      item.appendChild(chips);
+
+      // 展开块级明细（点击）
+      var detail = null;
+      item.addEventListener('click', function () {
+        if (detail) { detail.remove(); detail = null; return; }
+        detail = document.createElement('div');
+        detail.className = 'hp-detail';
+        var lines = (r.blocks || []).map(function (b) {
+          var line = '[' + b.position + '] ' + b.type + ' ' + b.status + ' ' + (b.duration_ms || 0) + 'ms';
+          if (b.error) line += '\n  错误: ' + b.error;
+          if (b.input_tokens || b.output_tokens) line += '\n  tokens: ' + (b.input_tokens || 0) + ' in / ' + (b.output_tokens || 0) + ' out';
+          return line;
+        });
+        detail.textContent = lines.join('\n') || '（无块明细）';
+        item.appendChild(detail);
+      });
+
+      historyBody.appendChild(item);
+    });
+  }
+
+  // ---- 变量面板切换 ----
   varsBtn.addEventListener('click', function () {
     showVars = !showVars;
     if (showVars) {
