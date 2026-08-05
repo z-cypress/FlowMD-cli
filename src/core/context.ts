@@ -35,6 +35,20 @@ const FILTERS: Record<string, FilterFn> = {
   },
 };
 
+/**
+ * 剥离过滤器参数两侧的引号（支持 "..." 与 '...'）
+ * @param arg - 原始参数（可能带引号）
+ * @returns 去引号后的参数
+ */
+function stripQuotes(arg?: string): string | undefined {
+  if (!arg) return arg;
+  const len = arg.length;
+  if (len >= 2 && ((arg[0] === '"' && arg[len - 1] === '"') || (arg[0] === "'" && arg[len - 1] === "'"))) {
+    return arg.slice(1, -1);
+  }
+  return arg;
+}
+
 export class ExecutionContext {
   /** 变量存储 */
   private store = new Map<string, unknown>();
@@ -113,7 +127,7 @@ export class ExecutionContext {
           // 未知过滤器：保留原始占位符
           return match;
         }
-        value = fn(value, filterArg);
+        value = fn(value, stripQuotes(filterArg));
       }
 
       if (value === undefined) return match;

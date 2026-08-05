@@ -322,6 +322,16 @@ describe('ExecutionContext', () => {
         expect(ctx.render('{{x | default:N/A}}')).toBe('N/A');
       });
 
+      it('should strip double quotes from default arg', () => {
+        const ctx = new ExecutionContext();
+        expect(ctx.render('{{x | default:"N/A"}}')).toBe('N/A');
+      });
+
+      it('should strip single quotes from default arg', () => {
+        const ctx = new ExecutionContext();
+        expect(ctx.render("{{x | default:'N/A'}}")).toBe('N/A');
+      });
+
       it('should return default when null', () => {
         const ctx = new ExecutionContext();
         ctx.set('x', null);
@@ -357,6 +367,12 @@ describe('ExecutionContext', () => {
         const ctx = new ExecutionContext();
         ctx.set('items', ['a', 'b', 'c']);
         expect(ctx.render('{{items | join:-}}')).toBe('a-b-c');
+      });
+
+      it('should strip quotes from join separator', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('items', ['a', 'b', 'c']);
+        expect(ctx.render('{{items | join:", "}}')).toBe('a, b, c');
       });
 
       it('should return non-array value as-is', () => {

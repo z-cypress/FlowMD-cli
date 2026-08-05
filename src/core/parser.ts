@@ -16,9 +16,10 @@ const BLOCK_TYPES: BlockType[] = ['ai', 'data', 'template', 'include', 'run', 'a
 /**
  * 解析 Markdown 内容，提取可执行块
  * @param content - 原始 Markdown 内容
+ * @param pluginTypes - 可选的自定义块类型集合（插件系统，.flow/plugins/ 注册的块类型）
  * @returns 解析后的文档，包含块和变量
  */
-export function parseMarkdown(content: string): ParsedDocument {
+export function parseMarkdown(content: string, pluginTypes?: Set<string>): ParsedDocument {
   // 使用 unified + remark-parse 解析 Markdown 为 AST
   const tree = unified().use(remarkParse).parse(content);
   const blocks: ExecutableBlock[] = [];
@@ -31,8 +32,8 @@ export function parseMarkdown(content: string): ParsedDocument {
     const lang = node.lang as string | undefined;
     if (!lang) return;
 
-    // 检测是否为 FlowMD 块类型
-    const blockType = detectBlockType(lang);
+    // 检测是否为 FlowMD 块类型（内置 + 插件自定义）
+    const blockType = detectBlockType(lang, pluginTypes);
     if (!blockType) return;
 
     // 优先使用 remark 解析的 meta 属性，否则从 lang 解析
@@ -41,7 +42,7 @@ export function parseMarkdown(content: string): ParsedDocument {
     const nodePosition = node.position;
 
     blocks.push({
-      type: blockType,
+      type: blockType as BlockType,
       content: node.value as string,
       lang,
       meta,
@@ -78,15 +79,24 @@ export function parseMarkdown(content: string): ParsedDocument {
 }
 
 /**
- * 检测代码块语言标识符是否为 FlowMD 块类型
+ * 检测代码块语言标识符是否为 FlowMD 块类型（内置 + 插件自定义）
  * @param lang - 代码块的语言标识符
- * @returns 块类型，如果不是 FlowMD 块则返回 null
+ * @param pluginTypes - 可选的自定义块类型集合（插件系统注册）
+ * @returns 块类型（内置返回 BlockType，插件返回其名字符串），否则返回 null
  */
-function detectBlockType(lang: string): BlockType | null {
+function detectBlockType(lang: string, pluginTypes?: Set<string>): BlockType | string | null {
   const trimmed = lang.trim().toLowerCase();
   for (const type of BLOCK_TYPES) {
     if (trimmed === type || trimmed.startsWith(type + ' ') || trimmed.startsWith(type + '{')) {
       return type;
+    }
+  }
+  // 插件自定义类型：lang 恰好等于插件名（或带 meta 前缀）
+  if (pluginTypes) {
+    for (const type of pluginTypes) {
+      if (trimmed === type || trimmed.startsWith(type + ' ') || trimmed.startsWith(type + '{')) {
+        return type;
+      }
     }
   }
   return null;

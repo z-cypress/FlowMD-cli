@@ -100,6 +100,27 @@ describe('retry and validate', () => {
       expect(result.hasError).toBe(true);
       expect(aiCallCount).toBe(1);
     });
+
+    it('should retry when the executor throws an exception', async () => {
+      // 覆盖 mockImplementation：第一次抛出异常，第二次成功
+      const mockExecuteAIBlock = (await import('../core/blocks/ai-block.js')).executeAIBlock as unknown as ReturnType<typeof vi.fn>;
+      const originalImpl = mockExecuteAIBlock.getMockImplementation();
+      mockExecuteAIBlock
+        .mockRejectedValueOnce(new Error('boom'))
+        .mockResolvedValueOnce({ success: true, output: 'recovered', duration: 10 });
+
+      try {
+        const doc = parseMarkdown('```ai {output: "x", retry: 2}\nprompt\n```');
+        const result = await executeDocument(doc, { ...defaultOptions }, defaultConfig);
+
+        expect(result.hasError).toBe(false);
+        // mock 被调用 2 次（1 次抛出 + 1 次成功）；失败记录不应残留
+        expect(mockExecuteAIBlock).toHaveBeenCalledTimes(2);
+      } finally {
+        // 恢复原实现
+        mockExecuteAIBlock.mockImplementation(originalImpl as never);
+      }
+    });
   });
 
   describe('validate', () => {

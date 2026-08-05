@@ -24,6 +24,7 @@ import type { BlockExecState, SubExecutionResult } from './execution-state.js';
 import { cacheKey, readCache, writeCache } from './cache.js';
 import { deliver } from './deliver.js';
 import { loadPlugins } from './plugin-loader.js';
+import type { BlockPlugin } from './plugin-loader.js';
 import { TraceCollector } from './trace.js';
 import { getErrorMessage } from '../utils/error-formatter.js';
 import { t } from '../utils/i18n.js';
@@ -425,15 +426,31 @@ export async function executeOneBlock(
       return { action: 'stop', result };
     }
   } catch (error) {
+    const errorMsg = getErrorMessage(error);
+    const errResult: BlockResult = {
+      success: false,
+      output: null,
+      error: errorMsg,
+      duration: Date.now() - startTime,
+    };
+    lastResult = errResult;
+
+    // 还有重试机会：继续循环，不记录失败（与正常失败路径语义一致）
+    if (attempt < maxRetries) {
+      if (spinner) spinner.text = t('block.retrying', { emoji, num: blockNum, type: block.type, attempt: attempt + 1, max: maxRetries });
+      continue;
+    }
+
+    // 所有重试用完，记录最终失败
     clearInterval(elapsedInterval);
     if (spinner) {
       spinner.fail(t('block.exception', { emoji, num: blockNum, type: block.type }));
     }
-    process.stderr.write(`${t('block.exceptionQuiet', { emoji, num: blockNum, type: block.type, error: withLine(getErrorMessage(error), blockLine) })}
+    process.stderr.write(`${t('block.exceptionQuiet', { emoji, num: blockNum, type: block.type, error: withLine(errorMsg, blockLine) })}
 `);
     state.hasError = true;
-    state.failedBlocks.push({ position: pos, type: block.type, error: getErrorMessage(error), line: blockLine });
-    state.blockRecords.push({ position: pos, type: block.type, status: 'failed', error: getErrorMessage(error), duration_ms: Date.now() - startTime, line: blockLine });
+    state.failedBlocks.push({ position: pos, type: block.type, error: errorMsg, line: blockLine });
+    state.blockRecords.push({ position: pos, type: block.type, status: 'failed', error: errorMsg, duration_ms: Date.now() - startTime, line: blockLine });
 
     const failedOutput = metaString(block.meta, 'output');
     if (failedOutput) {
@@ -441,7 +458,7 @@ export async function executeOneBlock(
     }
 
     if (state.traceCollector) {
-      state.traceCollector.endSpan('error', { error: getErrorMessage(error) });
+      state.traceCollector.endSpan('error', { error: errorMsg });
     }
 
     if (options.failFast) {
@@ -625,21 +642,36 @@ export async function executeDocument(
 
   // 预展开 .md include 块：将 include 块替换为被引入文件的块
   const visitedPaths = new Set<string>();
+
+  // 加载自定义块插件（best-effort，失败不阻塞执行）
+  let pluginMap = new Map<string, BlockPlugin>();
+  try {
+    const pluginDir = path.join(process.cwd(), '.flow', 'plugins');
+    const plugins = await loadPlugins(pluginDir);
+    pluginMap = new Map(plugins.map((p) => [p.name, p]));
+  } catch {
+    // 插件加载失败不影响主流程
+  }
+
+  // 若有插件块类型，重新解析以识别插件块（parse 阶段需要插件名集合）
+  if (pluginMap.size > 0) {
+    try {
+      const reparsed = parseMarkdown(doc.rawContent, new Set(pluginMap.keys()));
+      doc.blocks = reparsed.blocks;
+      doc.variables = reparsed.variables;
+      doc.directives = reparsed.directives;
+    } catch {
+      // 重解析失败保持原解析结果
+    }
+  }
+
   await expandMdIncludes(doc, options.currentFile, visitedPaths);
 
   const state: BlockExecState = createBlockExecState(context, options, config, doc.rawContent, visitedPaths, doc.blocks.length);
   if (options.trace) {
     state.traceCollector = new TraceCollector();
   }
-
-  // 加载自定义块插件（best-effort，失败不阻塞执行）
-  try {
-    const pluginDir = path.join(process.cwd(), '.flow', 'plugins');
-    const plugins = await loadPlugins(pluginDir);
-    state.plugins = new Map(plugins.map((p) => [p.name, p]));
-  } catch {
-    // 插件加载失败不影响主流程
-  }
+  state.plugins = pluginMap;
 
   // 排除 template/run 块内的变量：
   // - template 的 Handlebars 循环变量（{{name}}）不需要顶层定义
@@ -986,7 +1018,19 @@ export async function executeSingleBlock(
   options: RunOptions,
   config: FlowConfig
 ): Promise<SingleBlockResult> {
-  const doc = parseMarkdown(markdown);
+  // 加载插件（插件块类型需要传入 parser 才能识别）
+  let pluginTypes: Set<string> | undefined;
+  let pluginMap = new Map<string, BlockPlugin>();
+  try {
+    const pluginDir = path.join(process.cwd(), '.flow', 'plugins');
+    const plugins = await loadPlugins(pluginDir);
+    pluginMap = new Map(plugins.map((p) => [p.name, p]));
+    if (pluginMap.size > 0) pluginTypes = new Set(pluginMap.keys());
+  } catch {
+    // 插件加载失败不影响主流程
+  }
+
+  const doc = parseMarkdown(markdown, pluginTypes);
   const block = doc.blocks[index];
   if (!block) {
     return {
@@ -1010,6 +1054,7 @@ export async function executeSingleBlock(
   }
 
   const state = createBlockExecState(context, options, config, markdown, new Set(), doc.blocks.length);
+  state.plugins = pluginMap;
   const { result } = await executeOneBlock(block, state, index);
   if (!result) {
     return { success: false, type: block.type, output: null, error: t('error.unknown'), duration: 0 };

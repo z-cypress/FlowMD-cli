@@ -7,6 +7,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { loadPlugins } from '../core/plugin-loader.js';
+import { parseMarkdown } from '../core/parser.js';
 
 describe('plugin loader', () => {
   let tempDir: string;
@@ -62,5 +63,20 @@ describe('plugin loader', () => {
     const plugins = await loadPlugins(pluginDir);
     expect(plugins).toEqual([]);
     warnSpy.mockRestore();
+  });
+});
+
+describe('plugin block detection in parser', () => {
+  it('should recognize plugin block types when provided', () => {
+    const doc = parseMarkdown(
+      '```custom\nhello\n```\n\n```ai {output: "x"}\nhi\n```',
+      new Set(['custom'])
+    );
+    expect(doc.blocks.map((b) => b.type)).toEqual(['custom', 'ai']);
+  });
+
+  it('should not recognize plugin types when not provided', () => {
+    const doc = parseMarkdown('```custom\nhello\n```');
+    expect(doc.blocks.map((b) => b.type)).toEqual([]);
   });
 });
