@@ -6,7 +6,8 @@
 
 import ora from 'ora';
 import chalk from 'chalk';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { ExecutionContext } from './context.js';
 import { formatAgentTrace, formatAgentTraceSummary } from './blocks/agent/agent-block.js';
@@ -21,6 +22,8 @@ import { createBlockExecState } from './execution-state.js';
 import type { BlockExecState, SubExecutionResult } from './execution-state.js';
 import { cacheKey, readCache, writeCache } from './cache.js';
 import { deliver } from './deliver.js';
+import { loadPlugins } from './plugin-loader.js';
+import { TraceCollector } from './trace.js';
 import { getErrorMessage } from '../utils/error-formatter.js';
 import { t } from '../utils/i18n.js';
 import { recordExecution } from '../utils/history.js';
@@ -236,6 +239,16 @@ export async function executeOneBlock(
   // 块在文档中的行号（供错误消息定位）
   const blockLine = offsetToLine(state.rawContent, block.sourceStart);
 
+  // trace：开始块 span
+  const outputNameMeta = metaString(block.meta, 'output');
+  if (state.traceCollector) {
+    state.traceCollector.startSpan(`${block.type}:${outputNameMeta || block.position + 1}`, {
+      block_type: block.type,
+      block_position: pos,
+      output: outputNameMeta,
+    });
+  }
+
   // 重试与输出校验参数
   const maxRetries = parseInt(String(block.meta.retry ?? '0'), 10);
   const validateMode = block.meta.validate as string | undefined;
@@ -252,8 +265,10 @@ export async function executeOneBlock(
 
   try {
     // 结果缓存：ai/data 块按内容哈希命中则复用结果（run 块因副作用不缓存）
+    // conversation 块不缓存（每次调用的上下文不同）
+    const hasConversation = !!block.meta.conversation;
     const outputName = metaString(block.meta, 'output');
-    const hash = options.cache && (block.type === 'ai' || block.type === 'data')
+    const hash = options.cache && !hasConversation && (block.type === 'ai' || block.type === 'data')
       ? cacheKey(block, context)
       : undefined;
     const cached = hash ? readCache(hash) : undefined;
@@ -286,6 +301,7 @@ export async function executeOneBlock(
         onToken: (delta) => {
           if (spinner) spinner.text = `${t('block.running', { emoji, num: blockNum, type: block.type })} ${delta.slice(0, 60)}`;
         },
+        plugins: state.plugins,
       };
       return dispatchBlock(block, state, signal, deps);
     };
@@ -323,6 +339,8 @@ export async function executeOneBlock(
         status: 'success',
         duration_ms: result.duration,
         trace: result.steps ? formatAgentTraceSummary(result.steps) : attempt > 0 ? `${attempt} retries` : undefined,
+        input_tokens: result.usage?.input,
+        output_tokens: result.usage?.output,
       });
 
       // step 模式：打印执行结果
@@ -354,6 +372,13 @@ export async function executeOneBlock(
       }
 
       // 成功：跳出重试循环
+      if (state.traceCollector) {
+        state.traceCollector.endSpan('ok', {
+          input_tokens: result.usage?.input,
+          output_tokens: result.usage?.output,
+          retries: attempt,
+        });
+      }
       return { action: 'continue', result };
     }
 
@@ -390,6 +415,10 @@ export async function executeOneBlock(
       state.failedOutputs.add(failedOutput);
     }
 
+    if (state.traceCollector) {
+      state.traceCollector.endSpan('error', { error: result.error, retries: attempt });
+    }
+
     if (options.failFast) {
       console.error(chalk.red(t('warning.failFast')));
       return { action: 'stop', result };
@@ -410,6 +439,10 @@ export async function executeOneBlock(
       state.failedOutputs.add(failedOutput);
     }
 
+    if (state.traceCollector) {
+      state.traceCollector.endSpan('error', { error: getErrorMessage(error) });
+    }
+
     if (options.failFast) {
       console.error(chalk.red(t('warning.failFast')));
       return { action: 'stop' };
@@ -418,6 +451,25 @@ export async function executeOneBlock(
   } // end retry loop
 
   return { action: 'continue' as const, result: lastResult };
+}
+
+/**
+ * 输出 trace 数据（--trace 时启用，写入文件或 stdout）
+ * @param state - 执行状态
+ */
+export function emitTrace(state: BlockExecState): void {
+  const collector = state.traceCollector;
+  if (!collector) return;
+  const traceJSON = collector.toJSON();
+  if (state.options.traceFile) {
+    try {
+      writeFileSync(state.options.traceFile, traceJSON, 'utf-8');
+    } catch {
+      // 写入失败不影响主流程
+    }
+  } else {
+    console.log(traceJSON);
+  }
 }
 
 /**
@@ -575,6 +627,18 @@ export async function executeDocument(
   await expandMdIncludes(doc, options.currentFile, visitedPaths);
 
   const state: BlockExecState = createBlockExecState(context, options, config, doc.rawContent, visitedPaths, doc.blocks.length);
+  if (options.trace) {
+    state.traceCollector = new TraceCollector();
+  }
+
+  // 加载自定义块插件（best-effort，失败不阻塞执行）
+  try {
+    const pluginDir = path.join(process.cwd(), '.flow', 'plugins');
+    const plugins = await loadPlugins(pluginDir);
+    state.plugins = new Map(plugins.map((p) => [p.name, p]));
+  } catch {
+    // 插件加载失败不影响主流程
+  }
 
   // 排除 template/run 块内的变量：
   // - template 的 Handlebars 循环变量（{{name}}）不需要顶层定义
@@ -641,6 +705,7 @@ export async function executeDocument(
       const content = await executeControlFlow(tree, doc.rawContent, state);
       printSummary(state);
       recordExecutionHistory(state, options.currentFile);
+      emitTrace(state);
       return {
         content,
         hasError: state.hasError,
@@ -713,6 +778,7 @@ export async function executeDocument(
   const content = options.release ? stripCodeBlocks(rendered) : rendered;
 
   recordExecutionHistory(state, options.currentFile);
+  emitTrace(state);
 
   return {
     content,
@@ -760,6 +826,7 @@ export async function executeSubDocument(
     parentState.visitedPaths,
     subDoc.blocks.length
   );
+  subState.plugins = parentState.plugins;
 
   // 预展开子文档内的 .md include（相对子文档自身位置）
   await expandMdIncludes(subDoc, subDocFile, subState.visitedPaths);

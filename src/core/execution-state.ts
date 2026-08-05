@@ -5,6 +5,8 @@
 
 import type { ExecutionContext } from './context.js';
 import type { RunOptions, FlowConfig, BlockResult } from '../types/index.js';
+import type { BlockPlugin } from './plugin-loader.js';
+import type { TraceCollector } from './trace.js';
 
 /** 块执行结果（带偏移量信息） */
 export interface BlockInsertResult {
@@ -30,12 +32,18 @@ export interface BlockExecState {
     duration_ms: number;
     trace?: string;
     line?: number;
+    input_tokens?: number;
+    output_tokens?: number;
   }>;
   insertResults: BlockInsertResult[];
   hasError: boolean;
   totalBlocks: number;
   /** 控制流路径标志：debug 结果由 execute-region 直接拼进 parts，不再写入 insertResults */
   controlFlow?: boolean;
+  /** 自定义块插件注册表（可选） */
+  plugins?: Map<string, BlockPlugin>;
+  /** trace 收集器（--trace 时启用） */
+  traceCollector?: TraceCollector;
 }
 
 /**

@@ -172,7 +172,9 @@ program
   .option('--strict', 'Force run block execution confirmation every time', false)
   .option('--cache', 'Cache ai/data block results in .flow/cache/', false)
   .option('--watch', 'After execution, keep watching the file and re-run on changes', false)
-  .action(async (file: string, options: { output: string; dryRun: boolean; step: boolean; stepMode: boolean; stepBlock?: string; breakOn?: string; failFast: boolean; debug: boolean; release: boolean; quiet: boolean; var: string[]; varFile: string; yes: boolean; strict: boolean; cache: boolean; watch: boolean }) => {
+  .option('--trace', 'Output JSON trace spans of block execution', false)
+  .option('--trace-file <file>', 'Write trace spans to a file instead of stdout')
+  .action(async (file: string, options: { output: string; dryRun: boolean; step: boolean; stepMode: boolean; stepBlock?: string; breakOn?: string; failFast: boolean; debug: boolean; release: boolean; quiet: boolean; var: string[]; varFile: string; yes: boolean; strict: boolean; cache: boolean; watch: boolean; trace: boolean; traceFile?: string }) => {
     try {
       // Read content: 从文件或 stdin
       let content: string;
@@ -210,6 +212,8 @@ program
         runYes: options.yes,
         runStrict: options.strict,
         cache: options.cache,
+        trace: options.trace,
+        traceFile: options.traceFile,
       };
 
       if (!runOptions.quiet) {
@@ -280,7 +284,9 @@ program
   .option('--strict', 'Force run block execution confirmation every time', false)
   .option('--cache', 'Cache ai/data block results in .flow/cache/', false)
   .option('--when <expr>', 'Skip a document when the condition is false (e.g. "{{hasError}} == false")', undefined)
-  .action(async (files: string[], options: { output: string; dryRun: boolean; step: boolean; stepMode: boolean; failFast: boolean; debug: boolean; release: boolean; quiet: boolean; var: string[]; varFile: string; yes: boolean; strict: boolean; cache: boolean; when?: string }) => {
+  .option('--trace', 'Output JSON trace spans of block execution', false)
+  .option('--trace-file <file>', 'Write trace spans to a file instead of stdout')
+  .action(async (files: string[], options: { output: string; dryRun: boolean; step: boolean; stepMode: boolean; failFast: boolean; debug: boolean; release: boolean; quiet: boolean; var: string[]; varFile: string; yes: boolean; strict: boolean; cache: boolean; when?: string; trace: boolean; traceFile?: string }) => {
     try {
       const config: FlowConfig = loadConfig();
       const runOptions: RunOptions = {
@@ -296,6 +302,8 @@ program
         runYes: options.yes,
         runStrict: options.strict,
         cache: options.cache,
+        trace: options.trace,
+        traceFile: options.traceFile,
       };
       await pipelineCommand(files, runOptions, config, options.when);
     } catch (error) {
@@ -320,7 +328,9 @@ program
   .option('--yes', 'Skip run block execution confirmation', false)
   .option('--strict', 'Force run block execution confirmation every time', false)
   .option('--cache', 'Cache ai/data block results in .flow/cache/', false)
-  .action(async (file: string, options: { output: string; dryRun: boolean; step: boolean; failFast: boolean; debug: boolean; release: boolean; quiet: boolean; var: string[]; varFile: string; yes: boolean; strict: boolean; cache: boolean }) => {
+  .option('--trace', 'Output JSON trace spans of block execution', false)
+  .option('--trace-file <file>', 'Write trace spans to a file instead of stdout')
+  .action(async (file: string, options: { output: string; dryRun: boolean; step: boolean; failFast: boolean; debug: boolean; release: boolean; quiet: boolean; var: string[]; varFile: string; yes: boolean; strict: boolean; cache: boolean; trace: boolean; traceFile?: string }) => {
     try {
       await watchCommand(file, {
         output: options.output as 'inline' | 'new' | 'stdout',
@@ -335,6 +345,8 @@ program
         runYes: options.yes,
         runStrict: options.strict,
         cache: options.cache,
+        trace: options.trace,
+        traceFile: options.traceFile,
       });
     } catch (error) {
       console.error(chalk.red(t('cli.watchFailed', { error: error instanceof Error ? error.message : String(error) })));
@@ -412,6 +424,26 @@ program
   .option('--clear', 'Clear all history')
   .action(async (options: { detail?: string; clear?: boolean }) => {
     await historyCommand(options);
+  });
+
+program
+  .command('cost')
+  .description('Show token usage and estimated costs')
+  .option('--days <days>', 'Number of days to look back (default: 7)')
+  .option('--file <file>', 'Filter by file name')
+  .action(async (options: { days?: string; file?: string }) => {
+    const { costCommand } = await import('./commands/cost.js');
+    await costCommand(options);
+  });
+
+program
+  .command('test <file>')
+  .description('Run snapshot test against a document')
+  .option('--update', 'Update the snapshot')
+  .option('--vars-file <file>', 'Inject variables from YAML file')
+  .action(async (file: string, options: { update?: boolean; varsFile?: string }) => {
+    const { testCommand } = await import('./commands/test.js');
+    await testCommand(file, options);
   });
 
 program

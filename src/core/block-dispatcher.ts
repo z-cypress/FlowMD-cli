@@ -18,6 +18,7 @@ import { getErrorMessage } from '../utils/error-formatter.js';
 import { t } from '../utils/i18n.js';
 import type { ExecutableBlock, BlockResult, ParsedDocument } from '../types/index.js';
 import type { BlockExecState, SubExecutionResult } from './execution-state.js';
+import type { BlockPlugin } from './plugin-loader.js';
 
 /** dispatchBlock 的依赖注入（避免 executor ↔ dispatcher 运行时循环引用） */
 export interface DispatcherDeps {
@@ -32,6 +33,8 @@ export interface DispatcherDeps {
   onStep?: (message: string) => void;
   /** AI 块流式回调（调用方注入，用于实时展示生成内容） */
   onToken?: (delta: string) => void;
+  /** 已加载的块插件注册表（可选） */
+  plugins?: Map<string, BlockPlugin>;
 }
 
 /**
@@ -79,9 +82,18 @@ export async function dispatchBlock(
   const { context, config, options } = state;
   const startTime = Date.now();
 
+  // 插件块类型优先匹配
+  const plugin = deps.plugins?.get(block.type);
+  if (plugin) {
+    return plugin.execute(block.content, block.meta, context, signal);
+  }
+
   switch (block.type) {
     case 'ai':
-      return executeAIBlock(block.content, block.meta, context, config.llm, config.models, signal, deps.onToken);
+      return executeAIBlock(
+        block.content, block.meta, context, config.llm, config.models, signal, deps.onToken,
+        options.currentFile ? path.dirname(options.currentFile) : process.cwd()
+      );
     case 'data':
       return executeDataBlock(block.content, block.meta, context, config.dataSources);
     case 'template':

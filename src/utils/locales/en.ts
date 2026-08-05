@@ -180,6 +180,7 @@ export const en = {
   'error.ai.badProvider': 'Unsupported LLM provider: {provider}',
   'error.ai.jsonParseFailed': 'Failed to parse AI output as JSON: {error}\nRaw output: {raw}',
   'error.ai.formatNotArray': 'Expected JSON array but received non-array (format: {format})',
+  'error.ai.promptNotFound': 'Prompt file not found: .flow/prompts/{name}.md',
 
   // Block retry and validation (executor.ts)
   'block.retrying': '{emoji} {num} {type} retrying ({attempt}/{max})...',
@@ -190,6 +191,17 @@ export const en = {
 
   // Output delivery (deliver.ts)
   'block.deliverFailed': '⚠ Delivery to {target} failed: {error}',
+
+  // Cost dashboard (cost.ts)
+  'cost.title': '📊 Execution cost for the last {days} days',
+  'cost.empty': 'No execution records found (last {days} days)',
+  'cost.invalidDays': 'Invalid days: {days}',
+
+  // Snapshot test (test.ts)
+  'test.snapshotUpdated': '✅ Snapshot updated: {file}',
+  'test.snapshotCreated': '📝 Snapshot created (first time): {file}',
+  'test.passed': '✅ Snapshot test passed: {file}',
+  'test.failed': '❌ Snapshot test failed: {file}',
 
   // Template block (template-block.ts)
   'error.template.handlebars': 'Template syntax error: {error}',

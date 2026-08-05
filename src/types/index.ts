@@ -174,6 +174,10 @@ export interface RunOptions {
   runStrict?: boolean;
   /** 结果缓存：ai/data 块按内容哈希复用结果（run 块因副作用不缓存） */
   cache?: boolean;
+  /** 可观测性：输出 trace span JSON */
+  trace?: boolean;
+  /** --trace 写入文件路径（缺省时输出到 stdout） */
+  traceFile?: string;
 }
 
 /**
@@ -263,6 +267,8 @@ export interface BlockResult {
   duration: number;
   /** agent 块步骤轨迹（仅 agent 块返回，ADR-017） */
   steps?: AgentStep[];
+  /** LLM token 消耗（ai/agent 块返回） */
+  usage?: { input: number; output: number };
 }
 
 /**

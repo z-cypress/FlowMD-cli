@@ -180,6 +180,7 @@ export const zh = {
   'error.ai.badProvider': '不支持的 LLM 提供商: {provider}',
   'error.ai.jsonParseFailed': 'AI 输出 JSON 解析失败: {error}\n原始输出: {raw}',
   'error.ai.formatNotArray': '期望 JSON 数组但收到非数组（format: {format}）',
+  'error.ai.promptNotFound': 'Prompt 库文件未找到: .flow/prompts/{name}.md',
 
   // 块重试与校验 (executor.ts)
   'block.retrying': '{emoji} {num} {type} 重试中 ({attempt}/{max})...',
@@ -190,6 +191,17 @@ export const zh = {
 
   // 输出投递 (deliver.ts)
   'block.deliverFailed': '⚠ 投递到 {target} 失败: {error}',
+
+  // 成本仪表盘 (cost.ts)
+  'cost.title': '📊 最近 {days} 天执行成本',
+  'cost.empty': '暂无执行记录（最近 {days} 天）',
+  'cost.invalidDays': '无效的天数: {days}',
+
+  // 快照测试 (test.ts)
+  'test.snapshotUpdated': '✅ 快照已更新: {file}',
+  'test.snapshotCreated': '📝 快照已创建（首次）: {file}',
+  'test.passed': '✅ 快照测试通过: {file}',
+  'test.failed': '❌ 快照测试失败: {file}',
 
   // 模板块 (template-block.ts)
   'error.template.handlebars': '模板语法错误: {error}',

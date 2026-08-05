@@ -23,6 +23,10 @@ export interface BlockHistoryInput {
   duration_ms: number;
   /** agent 块步骤轨迹摘要（可选） */
   trace?: string;
+  /** LLM 输入 token 数（ai/agent 块） */
+  input_tokens?: number;
+  /** LLM 输出 token 数（ai/agent 块） */
+  output_tokens?: number;
 }
 
 /** 单块查询返回（含块 id 与所属 execution_id） */
@@ -93,6 +97,13 @@ function openDb(): Database.Database {
   if (!blockCols.some((c) => c.name === 'trace')) {
     db.exec('ALTER TABLE execution_blocks ADD COLUMN trace TEXT');
   }
+  // 迁移：为旧库补充 token 列
+  if (!blockCols.some((c) => c.name === 'input_tokens')) {
+    db.exec('ALTER TABLE execution_blocks ADD COLUMN input_tokens INTEGER DEFAULT 0');
+  }
+  if (!blockCols.some((c) => c.name === 'output_tokens')) {
+    db.exec('ALTER TABLE execution_blocks ADD COLUMN output_tokens INTEGER DEFAULT 0');
+  }
 
   return db;
 }
@@ -114,8 +125,8 @@ export function recordExecution(input: HistoryInput): number {
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
     const insertBlock = db.prepare(`
-      INSERT INTO execution_blocks (execution_id, position, type, status, error, duration_ms, trace)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO execution_blocks (execution_id, position, type, status, error, duration_ms, trace, input_tokens, output_tokens)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const tx = db.transaction(() => {
@@ -138,7 +149,9 @@ export function recordExecution(input: HistoryInput): number {
           b.status,
           b.error ? b.error.slice(0, MAX_ERROR_LENGTH) : null,
           b.duration_ms,
-          b.trace ? b.trace.slice(0, MAX_TRACE_LENGTH) : null
+          b.trace ? b.trace.slice(0, MAX_TRACE_LENGTH) : null,
+          b.input_tokens ?? 0,
+          b.output_tokens ?? 0
         );
       }
       // 保留上限：删除最旧超出部分
@@ -185,6 +198,42 @@ export function clearHistory(): void {
   const db = openDb();
   try {
     db.exec('DELETE FROM executions; DELETE FROM execution_blocks;');
+  } finally {
+    db.close();
+  }
+}
+
+/** 成本查询结果行 */
+export interface CostRow {
+  date: string;
+  file: string;
+  blocks: number;
+  tokens_in: number;
+  tokens_out: number;
+}
+
+/** 按天/文件聚合 token 用量 */
+export function queryCostData(days: number, file?: string): CostRow[] {
+  const db = openDb();
+  try {
+    let sql = `
+      SELECT
+        SUBSTR(e.timestamp, 1, 10) AS date,
+        e.file,
+        COUNT(b.id) AS blocks,
+        COALESCE(SUM(b.input_tokens), 0) AS tokens_in,
+        COALESCE(SUM(b.output_tokens), 0) AS tokens_out
+      FROM executions e
+      JOIN execution_blocks b ON b.execution_id = e.id
+      WHERE e.timestamp >= date('now', '-' || ? || ' days')
+    `;
+    const params: (string | number)[] = [days];
+    if (file) {
+      sql += ` AND e.file = ?`;
+      params.push(file);
+    }
+    sql += ` GROUP BY date, e.file ORDER BY date DESC, e.file`;
+    return db.prepare(sql).all(...params) as CostRow[];
   } finally {
     db.close();
   }

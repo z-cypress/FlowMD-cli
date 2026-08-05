@@ -38,6 +38,8 @@ const FILTERS: Record<string, FilterFn> = {
 export class ExecutionContext {
   /** 变量存储 */
   private store = new Map<string, unknown>();
+  /** 对话历史存储（按对话名称分组） */
+  private conversations = new Map<string, Array<{ role: 'user' | 'assistant'; content: string }>>();
 
   /**
    * 设置变量值
@@ -72,6 +74,27 @@ export class ExecutionContext {
    */
   resolve(path: string): unknown {
     return this.resolvePath(path);
+  }
+
+  /**
+   * 获取对话历史
+   * @param name - 对话名称
+   * @returns 消息数组
+   */
+  getConversation(name: string): Array<{ role: 'user' | 'assistant'; content: string }> {
+    return this.conversations.get(name) ?? [];
+  }
+
+  /**
+   * 追加消息到对话历史
+   * @param name - 对话名称
+   * @param role - 消息角色
+   * @param content - 消息内容
+   */
+  appendToConversation(name: string, role: 'user' | 'assistant', content: string): void {
+    const history = this.conversations.get(name) ?? [];
+    history.push({ role, content });
+    this.conversations.set(name, history);
   }
 
   /**

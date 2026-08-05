@@ -8,6 +8,13 @@ import type { ExecutionContext } from '../context.js';
 import type { LLMConfig, BlockResult } from '../../types/index.js';
 import { getErrorMessage } from '../../utils/error-formatter.js';
 import { t } from '../../utils/i18n.js';
+import { loadPrompt } from '../prompts.js';
+
+/** LLM 调用返回结果（含文本和 token 用量） */
+interface LLMResponse {
+  text: string;
+  usage?: { input: number; output: number };
+}
 
 /** AI 块配置 */
 interface AIBlockConfig {
@@ -23,6 +30,10 @@ interface AIBlockConfig {
   stream?: boolean | string;
   /** 结构化输出格式（可选，"json" | "json-array"） */
   format?: string;
+  /** 外部 prompt 名称（可选，加载 .flow/prompts/<name>.md） */
+  prompt?: string;
+  /** 对话名称（可选，同名对话自动携带历史 user/assistant pair） */
+  conversation?: string;
 }
 
 /**
@@ -34,6 +45,7 @@ interface AIBlockConfig {
  * @param models - 命名模型预设
  * @param signal - 可选的中止信号（超时/取消时触发）
  * @param onToken - 可选的回调，流式模式下逐段收到生成的文本
+ * @param projectRoot - 项目根目录（prompt 库路径基准，可选）
  * @returns 块执行结果
  */
 export async function executeAIBlock(
@@ -43,7 +55,8 @@ export async function executeAIBlock(
   llmConfig: LLMConfig,
   models?: Record<string, Partial<LLMConfig>>,
   signal?: AbortSignal,
-  onToken?: (delta: string) => void
+  onToken?: (delta: string) => void,
+  projectRoot?: string
 ): Promise<BlockResult> {
   const startTime = Date.now();
 
@@ -80,16 +93,39 @@ export async function executeAIBlock(
       };
     }
 
+    // 解析 prompt 来源：外部 prompt 文件优先，否则用 inline content
+    let promptSource = content;
+    if (config.prompt) {
+      const loaded = loadPrompt(config.prompt, projectRoot);
+      if (loaded === null) {
+        return {
+          success: false,
+          output: null,
+          error: t('error.ai.promptNotFound', { name: config.prompt }),
+          duration: Date.now() - startTime,
+        };
+      }
+      promptSource = loaded;
+    }
+
     // 渲染提示词中的变量
-    const renderedPrompt = context.render(content);
+    const renderedPrompt = context.render(promptSource);
+
+    // 构建消息列表：conversation 历史 + 当前轮次
+    const messages: LLMMessage[] = [];
+    if (config.conversation) {
+      const history = context.getConversation(config.conversation);
+      messages.push(...history);
+    }
+    messages.push({ role: 'user', content: renderedPrompt });
 
     // 根据提供商调用 LLM
-    let resultText: string;
+    let llmResponse: LLMResponse;
 
     if (resolvedConfig.provider === 'openai') {
-      resultText = await callOpenAI(renderedPrompt, config, resolvedConfig, signal, onToken);
+      llmResponse = await callOpenAI(messages, config, resolvedConfig, signal, onToken);
     } else if (resolvedConfig.provider === 'anthropic') {
-      resultText = await callAnthropic(renderedPrompt, config, resolvedConfig, signal, onToken);
+      llmResponse = await callAnthropic(messages, config, resolvedConfig, signal, onToken);
     } else {
       return {
         success: false,
@@ -97,6 +133,15 @@ export async function executeAIBlock(
         error: t('error.ai.badProvider', { provider: resolvedConfig.provider }),
         duration: Date.now() - startTime,
       };
+    }
+
+    const resultText = llmResponse.text;
+    const resultUsage = llmResponse.usage;
+
+    // 保存到对话历史
+    if (config.conversation) {
+      context.appendToConversation(config.conversation, 'user', renderedPrompt);
+      context.appendToConversation(config.conversation, 'assistant', resultText);
     }
 
     // 结构化输出：自动解析 JSON
@@ -120,6 +165,7 @@ export async function executeAIBlock(
           success: true,
           output: JSON.stringify(parsed, null, 2),
           duration: Date.now() - startTime,
+          usage: resultUsage,
         };
       } catch (parseErr) {
         return {
@@ -140,6 +186,7 @@ export async function executeAIBlock(
       success: true,
       output: resultText,
       duration: Date.now() - startTime,
+      usage: resultUsage,
     };
   } catch (error) {
     return {
@@ -171,16 +218,18 @@ function isStreaming(value: boolean | string | undefined): boolean {
  * @param onToken - 可选的回调，流式模式下逐段收到生成的文本
  * @returns 生成的文本
  */
+/** LLM 消息类型 */
+type LLMMessage = { role: 'user' | 'assistant'; content: string };
+
 async function callOpenAI(
-  prompt: string,
+  messages: LLMMessage[],
   config: AIBlockConfig,
   llmConfig: LLMConfig,
   signal?: AbortSignal,
   onToken?: (delta: string) => void
-): Promise<string> {
+): Promise<LLMResponse> {
   const client = getOpenAIClient(llmConfig);
 
-  // 确保 temperature 是数字类型
   const temperature = typeof config.temperature === 'string'
     ? parseFloat(config.temperature)
     : (config.temperature ?? llmConfig.temperature ?? 0.7);
@@ -191,12 +240,11 @@ async function callOpenAI(
 
   const params = {
     model: llmConfig.model,
-    temperature: temperature,
+    temperature,
     max_tokens: maxTokens,
-    messages: [{ role: 'user' as const, content: prompt }],
+    messages: messages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
   };
 
-  // 流式模式：逐段累积并回调
   if (isStreaming(config.stream)) {
     const stream = await client.chat.completions.create(
       { ...params, stream: true },
@@ -210,12 +258,17 @@ async function callOpenAI(
         onToken?.(delta);
       }
     }
-    return text;
+    return { text };
   }
 
   const response = await client.chat.completions.create(params, { signal });
 
-  return response.choices[0].message.content || '';
+  return {
+    text: response.choices[0].message.content || '',
+    usage: response.usage
+      ? { input: response.usage.prompt_tokens, output: response.usage.completion_tokens }
+      : undefined,
+  };
 }
 
 /**
@@ -228,15 +281,14 @@ async function callOpenAI(
  * @returns 生成的文本
  */
 async function callAnthropic(
-  prompt: string,
+  messages: LLMMessage[],
   config: AIBlockConfig,
   llmConfig: LLMConfig,
   signal?: AbortSignal,
   onToken?: (delta: string) => void
-): Promise<string> {
+): Promise<LLMResponse> {
   const client = getAnthropicClient(llmConfig);
 
-  // 确保 temperature 是数字类型
   const temperature = typeof config.temperature === 'string'
     ? parseFloat(config.temperature)
     : (config.temperature ?? llmConfig.temperature ?? 0.7);
@@ -248,11 +300,10 @@ async function callAnthropic(
   const params = {
     model: llmConfig.model,
     max_tokens: maxTokens,
-    temperature: temperature,
-    messages: [{ role: 'user' as const, content: prompt }],
+    temperature,
+    messages: messages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
   };
 
-  // 流式模式：逐段累积并回调（Anthropic SDK 事件流）
   if (isStreaming(config.stream)) {
     const stream = await client.messages.create(
       { ...params, stream: true },
@@ -268,12 +319,16 @@ async function callAnthropic(
         }
       }
     }
-    return text;
+    return { text };
   }
 
   const response = await client.messages.create(params, { signal });
 
-  // 从响应内容中提取文本
   const textBlock = response.content.find((block) => block.type === 'text');
-  return textBlock?.text || '';
+  return {
+    text: textBlock?.text || '',
+    usage: response.usage
+      ? { input: response.usage.input_tokens, output: response.usage.output_tokens }
+      : undefined,
+  };
 }
