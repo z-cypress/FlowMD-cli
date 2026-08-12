@@ -32,9 +32,9 @@ function estimateCost(tokensIn: number, tokensOut: number): string {
 
 /**
  * cost 命令入口
- * @param opts - 选项：days, file, verbose
+ * @param opts - 选项：days, file
  */
-export async function costCommand(opts: { days?: string; file?: string; verbose?: boolean }): Promise<void> {
+export async function costCommand(opts: { days?: string; file?: string }): Promise<void> {
   const days = opts.days ? parseInt(opts.days, 10) : 7;
   if (!Number.isInteger(days) || days <= 0) {
     console.error(chalk.red(t('cost.invalidDays', { days: opts.days ?? '' })));

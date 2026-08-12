@@ -7,14 +7,14 @@
 
  ## 安装
 
- ```bash
- git clone https://github.com/z-cypress/FlowMD-cli.git
- cd FlowMD-cli
- pnpm install
- pnpm build
- npm install -g @z-cypress/flow-md
-npm install -g .  # 开发模式
- ```
+ 两种方式二选一：
+
+ | 方式 | 命令 | 适用场景 |
+ |------|------|----------|
+ | **正式发布版** | `npm install -g @z-cypress/flow-md` | 直接使用，无需源码 |
+ | **开发模式** | `git clone ... && cd FlowMD-cli && pnpm install && pnpm build && npm install -g .` | 在源码仓库中调试/二次开发 |
+
+ 安装后验证：`flowmd --version`。
 
  ## 配置
 

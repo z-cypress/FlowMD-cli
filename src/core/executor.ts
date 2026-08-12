@@ -364,6 +364,11 @@ export async function executeOneBlock(
         });
       }
 
+      // debug 模式：打印变量快照（实时变量面板）
+      if (options.debug) {
+        printVariableSnapshot(state, pos);
+      }
+
       // 输出投递：将结果推送到外部目的地
       const deliverTarget = metaString(block.meta, 'deliver');
       if (deliverTarget && result.output !== null) {
@@ -487,6 +492,42 @@ export function emitTrace(state: BlockExecState): void {
     }
   } else {
     console.log(traceJSON);
+  }
+}
+
+/**
+ * debug 模式打印变量快照（实时变量面板，3.4.3）
+ * @param state - 执行状态
+ * @param pos - 当前块位置（1-based）
+ */
+function printVariableSnapshot(state: BlockExecState, pos: number): void {
+  if (state.options.quiet) return;
+  const dumped = state.context.dump();
+  const keys = Object.keys(dumped).filter((k) => !SYSTEM_VARS.has(k));
+  if (keys.length === 0) {
+    console.log(chalk.gray(t('debug.varsEmpty', { pos })));
+    return;
+  }
+  console.log(chalk.cyan(t('debug.varsTitle', { pos })));
+  for (const key of keys) {
+    const value = dumped[key];
+    const preview = typeof value === 'string'
+      ? value.length > 80 ? value.slice(0, 80) + '...' : value
+      : serializeCompact(value);
+    console.log(chalk.gray(`  ${key} = ${preview}`));
+  }
+}
+
+/** 紧凑序列化变量值（用于快照预览） */
+function serializeCompact(value: unknown): string {
+  if (value === null) return 'null';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  try {
+    const s = JSON.stringify(value);
+    return s && s.length > 120 ? s.slice(0, 120) + '...' : s;
+  } catch {
+    return String(value);
   }
 }
 

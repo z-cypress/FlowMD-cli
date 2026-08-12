@@ -9,14 +9,14 @@ Turn Markdown into executable files — drive AI workflows by writing documents.
 
 ## Installation
 
-```bash
-git clone https://github.com/z-cypress/FlowMD-cli.git
-cd FlowMD-cli
-pnpm install
-pnpm build
-npm install -g @z-cypress/flow-md
-npm install -g .  # Development mode
-```
+Choose one of the two ways:
+
+| Way | Command | Use case |
+|-----|---------|----------|
+| **Released version** | `npm install -g @z-cypress/flow-md` | Direct use, no source needed |
+| **Development mode** | `git clone ... && cd FlowMD-cli && pnpm install && pnpm build && npm install -g .` | Debug / develop in the source repo |
+
+Verify after install: `flowmd --version`.
 
 ## Configuration
 

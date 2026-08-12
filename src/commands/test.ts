@@ -115,15 +115,9 @@ export async function testCommand(
     currentFile: file,
   };
 
-  // 注入变量
+  // 注入变量：交给 executor 处理（--vars-file 等价于 --var-file，保留 YAML/JSON 类型）
   if (options.varsFile) {
-    const { readFileSync: readFs } = await import('node:fs');
-    const { parse: parseYaml } = await import('yaml');
-    const raw = readFs(options.varsFile, 'utf-8');
-    const vars = parseYaml(raw) as Record<string, unknown>;
-    for (const [k, v] of Object.entries(vars)) {
-      runOptions.varArgs[k] = String(v);
-    }
+    runOptions.varFile = options.varsFile;
   }
 
   const result = await executeDocument(doc, runOptions, config);

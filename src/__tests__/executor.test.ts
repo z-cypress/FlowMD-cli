@@ -1014,6 +1014,48 @@ describe('error recovery', () => {
     expect(summary).toContain('0/1');
     expect(summary).toContain('失败');
   });
+
+  it('should print variable snapshot in debug mode', async () => {
+    vi.mocked(executeAIBlock).mockImplementationOnce(
+      async (_content: string, config: Record<string, string>, context: { set: (k: string, v: unknown) => void }) => {
+        if (config.output) context.set(config.output, 'summary text');
+        return { success: true, output: 'summary text', duration: 10 };
+      }
+    );
+
+    const logCalls: string[] = [];
+    const spy = vi.spyOn(console, 'log').mockImplementation((...args) => {
+      logCalls.push(args.join(' '));
+    });
+    const doc = makeDoc([makeBlock('ai', 'Sum up', { output: 'summary' })]);
+
+    await executeDocument(doc, { ...defaultOptions, debug: true }, defaultConfig);
+    spy.mockRestore();
+
+    const snapshot = logCalls.find((c) => c.includes('summary ='));
+    expect(snapshot).toBeDefined();
+    expect(snapshot).toContain('summary');
+    expect(snapshot).toContain('summary text');
+  });
+
+  it('should not print variable snapshot in non-debug mode', async () => {
+    vi.mocked(executeAIBlock).mockResolvedValueOnce({
+      success: true,
+      output: 'x',
+      duration: 10,
+    });
+
+    const logCalls: string[] = [];
+    const spy = vi.spyOn(console, 'log').mockImplementation((...args) => {
+      logCalls.push(args.join(' '));
+    });
+    const doc = makeDoc([makeBlock('ai', 'Sum up', { output: 'summary' })]);
+
+    await executeDocument(doc, defaultOptions, defaultConfig);
+    spy.mockRestore();
+
+    expect(logCalls.find((c) => c.includes('变量快照'))).toBeUndefined();
+  });
 });
 
 });

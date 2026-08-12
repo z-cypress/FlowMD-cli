@@ -78,6 +78,8 @@ export const zh = {
   'warning.unresolvedVar.title': '\n⚠️  以下变量在文档中被引用，但未被任何块定义：',
   'warning.unresolvedVar.hint': '   请检查是否有对应的 ai/data/template 块定义了这些变量。',
   'debug.insertResult': '\n\n> 📋 执行结果：\n> \n> {result}\n',
+  'debug.varsTitle': '\n🔍 变量快照（块 #{pos} 后）:',
+  'debug.varsEmpty': '\n🔍 变量快照（块 #{pos} 后）:（无自定义变量）',
   'error.includeNoPath': 'include 块缺少 path 参数',
   'error.includeYamlFail': 'YAML include 失败: {error}',
   'error.includeBadExt': '不支持的 include 文件类型: {ext}',

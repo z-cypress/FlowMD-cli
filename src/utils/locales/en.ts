@@ -78,6 +78,8 @@ export const en = {
   'warning.unresolvedVar.title': '\n⚠️  The following variables are referenced but not defined by any block:',
   'warning.unresolvedVar.hint': '   Check that an ai/data/template block defines these variables.',
   'debug.insertResult': '\n\n> 📋 Execution result:\n> \n> {result}\n',
+  'debug.varsTitle': '\n🔍 Variable snapshot (after block #{pos}):',
+  'debug.varsEmpty': '\n🔍 Variable snapshot (after block #{pos}): (no custom variables)',
   'error.includeNoPath': 'include block is missing the path parameter',
   'error.includeYamlFail': 'YAML include failed: {error}',
   'error.includeBadExt': 'Unsupported include file type: {ext}',
