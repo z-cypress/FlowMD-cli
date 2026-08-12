@@ -4,7 +4,7 @@
 
 FlowMD is a CLI tool that executes special code blocks in Markdown files. It parses `.md` files containing `ai`, `data`, and `template` blocks, executes them in sequence, and outputs the rendered result.
 
-**Status**: v0.3.1 — 575 tests passing（2 skipped）。SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for + collect). serve (HTTP API + Web IDE v3: CodeMirror 6 编辑器/高亮/行号 + debug/示例/块统计 + 失败行标红 + 变量面板 + 自动执行) + schedule (cron + --daemon/--stop 后台守护). agent block (v2.0: 多 provider 适配器 chat/direct + ReAct 多步任务 + 6 工具 + 成本预算确认) + 自然语言生成文档 (new --ai) + doc 块 (v2.1 跨文档协作) + pipeline 多文档串联（--when 条件跳过）+ 结果缓存 (--cache) + AI 块流式输出 (stream: true) + credentials.yml 自动加载 + 错误行号定位 + validate/help blocks 命令 + YAML meta 解析 + 配置 schema 校验 + 8 个内置模板 + 用户模板目录 (.flow/templates/). VS Code extension (`extension/`: 语法高亮 + ▶ Run CodeLens + run/pipeline 命令). Full documentation in `docs/` (bilingual zh/en).
+**Status**: v0.6.0 — 654 tests passing（2 skipped）。SQLite/MySQL/PostgreSQL support. run block (js/python sandbox). Control flow (if/elif/else/for/parallel + collect). serve (HTTP API + Web IDE v3: CodeMirror 6 编辑器/高亮/行号 + debug/示例/块统计 + 失败行标红 + 变量面板 + 自动执行 + 执行历史面板 + 块级单独执行) + schedule (cron + --daemon/--stop 后台守护). agent block (v2.0: 多 provider 适配器 chat/direct + ReAct 多步任务 + 6 工具 + 成本预算确认) + 自然语言生成文档 (new --ai) + doc 块 (v2.1 跨文档协作) + pipeline 多文档串联（--when 条件跳过）+ 结果缓存 (--cache) + AI 块流式输出 (stream: true) + 管道操作符（7 过滤器）+ AI 结构化输出 (format: json) + 块级重试/校验 (retry/validate) + 输出投递 (deliver) + Prompt 库 (.flow/prompts/) + 多轮对话 (conversation) + 成本仪表盘 (flowmd cost) + 快照测试 (flowmd test) + 插件系统 (.flow/plugins/) + --trace 可观测性 + credentials.yml 自动加载 + 错误行号定位 + validate/help blocks 命令 + YAML meta 解析 + 配置 schema 校验 + 8 个内置模板 + 用户模板目录 (.flow/templates/). VS Code extension (`extension/`: 语法高亮 + ▶ Run CodeLens + run/pipeline 命令). Full documentation in `docs/` (bilingual zh/en).
 
 ## Tech Stack
 
@@ -25,7 +25,7 @@ FlowMD is a CLI tool that executes special code blocks in Markdown files. It par
 pnpm install          # Install dependencies
 pnpm dev -- run <f>   # Dev mode (tsx)
 pnpm lint             # ESLint (flat config, TS6 API)
-pnpm test:run         # Run all tests (546)
+pnpm test:run         # Run all tests (654)
 pnpm build            # Build to dist/
 npm install -g .      # Global install
 flowmd run <file>     # Execute document
@@ -34,38 +34,43 @@ flowmd init           # Create .flow/ config
 flowmd new <name>     # Create from template
 flowmd config         # View/modify config
 flowmd doctor         # Environment diagnosis
-flowmd serve          # Local HTTP API + Web IDE (/ /execute /templates /health)
+flowmd serve          # Local HTTP API + Web IDE (/ /execute /execute-block /history /templates /health)
+flowmd test <file>    # Snapshot testing (--update)
+flowmd cost --days 7  # Cost dashboard
 flowmd schedule       # Scheduled tasks + cron daemon
 ```
 
-## Commands (10 total)
+## Commands (12 total)
 
 | Command | Options | Status |
 |---------|---------|--------|
-| `run <file>` | `-o` (inline/new/stdout), `-d`, `-s`, `--step-block <pos>`, `--break-on <type>`, `-f`, `--debug`, `--release`, `--var`, `--var-file`, `--yes`, `--strict`, `--cache`, `--watch` | ✅ |
-| `pipeline <files...>` | `-o`, `-d`, `-s`, `-f`, `--debug`, `--release`, `--var`, `--var-file`, `--yes`, `--strict`, `--cache`, `--when <expr>` | ✅ |
-| `watch <file>` | `-o`, `-d`, `-s`, `-f`, `--debug`, `--release`, `--yes`, `--strict`, `--cache` | ✅ |
+| `run <file>` | `-o` (inline/new/stdout), `-d`, `-s`, `--step-block <pos>`, `--break-on <type>`, `-f`, `--debug`, `--release`, `--var`, `--var-file`, `--yes`, `--strict`, `--cache`, `--watch`, `--trace`, `--trace-file` | ✅ |
+| `pipeline <files...>` | `-o`, `-d`, `-s`, `-f`, `--debug`, `--release`, `--var`, `--var-file`, `--yes`, `--strict`, `--cache`, `--when <expr>`, `--trace`, `--trace-file` | ✅ |
+| `watch <file>` | `-o`, `-d`, `-s`, `-f`, `--debug`, `--release`, `--yes`, `--strict`, `--cache`, `--trace`, `--trace-file` | ✅ |
 | `init` | — | ✅ |
 | `new <name>` | `-t` (template), `-l` (list), `-f`, `--ai <desc>` (NL generation) | ✅ |
 | `config [key]` | `--set <value>` | ✅ |
 | `doctor` | — | ✅ |
 | `validate <file>` | `--var` | ✅ |
+| `test <file>` | `--update`, `--vars-file <file>` | ✅ |
 | `history` | `--detail <id>`, `--clear` | ✅ |
+| `cost` | `--days <days>`, `--file <file>` | ✅ |
 | `help blocks` | 块类型参数速查 | ✅ |
-| `serve` | `--port`, `--host`; endpoints `/` (Web IDE) `/execute` `/templates` `/health` | ✅ |
+| `serve` | `--port`, `--host`; endpoints `/` (Web IDE) `/execute` `/execute-block` `/history` `/templates` `/health` | ✅ |
 | `schedule` | `add <name> <file> --cron`, `list`, `remove`, `pause`, `resume`, `run`, daemon, `--daemon`, `--stop` | ✅ |
 
 ## Block Types
 
 | Block | Purpose | Parameters |
 |-------|---------|------------|
-| `ai` | Call LLM (OpenAI / Anthropic) | `model`, `output`, `temperature`, `max_tokens` |
+| `ai` | Call LLM (OpenAI / Anthropic) | `model`, `output`, `temperature`, `max_tokens`, `stream`, `format` (json/json-array), `prompt` (库), `conversation` (多轮), `retry`, `validate`, `deliver` |
 | `data` | Query SQLite/MySQL/PostgreSQL (read-only) | `from`, `output` |
 | `template` | Render Handlebars | `output` |
 | `include` | Inline external `.md`/`.yaml` file | `path` |
 | `run` | Execute script in sandbox (js isolated-vm / python subprocess) | `runtime`, `vars`, `output`, `timeout`, `memory`, `permissions` |
 | `agent` | Autonomous multi-step task via ReAct loop (openai/anthropic) | `goal`, `provider`, `tools`, `output`, `max_steps`, `timeout`, `temperature` |
 | `doc` | Isolated sub-document execution + namespaced output return (v2.1) | `path`, `input`, `output` |
+| 插件 | 自定义块类型（`.flow/plugins/`，v0.6.0） | `{ name, execute }`，parser 经插件名识别 |
 
 ## Control Flow (v1.3)
 
@@ -73,6 +78,7 @@ HTML comment directives wrapping body text + blocks. Not a block type; parsed as
 
 - `<!-- if: EXPR -->` / `<!-- elif: EXPR -->` / `<!-- else -->` / `<!-- endif -->`
 - `<!-- for: X in LIST [ {collect: "NAME"} ] -->` / `<!-- endfor -->`
+- `<!-- parallel -->` / `<!-- endparallel -->` (v0.5.0 区间内块并发执行，Promise.allSettled)
 - Condition evaluator: whitelist (comparisons + `&&` `||` `!`), undefined → falsy
 - for: body blocks re-execute per round; body text re-renders per round; loop var cleared after loop; `collect` accumulates single output into array
 - Directive comments kept in default/debug output, stripped in release
@@ -116,6 +122,10 @@ Only SELECT allowed. Blocks: DROP, DELETE, UPDATE, INSERT, ALTER, TRUNCATE, CREA
 
 `{{json value}}` — formatted JSON output (SafeString)
 
+## Pipe Operators (v0.5.0)
+
+正文 `{{expr | filter:arg}}` 轻量计算：`len` / `default` / `join` / `round` / `upper` / `lower` / `truncate`。参数支持引号包裹（`{{name | default:"匿名"}}`）。
+
 ## Project Structure
 
 ```
@@ -129,18 +139,24 @@ src/
 │   ├── config.ts           # Config get/set
 │   ├── doctor.ts           # Env diagnosis
 │   ├── validate.ts         # Parse-only validation (validate command)
+│   ├── test.ts             # Snapshot testing (flowmd test, v0.6.0)
+│   ├── cost.ts             # Cost dashboard (flowmd cost, v0.6.0)
 │   ├── history.ts          # Execution history (list/detail/clear)
-│   ├── serve.ts            # Local HTTP API (native http, / Web IDE /execute /templates /health)
+│   ├── serve.ts            # Local HTTP API (native http, / Web IDE /execute /execute-block /history /templates /health)
 │   └── schedule.ts         # Scheduled tasks (add/list/remove/pause/resume/run/daemon)
 ├── core/
-│   ├── parser.ts           # Markdown parser
-│   ├── executor.ts         # 顶层协调 + 预执行校验 + flat/control 路径 + 子文档执行
+│   ├── parser.ts           # Markdown parser (+ 插件类型识别)
+│   ├── executor.ts         # 顶层协调 + 预执行校验 + flat/control 路径 + 子文档执行 + 单块执行
 │   ├── block-dispatcher.ts # 块类型 → 执行器 switch 路由（executor 拆分）
 │   ├── execution-state.ts  # BlockExecState 及其生命周期（executor 拆分）
 │   ├── include-expander.ts # .md include 预展开 + 路径解析/安全校验（executor 拆分）
 │   ├── output-builder.ts   # debug 插入 / render / release 剥离（executor 拆分）
 │   ├── cache.ts            # 块结果缓存（--cache，.flow/cache/）
-│   ├── context.ts          # Variable context
+│   ├── context.ts          # Variable context + 管道过滤器 + 对话存储
+│   ├── deliver.ts          # 输出投递（webhook/file，v0.5.0）
+│   ├── prompts.ts          # Prompt 库加载（.flow/prompts/，v0.6.0）
+│   ├── plugin-loader.ts    # 块插件加载（.flow/plugins/，v0.6.0）
+│   ├── trace.ts            # --trace 可观测性（TraceCollector，v0.6.0）
 │   ├── generate.ts         # NL → FlowMD document (flowmd new --ai)
 │   └── blocks/
 │       ├── ai-block.ts     # AI executor + model presets
@@ -159,7 +175,7 @@ src/
 │           └── execute-region.ts # tree walking execution
 │   ├── serve/
 │   │   ├── server.ts             # native http server factory + routing
-│   │   ├── routes.ts             # / (Web IDE) /execute /templates /health handlers
+│   │   ├── routes.ts             # / (Web IDE) /execute /execute-block /history /templates /health handlers
 │   │   ├── web-ide.html.ts       # Web IDE single-page HTML (inline, no frontend deps)
 │   │   └── types.ts              # ExecuteRequest / ApiResponse
 │   └── schedule/
@@ -193,12 +209,12 @@ src/
 │   ├── config.ts           # Multi-layer config loader
 │   ├── i18n.ts             # Bilingual (zh/en) message lookup
 │   ├── locales/            # zh.ts / en.ts message tables
-│   ├── history.ts          # Execution history SQLite persistence (block trace column)
+│   ├── history.ts          # Execution history SQLite persistence (block trace + token columns)
 │   ├── logger.ts           # Terminal output
 │   ├── output-name.ts      # -o new 输出文件命名（name_YYYY-MM-DD.md + 序号）
 │   ├── prompt.ts           # User input（askQuestion / confirm / selectFromList 方向键选择器）
 │   └── error-formatter.ts  # Error formatting
-└── __tests__/              # 40 test files, 546 tests
+└── __tests__/              # 52 test files, 654 tests
 ```
 extension/                # VS Code extension (separate package)
 ├── package.json           # extension manifest (commands/grammar/config)

@@ -1,6 +1,6 @@
 {
   "name": "@z-cypress/flow-md",
-  "version": "0.3.1",
+  "version": "0.6.0",
   "description": "CLI tool that executes special code blocks in Markdown files",
   "type": "module",
   "main": "dist/index.js",
