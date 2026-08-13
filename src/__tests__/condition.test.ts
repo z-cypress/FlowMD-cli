@@ -188,3 +188,17 @@ describe('extractConditionVars', () => {
     expect(extractConditionVars('5 > 3')).toEqual([]);
   });
 });
+
+describe('parse depth limit', () => {
+  it('should reject deeply nested parens instead of stack overflow', () => {
+    // 65 层嵌套括号（超过 MAX_PARSE_DEPTH=64）
+    const expr = '('.repeat(65) + '1 == 1' + ')'.repeat(65);
+    expect(() => evaluateCondition(expr, () => undefined)).toThrow(ConditionSyntaxError);
+  });
+
+  it('should allow reasonable nesting depth', () => {
+    // 10 层嵌套应正常
+    const expr = '('.repeat(10) + '1 == 1' + ')'.repeat(10);
+    expect(evaluateCondition(expr, () => undefined)).toBe(true);
+  });
+});

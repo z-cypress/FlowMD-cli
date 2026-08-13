@@ -185,4 +185,46 @@ describe('parallel block execution', () => {
 
     expect(result.hasError).toBe(true);
   });
+
+  it('should preserve body prose inside parallel region', async () => {
+    const content = [
+      '<!-- parallel -->',
+      '前言文本',
+      '```ai {output: "a"}',
+      'prompt a',
+      '```',
+      '中间文本',
+      '```ai {output: "b"}',
+      'prompt b',
+      '```',
+      '结尾文本',
+      '<!-- endparallel -->',
+    ].join('\n');
+
+    const doc = parseMarkdown(content);
+    const result = await executeDocument(doc, defaultOptions, defaultConfig);
+
+    expect(result.hasError).toBe(false);
+    expect(result.content).toContain('前言文本');
+    expect(result.content).toContain('中间文本');
+    expect(result.content).toContain('结尾文本');
+    expect(aiCallCount).toBe(2);
+  });
+
+  it('should reject if directive inside parallel region', async () => {
+    const content = [
+      '<!-- parallel -->',
+      '<!-- if: 1 == 1 -->',
+      '```ai {output: "a"}',
+      'prompt',
+      '```',
+      '<!-- endif -->',
+      '<!-- endparallel -->',
+    ].join('\n');
+
+    const doc = parseMarkdown(content);
+    const result = await executeDocument(doc, defaultOptions, defaultConfig);
+
+    expect(result.hasError).toBe(true);
+  });
 });

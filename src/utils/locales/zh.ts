@@ -151,6 +151,8 @@ export const zh = {
   'error.run.unknownRuntime': '不支持的 runtime: {runtime}（支持 js / python）',
   'error.run.unknownPermission': '未知权限声明: {perms}（v1.2 不支持权限注入）',
   'error.run.undefinedVar': 'run 块声明的变量 \'{var}\' 未定义',
+  'error.run.invalidTimeout': 'run 块 timeout 必须为正数，收到: {value}',
+  'error.run.invalidMemory': 'run 块 memory 必须为正数，收到: {value}',
   'error.run.exitCode': '脚本退出码 {code}: {detail}',
   'error.run.timeout': '脚本执行超时',
   'error.run.noPython': '未找到 python3，无法执行 python runtime',

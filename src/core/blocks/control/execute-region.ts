@@ -232,8 +232,8 @@ async function walkFor(
     appendText(rawContent.slice(node.sourceStart, node.bodyStart), state, parts);
   }
 
-  // 列表来源：listExpr 是 context 变量名；字符串为 JSON 时解析为数组
-  const list = resolveList(state.context.get(node.listExpr));
+  // 列表来源：listExpr 是 context 变量路径（用 resolve 支持深层路径如 data.items）
+  const list = resolveList(state.context.resolve(node.listExpr));
   const items = Array.isArray(list) ? list : [];
 
   // collect 数组仅在真正迭代时初始化，空列表/非数组不污染 context
@@ -302,7 +302,7 @@ async function walkParallel(
     appendText(rawContent.slice(node.sourceStart, node.bodyStart), state, parts);
   }
 
-  // 收集区内所有块节点（递归展开嵌套 parallel）
+  // 收集区内所有块（递归展开嵌套 parallel）；if/for 节点在树构建时已被拒绝
   const allBlocks: ExecutableBlock[] = [];
   const collectBlocks = (nodes: ControlNode[]): void => {
     for (const n of nodes) {
@@ -311,7 +311,6 @@ async function walkParallel(
       } else if (n.kind === 'parallel') {
         collectBlocks(n.children);
       }
-      // if/for 节点内的块不参与并行（它们有条件依赖）
     }
   };
   collectBlocks(node.children);
@@ -321,10 +320,15 @@ async function walkParallel(
     allBlocks.map(b => executeOneBlock(b, state))
   );
 
-  // 处理结果
-  for (let i = 0; i < results.length; i++) {
-    const r = results[i];
-    const block = allBlocks[i];
+  // 按 source 顺序处理：正文（块间文本）+ 块源码 + 结果
+  const byPos = allBlocks
+    .map((b, i) => ({ b, r: results[i] }))
+    .sort((x, y) => x.b.sourceStart - y.b.sourceStart);
+
+  let cursor = node.bodyStart;
+  for (const { b: block, r } of byPos) {
+    // 块前正文
+    appendText(rawContent.slice(cursor, block.sourceStart), state, parts);
 
     if (r.status === 'fulfilled' && r.value.action === 'stop') {
       throw new ControlFlowStop();
@@ -345,7 +349,11 @@ async function walkParallel(
     if (state.options.debug && r.status === 'fulfilled' && r.value.result?.success && r.value.result.output !== null) {
       parts.push(debugInsert(r.value.result.output));
     }
+
+    cursor = block.sourceEnd;
   }
+  // 最后一个块后的正文
+  appendText(rawContent.slice(cursor, node.bodyEnd), state, parts);
 
   // endparallel 指令注释
   if (keepDirectives) {

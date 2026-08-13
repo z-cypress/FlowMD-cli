@@ -23,6 +23,9 @@ export type ConditionResolver = (path: string) => unknown;
 /** 变量引用正则：{{name}} 或 {{a.b.c}} 或 {{items.0}} */
 const VAR_REF_REGEX = /\{\{([\w.-]+)\}\}/;
 
+/** 括号最大嵌套深度（防递归栈溢出 DoS） */
+const MAX_PARSE_DEPTH = 64;
+
 // ---- Tokenizer ----
 
 type TokenType = 'number' | 'string' | 'var' | 'ident' | 'op' | 'lparen' | 'rparen' | 'eof';
@@ -184,6 +187,8 @@ interface NotNode {
 class Parser {
   private tokens: Token[];
   private index = 0;
+  /** 括号嵌套深度（防止恶意深层括号导致栈溢出 DoS） */
+  private depth = 0;
 
   constructor(tokens: Token[]) {
     this.tokens = tokens;
@@ -273,7 +278,13 @@ class Parser {
       }
       case 'lparen': {
         this.next();
+        // 深度限制：防止深层嵌套括号导致递归栈溢出（DoS）
+        this.depth++;
+        if (this.depth > MAX_PARSE_DEPTH) {
+          throw new ConditionSyntaxError(`条件表达式嵌套过深（上限 ${MAX_PARSE_DEPTH} 层括号）`, tok.pos);
+        }
         const expr = this.parseOr();
+        this.depth--;
         this.expect('rparen', ')');
         return expr;
       }

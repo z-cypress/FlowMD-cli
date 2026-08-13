@@ -151,6 +151,8 @@ export const en = {
   'error.run.unknownRuntime': 'Unsupported runtime: {runtime} (supported: js / python)',
   'error.run.unknownPermission': 'Unknown permission declaration: {perms} (permission injection is not supported in v1.2)',
   'error.run.undefinedVar': 'Variable \'{var}\' declared by the run block is not defined',
+  'error.run.invalidTimeout': 'run block timeout must be a positive number, got: {value}',
+  'error.run.invalidMemory': 'run block memory must be a positive number, got: {value}',
   'error.run.exitCode': 'Script exited with code {code}: {detail}',
   'error.run.timeout': 'Script execution timed out',
   'error.run.noPython': 'python3 not found; cannot run the python runtime',

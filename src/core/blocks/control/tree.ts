@@ -109,6 +109,11 @@ export function buildControlTree(doc: ParsedDocument): ControlNode[] {
     const start = directive.sourceStart;
     const end = directive.sourceEnd;
 
+    // parallel 区内不允许 if/elif/else/for（有条件依赖，语义与并行冲突，静默跳过会丢内容）
+    if (topParallelFrame(stack) && (directive.kind === 'if' || directive.kind === 'elif' || directive.kind === 'else' || directive.kind === 'for')) {
+      throw new ControlTreeError(`${directive.kind} 指令不允许出现在 parallel 区内`, start);
+    }
+
     switch (directive.kind) {
       case 'if': {
         const node: IfNode = {

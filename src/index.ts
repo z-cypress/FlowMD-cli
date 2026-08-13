@@ -216,6 +216,11 @@ program
         traceFile: options.traceFile,
       };
 
+      // 从 stdin 读取时无文件可写：强制 stdout 输出（inline/new 无法定位文件名）
+      if (!file && runOptions.output !== 'stdout') {
+        runOptions.output = 'stdout';
+      }
+
       if (!runOptions.quiet) {
         console.log(chalk.blue(t('cli.banner')));
         console.log(chalk.gray(t('cli.file', { file: file || t('cli.stdin') })));

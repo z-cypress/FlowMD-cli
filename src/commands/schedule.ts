@@ -3,7 +3,7 @@
  * 定时任务管理：add / list / remove / pause / resume / run / 前台守护
  */
 
-import { existsSync, writeFileSync, readFileSync, unlinkSync, createWriteStream, mkdirSync } from 'node:fs';
+import { existsSync, writeFileSync, readFileSync, unlinkSync, mkdirSync, openSync, closeSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import chalk from 'chalk';
@@ -139,15 +139,14 @@ function startDaemon(): void {
   // 重新执行当前 CLI 的 schedule 前台 daemon；entry 为构建产物 dist/index.js
   const entry = process.argv[1];
   mkdirSync(join(process.cwd(), '.flow'), { recursive: true });
+  // 日志在子进程内直接重定向（而非父进程 pipe）：
+  // 父进程退出后 pipe 读端关闭，子进程写 stdout 会触发 EPIPE 导致守护崩溃
+  const logFd = openSync(daemonLogPath(), 'a');
   const child = spawn(process.execPath, [entry, 'schedule'], {
     detached: true,
-    stdio: ['ignore', 'pipe', 'pipe'],
+    stdio: ['ignore', logFd, logFd],
   });
-  // 子进程 stdout/stderr → 日志文件
-  const logStream = createWriteStream(daemonLogPath(), { flags: 'a' });
-  logStream.on('error', () => { /* 日志流错误不影响守护启动 */ });
-  if (child.stdout) child.stdout.pipe(logStream);
-  if (child.stderr) child.stderr.pipe(logStream);
+  closeSync(logFd);
   child.unref();
 
   writeFileSync(pidPath, String(child.pid), 'utf-8');

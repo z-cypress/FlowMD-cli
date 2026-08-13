@@ -116,9 +116,29 @@ export async function executeRunBlock(
       vars[name] = value;
     }
 
+    // 数值型 meta 校验：非法值（NaN/负数）明确报错，而非静默移除沙箱限制
+    const timeoutNum = config.timeout !== undefined && config.timeout !== '' ? Number(config.timeout) : undefined;
+    const memoryNum = config.memory !== undefined && config.memory !== '' ? Number(config.memory) : undefined;
+    if (timeoutNum !== undefined && (!Number.isFinite(timeoutNum) || timeoutNum <= 0)) {
+      return {
+        success: false,
+        output: null,
+        error: t('error.run.invalidTimeout', { value: config.timeout }),
+        duration: Date.now() - startTime,
+      };
+    }
+    if (memoryNum !== undefined && (!Number.isFinite(memoryNum) || memoryNum <= 0)) {
+      return {
+        success: false,
+        output: null,
+        error: t('error.run.invalidMemory', { value: config.memory }),
+        duration: Date.now() - startTime,
+      };
+    }
+
     const sandboxOptions: SandboxOptions = {
-      timeoutMs: config.timeout ? parseInt(config.timeout, 10) * 1000 : undefined,
-      memoryMB: config.memory ? parseInt(config.memory, 10) : undefined,
+      timeoutMs: timeoutNum !== undefined ? timeoutNum * 1000 : undefined,
+      memoryMB: memoryNum,
       signal,
     };
 
