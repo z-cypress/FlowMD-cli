@@ -25,6 +25,12 @@ export interface BlockPlugin {
   ) => Promise<BlockResult>;
 }
 
+/** 内置块类型名（插件禁止覆盖） */
+const BUILTIN_BLOCK_TYPES = new Set(['ai', 'data', 'template', 'include', 'run', 'agent', 'doc']);
+
+/** 合法插件名：小写字母/数字/下划线/连字符，最长 32 */
+const PLUGIN_NAME_REGEX = /^[a-z][a-z0-9_-]{0,31}$/;
+
 /**
  * 从 .flow/plugins/ 加载所有插件
  * @param pluginDir - 插件目录路径
@@ -42,9 +48,17 @@ export async function loadPlugins(pluginDir: string): Promise<BlockPlugin[]> {
       const filePath = join(pluginDir, file);
       const mod = await import(pathToFileURL(filePath).href);
       const plugin = mod.default ?? mod;
-      if (plugin && typeof plugin.name === 'string' && typeof plugin.execute === 'function') {
-        plugins.push(plugin as BlockPlugin);
+      if (!plugin || typeof plugin.name !== 'string' || typeof plugin.execute !== 'function') continue;
+      // 拒绝覆盖内置块类型（否则插件可劫持 ai/run 等）
+      if (BUILTIN_BLOCK_TYPES.has(plugin.name)) {
+        console.warn(`⚠ 插件 ${file}: 块类型 '${plugin.name}' 与内置块冲突，已忽略`);
+        continue;
       }
+      if (!PLUGIN_NAME_REGEX.test(plugin.name)) {
+        console.warn(`⚠ 插件 ${file}: 非法块类型名 '${plugin.name}'，已忽略`);
+        continue;
+      }
+      plugins.push(plugin as BlockPlugin);
     } catch (err) {
       console.warn(`⚠ Plugin load failed: ${file}: ${getErrorMessage(err)}`);
     }

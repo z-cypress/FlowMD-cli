@@ -18,12 +18,14 @@ interface DataBlockConfig {
 }
 
 /** 不安全的字符正则：SQL 注释与危险存储过程前缀（分号由多语句检测单独处理） */
-const UNSAFE_CHARS_REGEX = /--|\/\*|\*\/|xp_|sp_/i;
+const UNSAFE_CHARS_REGEX = /--|\/\*|\*\/|xp_|sp_|#/i;
 
 /** 危险 SQL 关键字列表（大写） */
 const DANGEROUS_KEYWORDS = [
   'DROP', 'DELETE', 'UPDATE', 'INSERT', 'ALTER',
   'TRUNCATE', 'CREATE', 'EXEC', 'EXECUTE', 'GRANT', 'REVOKE',
+  // MySQL 文件读写向量：绕过"只读 SELECT"契约
+  'INTO OUTFILE', 'INTO DUMPFILE', 'LOAD_FILE', 'LOAD DATA',
 ];
 
 /**
@@ -123,6 +125,27 @@ export async function executeDataBlock(
 }
 
 /**
+ * 移除 SQL 中的字符串字面量（处理单/双引号与反斜杠转义）
+ * 用于在去除字面量后检测危险关键字/注释，避免字符串内容误报或绕过
+ * @param sql - 原始 SQL
+ * @returns 去除字符串字面量后的 SQL
+ */
+function stripStringLiterals(sql: string): string {
+  let result = '';
+  let inSingle = false;
+  let inDouble = false;
+  let escaped = false;
+  for (const ch of sql) {
+    if (escaped) { escaped = false; result += ' '; continue; }
+    if (ch === '\\' && (inSingle || inDouble)) { escaped = true; result += ' '; continue; }
+    if (ch === "'" && !inDouble) { inSingle = !inSingle; result += ' '; continue; }
+    if (ch === '"' && !inSingle) { inDouble = !inDouble; result += ' '; continue; }
+    result += inSingle || inDouble ? ' ' : ch;
+  }
+  return result;
+}
+
+/**
  * 验证 SQL 语句安全性
  * @param sql - SQL 语句
  * @returns 错误信息，安全则返回 null
@@ -135,8 +158,8 @@ function validateSQL(sql: string): string | null {
     return t('error.data.selectOnly');
   }
 
-  // 2. 移除字符串字面量后检测危险关键字
-  const withoutStrings = sql.replace(/'.*?'/g, '').replace(/".*?"/g, '');
+  // 2. 移除字符串字面量后检测危险关键字（处理转义引号，防 \' 绕过）
+  const withoutStrings = stripStringLiterals(sql);
   const upperWithout = withoutStrings.toUpperCase();
 
   for (const keyword of DANGEROUS_KEYWORDS) {

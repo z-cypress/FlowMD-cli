@@ -31,19 +31,26 @@ function getNested(obj: Record<string, unknown>, path: string): unknown {
   return current;
 }
 
+/** 禁止作为配置键路径的安全风险属性（原型污染防护） */
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
 /**
- * 设置嵌套键的值
+ * 设置嵌套键的值（防护 __proto__/constructor 原型污染）
  */
 function setNested(obj: Record<string, unknown>, path: string, value: unknown): void {
   const parts = path.split('.');
   let current = obj;
   for (let i = 0; i < parts.length - 1; i++) {
-    if (!(parts[i] in current) || typeof current[parts[i]] !== 'object') {
-      current[parts[i]] = {};
+    const part = parts[i];
+    if (UNSAFE_KEYS.has(part)) return; // 拒绝原型污染路径
+    if (!(part in current) || typeof current[part] !== 'object' || current[part] === null) {
+      current[part] = {};
     }
-    current = current[parts[i]] as Record<string, unknown>;
+    current = current[part] as Record<string, unknown>;
   }
-  current[parts[parts.length - 1]] = value;
+  const last = parts[parts.length - 1];
+  if (UNSAFE_KEYS.has(last)) return; // 拒绝原型污染路径
+  current[last] = value;
 }
 
 /**

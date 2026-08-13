@@ -10,36 +10,47 @@ import { tmpdir } from 'node:os';
 
 describe('deliver', () => {
   let tempDir: string;
+  let originalCwd: string;
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), 'flowmd-deliver-'));
+    originalCwd = process.cwd();
+    process.chdir(tempDir);
   });
 
   afterEach(() => {
+    process.chdir(originalCwd);
     rmSync(tempDir, { recursive: true, force: true });
   });
 
   describe('file delivery', () => {
-    it('should write output to file', async () => {
-      const filePath = join(tempDir, 'output.md');
-      const result = await deliver(`file:${filePath}`, 'hello world', 'ai');
+    it('should write output to .flow/output/', async () => {
+      const result = await deliver('file:output.md', 'hello world', 'ai');
 
       expect(result.success).toBe(true);
-      expect(readFileSync(filePath, 'utf-8')).toBe('hello world');
+      expect(readFileSync(join(tempDir, '.flow', 'output', 'output.md'), 'utf-8')).toBe('hello world');
     });
 
     it('should create nested directories', async () => {
-      const filePath = join(tempDir, 'sub', 'dir', 'output.md');
-      const result = await deliver(`file:${filePath}`, 'nested', 'ai');
+      const result = await deliver('file:sub/dir/output.md', 'nested', 'ai');
 
       expect(result.success).toBe(true);
-      expect(readFileSync(filePath, 'utf-8')).toBe('nested');
+      expect(readFileSync(join(tempDir, '.flow', 'output', 'sub', 'dir', 'output.md'), 'utf-8')).toBe('nested');
     });
 
-    it('should handle relative file paths', async () => {
-      const result = await deliver('file:./test-output.md', 'relative path test', 'ai');
+    it('should reject absolute paths outside project', async () => {
+      const outside = join(tmpdir(), 'flowmd-deliver-outside-' + Date.now() + '.md');
+      const result = await deliver(`file:${outside}`, 'data', 'ai');
 
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('.flow/output');
+    });
+
+    it('should reject path traversal via ..', async () => {
+      const result = await deliver('file:../../escape.md', 'data', 'ai');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('.flow/output');
     });
   });
 
