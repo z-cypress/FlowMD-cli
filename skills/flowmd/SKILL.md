@@ -7,8 +7,6 @@ description: "使用 FlowMD 执行 Markdown 中的可执行代码块（AI 调用
 
 FlowMD 是一个 CLI 工具：`.md` 文件里的特殊代码块会被顺序执行，`{{变量}}` 被结果替换后输出渲染文档。适合把"调研 → 分析 → 报告"写成一份文档并一键执行。
 
-本 skill 完全自包含，不依赖任何项目文件或源码。
-
 ## 使用前置：检查安装
 
 调用 flowmd 前，先确认已全局安装：
@@ -27,7 +25,7 @@ flowmd --version
 3. 安装后验证：`flowmd --version`
 4. 若安装失败或用户拒绝，则中止任务并告知
 
-> 不要通过项目内 `pnpm dev` 或源码方式运行——本 skill 面向独立使用场景，一律用全局 `flowmd` 命令。
+> 一律使用全局 `flowmd` 命令。
 
 ## 何时使用
 
@@ -115,12 +113,10 @@ flowmd --version
 - 插件块类型需在 `.flow/plugins/` 放插件文件，否则 ` ```自定义块 ```` 会被当普通代码块忽略
 - `--var` 优先级高于 `--var-file` 与 config，低于块 `output` 的写入
 
-## 内建参考
-
-无需外部文档，flowmd 自带全部参考：
+## 参考
 
 - `flowmd help blocks` — 块类型与参数速查
 - `flowmd <命令> --help` — 各命令详细选项
 - `flowmd new -l` — 内置模板列表
 - `flowmd config` — 当前配置
-- 用户文档（安装/配置/块详解）托管在 GitHub 仓库 `z-cypress/FlowMD-cli` 的 `docs/` 目录，可按需查阅
+- 用户文档（安装/配置/块详解）托管在 GitHub 仓库 `z-cypress/FlowMD-cli` 的 `docs/` 目录
