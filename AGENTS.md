@@ -250,6 +250,10 @@ CLI args > Env vars / `.env` > Project `.flow/config.yml` > Global `~/.flow/conf
 
 ## Agent skills
 
+### flowmd
+
+`flowmd` skill（`skills/flowmd/SKILL.md`）：让 agent 调用本应用执行可执行 Markdown（命令速查、块语法、控制流、管道操作符、最佳实践与常见误区）。当需要运行/生成/校验 `.md` 文档、查 LLM 成本或聚合执行结果时加载。
+
 ### Issue tracker
 
 Issues are tracked as markdown files under `.scratch/<feature>/`. See `note/agents/issue-tracker.md`.
