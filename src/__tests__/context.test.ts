@@ -451,5 +451,78 @@ describe('ExecutionContext', () => {
         expect(ctx.render('Hello {{name}}!')).toBe('Hello Alice!');
       });
     });
+
+    describe('field', () => {
+      it('should extract a field from each object in an array', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('orders', [{ revenue: 10 }, { revenue: 20 }]);
+        expect(ctx.render('{{orders | field:revenue}}')).toContain('10');
+        expect(ctx.render('{{orders | field:revenue}}')).toContain('20');
+      });
+
+      it('should return original value for non-array', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('x', 'hello');
+        expect(ctx.render('{{x | field:revenue}}')).toBe('hello');
+      });
+
+      it('should return array of undefined for missing field', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('orders', [{ a: 1 }]);
+        expect(ctx.render('{{orders | field:missing}}')).toContain('null');
+      });
+    });
+
+    describe('sum', () => {
+      it('should sum an array of numbers', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('nums', [1, 2, 3, 4]);
+        expect(ctx.render('{{nums | sum}}')).toBe('10');
+      });
+
+      it('should return 0 for non-numeric array', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('nums', ['a', 'b']);
+        expect(ctx.render('{{nums | sum}}')).toBe('0');
+      });
+
+      it('should return original value for non-array', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('x', 5);
+        expect(ctx.render('{{x | sum}}')).toBe('5');
+      });
+    });
+
+    describe('chained filters', () => {
+      it('should chain field and sum', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('orders', [{ revenue: 10 }, { revenue: 20 }, { revenue: 30 }]);
+        expect(ctx.render('{{orders | field:revenue | sum}}')).toBe('60');
+      });
+
+      it('should chain upper and len', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('x', 'hello');
+        expect(ctx.render('{{x | upper | len}}')).toBe('5');
+      });
+
+      it('should chain field and default', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('orders', [{ revenue: 10.5 }]);
+        expect(ctx.render('{{orders | field:revenue | round}}')).toBe('11');
+      });
+
+      it('should keep placeholder when chain has unknown filter', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('x', 'hello');
+        expect(ctx.render('{{x | upper | bogus}}')).toBe('{{x | upper | bogus}}');
+      });
+
+      it('should keep placeholder when chain value is undefined', () => {
+        const ctx = new ExecutionContext();
+        ctx.set('x', undefined);
+        expect(ctx.render('{{x | default:foo | upper}}')).toBe('FOO');
+      });
+    });
   });
 });

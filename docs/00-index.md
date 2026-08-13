@@ -48,7 +48,7 @@
  - run 块支持 js（isolated-vm 沙箱）与 python（子进程），含首次确认与资源限制
  - 控制流：`<!-- if/elif/else/endif -->` 条件分支与 `<!-- for/endfor -->` 循环（含 collect 累积）
  - 并行执行：`<!-- parallel/endparallel -->` 区间内块并发执行（v0.5.0）
- - 管道操作符：`{{x | len}}` / `{{x | join:", "}}` / `{{name | default:"匿名"}}` 等 7 种过滤器（v0.5.0）
+ - 管道操作符：`{{x | len}}` / `{{x | join:", "}}` / `{{name | default:"匿名"}}` 等 9 种过滤器，支持链式（`{{orders | field:revenue | sum}}`）（v0.5.0）
  - AI 块增强：`format: "json"` 结构化输出、`retry`/`validate` 重试校验、`stream: true` 流式、`deliver` 输出投递（v0.5.0）
  - Prompt 库：`.flow/prompts/` 复用提示词；多轮对话 `conversation:`（v0.6.0）
  - 成本仪表盘：`flowmd cost --days 7` 按日/文件聚合 token 用量与估算费用（v0.6.0）

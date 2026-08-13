@@ -90,7 +90,7 @@ flowmd --version
 
 ## 管道操作符
 
-正文 `{{expr | filter:arg}}` 轻量计算：`len` / `default` / `join` / `round` / `upper` / `lower` / `truncate`。参数可用引号：`{{name | default:"匿名"}}`。不支持链式（一个 `{{}}` 内一个过滤器）。
+正文 `{{expr | filter:arg}}` 轻量计算，支持链式（`{{orders | field:revenue | sum}}`）：`len` / `default` / `join` / `round` / `upper` / `lower` / `truncate` / `field`（数组取字段）/ `sum`（数字求和）。参数可用引号：`{{name | default:"匿名"}}`。
 
 ## Agent 集成最佳实践
 

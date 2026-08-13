@@ -124,7 +124,7 @@ Only SELECT allowed. Blocks: DROP, DELETE, UPDATE, INSERT, ALTER, TRUNCATE, CREA
 
 ## Pipe Operators (v0.5.0)
 
-正文 `{{expr | filter:arg}}` 轻量计算：`len` / `default` / `join` / `round` / `upper` / `lower` / `truncate`。参数支持引号包裹（`{{name | default:"匿名"}}`）。
+正文 `{{expr | filter:arg}}` 轻量计算，**支持链式**（`{{orders | field:revenue | sum}}`）：`len` / `default` / `join` / `round` / `upper` / `lower` / `truncate` / `field`（数组取字段）/ `sum`（数字求和）。参数支持引号包裹（`{{name | default:"匿名"}}`）。
 
 ## Project Structure
 

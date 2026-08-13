@@ -1,11 +1,17 @@
 /**
  * FlowMD 变量上下文管理
  * 存储和渲染代码块中使用的变量
- * 支持管道过滤器：{{expr | filter:arg}}
+ * 支持管道过滤器（可链式）：{{expr | filter:arg | filter:arg}}
  */
 
-/** 管道过滤器正则：{{expr | filter:arg}} 或 {{expr | filter}} 或 {{expr}} */
-const FILTER_REGEX = /\{\{([\w.-]+)(?:\s*\|\s*(\w+)(?:\s*:\s*([^}]+))?)?\}\}/g;
+/**
+ * 管道过滤器正则：{{expr}} / {{expr | filter}} / {{expr | filter:arg}} / 链式 {{a | f1 | f2}}
+ * 分组：1=表达式，2=首个过滤器名，3=首个过滤器参数，4=其余管道段
+ */
+const FILTER_REGEX = /\{\{([\w.-]+)((?:\s*\|\s*\w+(?:\s*:\s*[^}]+)?)*)\}\}/g;
+
+/** 单个管道段正则：| filter[: arg] */
+const PIPE_SEGMENT_REGEX = /\|\s*(\w+)(?:\s*:\s*([^|]+))?/g;
 
 /** 过滤器函数类型 */
 type FilterFn = (value: unknown, arg?: string) => unknown;
@@ -33,6 +39,21 @@ const FILTERS: Record<string, FilterFn> = {
     const max = arg ? parseInt(arg, 10) : 100;
     return v.length <= max ? v : v.slice(0, max) + '...';
   },
+  field: (v, arg) => {
+    if (!Array.isArray(v) || !arg) return v;
+    return v.map((item) => {
+      if (item && typeof item === 'object') {
+        return (item as Record<string, unknown>)[arg];
+      }
+      return undefined;
+    });
+  },
+  sum: (v) => {
+    if (!Array.isArray(v)) return v;
+    const nums = v.filter((x): x is number => typeof x === 'number');
+    if (nums.length === 0) return 0;
+    return nums.reduce((acc, x) => acc + x, 0);
+  },
 };
 
 /**
@@ -47,6 +68,26 @@ function stripQuotes(arg?: string): string | undefined {
     return arg.slice(1, -1);
   }
   return arg;
+}
+
+/**
+ * 解析管道段字符串为 {name, arg} 数组
+ * 输入：" | field:revenue | sum"（即 FILTER_REGEX 捕获的 pipes 分组）
+ * 输出：[{name: 'field', arg: 'revenue'}, {name: 'sum', arg: undefined}]
+ * @param pipes - 管道段原始文本（可空）
+ * @returns 解析后的管道段数组
+ */
+function parsePipeSegments(pipes: string): Array<{ name: string; arg?: string }> {
+  const segments: Array<{ name: string; arg?: string }> = [];
+  if (!pipes) return segments;
+
+  PIPE_SEGMENT_REGEX.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = PIPE_SEGMENT_REGEX.exec(pipes)) !== null) {
+    const arg = m[2]?.trim();
+    segments.push({ name: m[1], arg: arg || undefined });
+  }
+  return segments;
 }
 
 export class ExecutionContext {
@@ -112,22 +153,23 @@ export class ExecutionContext {
   }
 
   /**
-   * 渲染模板字符串，替换 {{variable}} 占位符（支持管道过滤器）
-   * @param template - 包含 {{variable}} 或 {{variable | filter:arg}} 占位符的模板字符串
+   * 渲染模板字符串，替换 {{variable}} 占位符（支持链式管道过滤器）
+   * @param template - 包含 {{variable}} 或 {{variable | filter:arg | ...}} 占位符的模板字符串
    * @returns 替换变量后的字符串
    */
   render(template: string): string {
-    return template.replace(FILTER_REGEX, (match, expr: string, filterName?: string, filterArg?: string) => {
+    return template.replace(FILTER_REGEX, (match, expr: string, pipes: string) => {
       let value = this.resolvePath(expr);
 
-      // 应用管道过滤器
-      if (filterName) {
-        const fn = FILTERS[filterName];
+      // 应用管道过滤器链（可多个，如 {{a | field:"x" | sum}}）
+      const segments = parsePipeSegments(pipes);
+      for (const seg of segments) {
+        const fn = FILTERS[seg.name];
         if (!fn) {
           // 未知过滤器：保留原始占位符
           return match;
         }
-        value = fn(value, stripQuotes(filterArg));
+        value = fn(value, seg.arg === undefined ? undefined : stripQuotes(seg.arg));
       }
 
       if (value === undefined) return match;

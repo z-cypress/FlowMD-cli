@@ -48,7 +48,7 @@ Currently at **MVP stage**, the following is implemented:
 - Run blocks supporting js (isolated-vm sandbox) and python (subprocess), with first-run confirmation and resource limits
 - Control flow: `<!-- if/elif/else/endif -->` conditionals and `<!-- for/endfor -->` loops (with collect accumulation)
 - Parallel execution: `<!-- parallel/endparallel -->` concurrent block region (v0.5.0)
-- Pipe operators: `{{x | len}}` / `{{x | join:", "}}` / `{{name | default:"anonymous"}}` and 6 more filters (v0.5.0)
+- Pipe operators: `{{x | len}}` / `{{x | join:", "}}` / `{{name | default:"anonymous"}}` and 6 more filters, chainable (e.g. `{{orders | field:revenue | sum}}`) (v0.5.0)
 - AI block enhancements: `format: "json"` structured output, `retry`/`validate`, `stream: true`, `deliver` output delivery (v0.5.0)
 - Prompt library: reusable prompts in `.flow/prompts/`; multi-turn `conversation:` (v0.6.0)
 - Cost dashboard: `flowmd cost --days 7` aggregates token usage and estimated cost by day/file (v0.6.0)
